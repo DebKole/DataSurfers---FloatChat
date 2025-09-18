@@ -1,0 +1,5 @@
+langgraph 
+fastapi
+langchain
+langchain-core
+langchain-google-genai

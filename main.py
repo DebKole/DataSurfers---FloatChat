@@ -35,7 +35,3 @@ graph.add_edge("ai", END)
 
 model = graph.compile()
 
-input_state = add_query("what is ARGO?")
-result = model.invoke(input_state)
-
-print(result["answers"][-1].content)
