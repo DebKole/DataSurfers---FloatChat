@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './ChatContainer.css';
+import axios from 'axios';
 
 const ChatContainer = () => {
   const [messages, setMessages] = useState([]);
@@ -35,38 +36,61 @@ const ChatContainer = () => {
     scrollToBottom();
   }, [messages]);
 
-  const handleOptionClick = (option) => {
-    setInputValue(option.prompt);
-    // Optionally auto-send the message
-    const newMessages = [...messages, { type: 'user', content: option.prompt }];
-    setMessages(newMessages);
-    setInputValue('');
-    
-    // Simulate bot response after a delay
-    setTimeout(() => {
-      setMessages(prev => [...prev, { 
-        type: 'bot', 
-        content: `Great! I'll help you ${option.title.toLowerCase()}. Let me know what specific information you need.` 
-      }]);
-    }, 700);
-  };
+  const handleOptionClick = async (option) => {
+  const newMessages = [...messages, { type: 'user', content: option.prompt }];
+  setMessages(newMessages);
 
-  const handleSend = () => {
-    if (inputValue.trim()) {
-      // Add user message
-      const newMessages = [...messages, { type: 'user', content: inputValue }];
-      setMessages(newMessages);
-      setInputValue('');
-      
-      // Simulate bot response after a delay
-      setTimeout(() => {
-        setMessages(prev => [...prev, { 
-          type: 'bot', 
-          content: "Nice question — in a real app I would fetch ARGO data and display charts here." 
-        }]);
-      }, 700);
+  try {
+    const response = await axios.post("http://127.0.0.1:8000", {
+      query: option.prompt,
+    });
+
+    setMessages(prev => [
+      ...prev,
+      { type: 'bot', content: response.data.message }
+    ]);
+  } catch (error) {
+    console.error("Error fetching response:", error);
+    setMessages(prev => [
+      ...prev,
+      { type: 'bot', content: "⚠️ Could not fetch response from server." }
+    ]);
+  }
+};
+
+
+  const handleSend = async () => {
+  if (inputValue.trim()) {
+    // Add user message
+    console.log("handle send");
+    const newMessages = [...messages, { type: 'user', content: inputValue }];
+    setMessages(newMessages);
+
+    // Store the current query before clearing
+    const query = inputValue;
+    setInputValue('');
+
+    try {
+      // Call FastAPI backend
+      const response = await axios.post("http://127.0.0.1:8000", {
+        query: query,
+      });
+
+      // Add bot message with response
+      setMessages(prev => [
+        ...prev,
+        { type: 'bot', content: response.data.message }
+      ]);
+
+    } catch (error) {
+      console.log("Error fetching response:", error);
+      setMessages(prev => [
+        ...prev,
+        { type: 'bot', content: "⚠️ Sorry, something went wrong connecting to the server." }
+      ]);
     }
-  };
+  }
+};
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
