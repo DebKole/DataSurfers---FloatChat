@@ -35,5 +35,3 @@ graph.add_edge("ai", END)
 
 model = graph.compile()
 
-
-

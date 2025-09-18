@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.params import Body
 from fastapi.middleware.cors import CORSMiddleware
+
+
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel
@@ -12,6 +14,7 @@ load_dotenv()
 
 app=FastAPI()
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],  # React app
@@ -19,6 +22,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 class QueryRequest(BaseModel):
     query: str
