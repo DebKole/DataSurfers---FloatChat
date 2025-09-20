@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import './DataSidebar.css';
+import MapComponent from './MapComponent';
 
-const DataSidebar = () => {
+const DataSidebar = ({ selectedView = 'table', onViewChange }) => {
   const [collapsed, setCollapsed] = useState(false);
-  const [selectedView, setSelectedView] = useState('table');
 
   const toggleSidebar = () => {
     setCollapsed(!collapsed);
   };
 
   const handleViewChange = (e) => {
-    setSelectedView(e.target.value);
+    const newView = e.target.value;
+    if (onViewChange) {
+      onViewChange(newView);
+    }
   };
 
   return (
@@ -78,20 +81,10 @@ const DataSidebar = () => {
       )}
 
       {selectedView === 'map' && (
-        <div className="data-card">
-          <h3><i className="fas fa-map"></i> Map</h3>
-          <div className="map-preview">
-            <div className="map-placeholder">
-              <i className="fas fa-globe"></i>
-              <p>Interactive Ocean Map</p>
-              <div className="map-stats">
-                <span>47 Active Floats</span>
-                <span>North Atlantic Region</span>
-              </div>
-            </div>
-          </div>
-          <div className="view-more">
-            <button className="view-more-btn">Open Map View</button>
+        <div className="data-card map-card">
+          <h3><i className="fas fa-map"></i> Interactive Ocean Map</h3>
+          <div className="map-content">
+            <MapComponent />
           </div>
         </div>
       )}

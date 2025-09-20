@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import './ChatContainer.css';
 import axios from 'axios';
 
-const ChatContainer = () => {
+const ChatContainer = ({ onMapRequest }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef(null);
@@ -40,6 +40,11 @@ const ChatContainer = () => {
   const newMessages = [...messages, { type: 'user', content: option.prompt }];
   setMessages(newMessages);
 
+  // Trigger map view if this is the "Use Map" action
+  if (option.title === "Use Map" && onMapRequest) {
+    onMapRequest();
+  }
+
   try {
     const response = await axios.post("http://127.0.0.1:8000", {
       query: option.prompt,
@@ -69,6 +74,16 @@ const ChatContainer = () => {
     // Store the current query before clearing
     const query = inputValue;
     setInputValue('');
+
+    // Check if user is asking for map-related functionality
+    const mapKeywords = ['map', 'visualize', 'show location', 'geographic', 'coordinates', 'latitude', 'longitude', 'plot', 'chart'];
+    const isMapRequest = mapKeywords.some(keyword => 
+      query.toLowerCase().includes(keyword.toLowerCase())
+    );
+    
+    if (isMapRequest && onMapRequest) {
+      onMapRequest();
+    }
 
     try {
       // Call FastAPI backend

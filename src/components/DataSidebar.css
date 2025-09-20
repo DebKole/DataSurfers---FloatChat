@@ -406,3 +406,62 @@
 .data-sidebar.collapsed .view-selector {
   display: none !important;
 }
+
+/* Map Card Specific Styles */
+.map-card {
+  padding: 10px !important;
+  background: rgba(44,82,130,0.6) !important;
+}
+
+.map-card h3 {
+  font-size: 14px !important;
+  margin-bottom: 8px !important;
+}
+
+.map-content {
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.map-content .map-component {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.map-content .map-component .map-controls {
+  padding: 8px;
+  background: #f1f3f4;
+}
+
+.map-content .map-component .map-type-selector button {
+  padding: 4px 8px;
+  font-size: 10px;
+}
+
+.map-content .map-component .map-container {
+  min-height: 250px;
+}
+
+.map-content .map-component .map-display {
+  height: 250px !important;
+}
+
+.map-content .map-component .map-info {
+  padding: 8px;
+}
+
+.map-content .map-component .data-summary {
+  font-size: 10px;
+}
+
+/* Responsive adjustments for map in sidebar */
+@media (max-width: 1200px) {
+  .map-content .map-component .map-display {
+    height: 200px !important;
+  }
+  
+  .map-content .map-component .map-container {
+    min-height: 200px;
+  }
+}
