@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import './DataSidebar.css';
+import MapVisualization from './MapVisualization';
 
-const DataSidebar = () => {
+const DataSidebar = ({ mapData = null, showMap = false, onMapClose = () => {} }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedView, setSelectedView] = useState('table');
+  const [isMapVisible, setIsMapVisible] = useState(false);
 
   const toggleSidebar = () => {
     setCollapsed(!collapsed);
@@ -12,6 +14,25 @@ const DataSidebar = () => {
   const handleViewChange = (e) => {
     setSelectedView(e.target.value);
   };
+
+  const handleOpenMap = () => {
+    setIsMapVisible(true);
+  };
+
+  const handleCloseMap = () => {
+    setIsMapVisible(false);
+    onMapClose();
+  };
+
+  // Auto-open map when new map data is received
+  React.useEffect(() => {
+    if (showMap && mapData) {
+      setIsMapVisible(true);
+      setSelectedView('map');
+    }
+  }, [showMap, mapData]);
+
+
 
   return (
     <aside className={`data-sidebar ${collapsed ? 'collapsed' : ''}`} id="rightSidebar" aria-label="Data overview sidebar">
@@ -121,13 +142,28 @@ const DataSidebar = () => {
               <i className="fas fa-globe"></i>
               <p>Interactive Ocean Map</p>
               <div className="map-stats">
-                <span>47 Active Floats</span>
-                <span>North Atlantic Region</span>
+                {mapData ? (
+                  <>
+                    <span>{mapData.map_data?.length || 0} Data Points</span>
+                    <span>{mapData.parameter?.charAt(0).toUpperCase() + mapData.parameter?.slice(1) || 'Temperature'} Data</span>
+                    <span>{mapData.region?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Current Location'}</span>
+                  </>
+                ) : (
+                  <>
+                    <span>5 Argo Float Profiles</span>
+                    <span>North Atlantic Region</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
           <div className="view-more">
-            <button className="view-more-btn">Open Map View</button>
+            <button 
+              className={`view-more-btn ${mapData ? 'has-data' : ''}`} 
+              onClick={handleOpenMap}
+            >
+              {mapData ? '🗺️ View Data Map' : 'Open Map View'}
+            </button>
           </div>
         </div>
       )}
@@ -170,6 +206,15 @@ const DataSidebar = () => {
   </div>
 </div>
       )}
+
+      {/* Map Visualization Component */}
+      <MapVisualization
+        mapData={mapData?.map_data}
+        isVisible={isMapVisible}
+        onClose={handleCloseMap}
+        queryType={mapData?.query_type || 'general'}
+        parameter={mapData?.parameter || 'temperature'}
+      />
     </aside>
   );
 };

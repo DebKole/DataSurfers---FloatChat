@@ -51,12 +51,17 @@ async def query_answer(req: QueryRequest):
         "status": 201,
         "message": ans,
         "query_type": result.get("data_response", {}).get("query_type", "general"),
-        "has_data": result.get("use_data", False)
+        "has_data": result.get("use_data", False),
+        "show_map": result.get("show_map", False)
     }
     
     # Add structured data if available (for potential future visualization)
     if result.get("use_data") and "data" in result.get("data_response", {}):
         response_data["structured_data"] = result["data_response"]["data"]
+    
+    # Add map data if available
+    if result.get("show_map", False):
+        response_data["map_data"] = result.get("map_data", {})
     
     return response_data
 

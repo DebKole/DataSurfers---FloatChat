@@ -20,9 +20,11 @@ class AgentState(TypedDict):
     answers: List[AIMessage]
     use_data: bool
     data_response: dict
+    show_map: bool
+    map_data: dict
 
 def add_query(query: str) -> AgentState:
-    state: AgentState = {"querys": [], "answers": [], "use_data": False, "data_response": {}}
+    state: AgentState = {"querys": [], "answers": [], "use_data": False, "data_response": {}, "show_map": False, "map_data": {}}
     state["querys"].append(HumanMessage(content=query))
     return state
 
@@ -47,6 +49,16 @@ def data_query_node(state: AgentState) -> AgentState:
         # Create AI message with the data-driven response
         ai_response = AIMessage(content=result['response'])
         state["answers"].append(ai_response)
+        
+        # Check if this should show a map
+        if result.get('show_map', False):
+            state["show_map"] = True
+            state["map_data"] = {
+                'map_data': result.get('map_data', []),
+                'parameter': result.get('map_parameter', 'temperature'),
+                'region': result.get('map_region'),
+                'query_type': result.get('query_type', 'map_visualization')
+            }
     else:
         # Fall back to LLM for general queries
         state["use_data"] = False
