@@ -276,8 +276,10 @@
 
 /* View More Button Styles */
 .view-more {
+  display:flex;
   margin-top: 15px;
   text-align: center;
+  gap:5px;
 }
 
 .view-more-btn {
@@ -296,6 +298,26 @@
 .view-more-btn:hover {
   background: rgba(49,130,206,1);
   transform: translateY(-1px);
+}
+
+.view-more-btn.has-data {
+  background: linear-gradient(135deg, #3182ce 0%, #2563eb 100%);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  font-weight: 700;
+  animation: pulse 2s infinite;
+}
+
+.view-more-btn.has-data:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+  50% { box-shadow: 0 4px 20px rgba(59, 130, 246, 0.5); }
+  100% { box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
 }
 
 /* View Selector Styles */

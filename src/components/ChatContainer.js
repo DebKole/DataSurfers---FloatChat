@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import './ChatContainer.css';
 import axios from 'axios';
 
-const ChatContainer = ({ onMapRequest }) => {
+const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef(null);
@@ -54,6 +54,11 @@ const ChatContainer = ({ onMapRequest }) => {
       ...prev,
       { type: 'bot', content: response.data.message }
     ]);
+
+    // Handle map data if present
+    if (response.data.show_map && response.data.map_data) {
+      onMapData(response.data.map_data, true);
+    }
   } catch (error) {
     console.error("Error fetching response:", error);
     setMessages(prev => [
@@ -96,6 +101,11 @@ const ChatContainer = ({ onMapRequest }) => {
         ...prev,
         { type: 'bot', content: response.data.message }
       ]);
+
+      // Handle map data if present
+      if (response.data.show_map && response.data.map_data) {
+        onMapData(response.data.map_data, true);
+      }
 
     } catch (error) {
       console.log("Error fetching response:", error);
