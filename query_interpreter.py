@@ -1,10 +1,12 @@
 import re
 from typing import Dict, Any, List, Optional, Tuple
 from data_processor import ArgoDataProcessor
+from map_data_provider import MapDataProvider
 
 class QueryInterpreter:
     def __init__(self, data_processor: ArgoDataProcessor):
         self.processor = data_processor
+        self.map_provider = MapDataProvider(data_processor)
         self.setup_patterns()
     
     def setup_patterns(self):
@@ -70,6 +72,19 @@ class QueryInterpreter:
                 r'dataset.*info',
                 r'data.*summary'
             ],
+            'map_query': [
+                r'show.*map',
+                r'display.*map',
+                r'map.*view',
+                r'visualize.*map',
+                r'plot.*map',
+                r'heatmap',
+                r'region.*map',
+                r'ocean.*map',
+                r'where.*is',
+                r'location.*map',
+                r'distribution.*map'
+            ],
             'range_query': [
                 r'between.*(\d+).*and.*(\d+)',
                 r'from.*(\d+).*to.*(\d+)',
@@ -105,6 +120,9 @@ class QueryInterpreter:
         
         elif self._matches_pattern(query_lower, 'profile_query'):
             return self._handle_profile_query(query_lower)
+        
+        elif self._matches_pattern(query_lower, 'map_query'):
+            return self._handle_map_query(query)
         
         else:
             return self._handle_general_query(query)
@@ -341,6 +359,36 @@ The salinity shows a **{analysis['overall_trend']}** pattern.
                 response += f"• Avg Salinity: {data['avg_salinity']:.2f}\n\n"
         
         return {'response': response, 'data': comparison, 'query_type': 'profile_comparison'}
+    
+    def _handle_map_query(self, query: str) -> Dict[str, Any]:
+        """Handle map visualization queries."""
+        map_result = self.map_provider.process_map_query(query)
+        
+        parameter = map_result['parameter']
+        region = map_result['region']
+        viz_type = map_result['visualization_type']
+        
+        # Create response text
+        response = f"""🗺️ **Map Visualization Ready**
+        
+📊 **Parameter:** {parameter.title()}
+🌍 **Region:** {region.replace('_', ' ').title() if region else 'Current Data Location'}
+📈 **Visualization:** {viz_type.title()}
+
+🔍 **Data Points:** {len(map_result['map_data'])} measurements
+📏 **Depth Range:** {map_result['depth_range'] if map_result['depth_range'] else 'Surface (0-50m)'}
+
+Click the map view to see the interactive visualization with heatmap overlay and data points."""
+        
+        return {
+            'response': response,
+            'data': map_result,
+            'query_type': 'map_visualization',
+            'show_map': True,
+            'map_data': map_result['map_data'],
+            'map_parameter': parameter,
+            'map_region': region
+        }
     
     def _handle_general_query(self, query: str) -> Dict[str, Any]:
         """Handle general queries that don't match specific patterns."""
