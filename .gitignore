@@ -23,5 +23,6 @@ yarn-debug.log*
 yarn-error.log*
 poetry.lock
 uv.lock
+venv
 .env
 ./__pycache__

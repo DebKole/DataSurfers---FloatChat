@@ -3,3 +3,7 @@ fastapi
 langchain
 langchain-core
 langchain-google-genai
+pandas
+numpy
+uvicorn
+python-dotenv

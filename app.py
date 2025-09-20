@@ -30,12 +30,33 @@ class QueryRequest(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"message":"server is running"}
+    return {"message": "FloatChat server is running", "version": "1.0.0"}
+
+@app.get("/dataset-info")
+async def get_dataset_info():
+    """Get basic information about the loaded dataset."""
+    from data_processor import ArgoDataProcessor
+    processor = ArgoDataProcessor("argo_demo.csv")
+    stats = processor.get_basic_stats()
+    return {"status": 200, "data": stats}
 
 @app.post("/")
-async def query_answer(req:QueryRequest):
-    state=add_query(req.query)
-    result=model.invoke(state)
-    ans=result["answers"][-1].content
-    return {"status":201,"message":ans}
+async def query_answer(req: QueryRequest):
+    state = add_query(req.query)
+    result = model.invoke(state)
+    ans = result["answers"][-1].content
+    
+    # Include additional data if it was a data-driven response
+    response_data = {
+        "status": 201,
+        "message": ans,
+        "query_type": result.get("data_response", {}).get("query_type", "general"),
+        "has_data": result.get("use_data", False)
+    }
+    
+    # Add structured data if available (for potential future visualization)
+    if result.get("use_data") and "data" in result.get("data_response", {}):
+        response_data["structured_data"] = result["data_response"]["data"]
+    
+    return response_data
 
