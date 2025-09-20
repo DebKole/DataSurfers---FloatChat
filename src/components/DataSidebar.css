@@ -276,8 +276,10 @@
 
 /* View More Button Styles */
 .view-more {
+  display:flex;
   margin-top: 15px;
   text-align: center;
+  gap:5px;
 }
 
 .view-more-btn {
