@@ -85,6 +85,41 @@ class QueryInterpreter:
                 r'location.*map',
                 r'distribution.*map'
             ],
+            'pollution_query': [
+                r'pollution',
+                r'acidification',
+                r'ph.*level',
+                r'oxygen.*level',
+                r'chemical.*analysis',
+                r'ocean.*acidification',
+                r'pollution.*detection',
+                r'environmental.*impact',
+                r'water.*quality',
+                r'contamination'
+            ],
+            'climate_query': [
+                r'climate.*change',
+                r'heat.*content',
+                r'warming',
+                r'temperature.*anomaly',
+                r'climate.*impact',
+                r'global.*warming',
+                r'thermal.*expansion',
+                r'sea.*level',
+                r'climate.*analysis'
+            ],
+            'organism_query': [
+                r'organism',
+                r'marine.*life',
+                r'fluorescent.*matter',
+                r'mesopelagic',
+                r'biological.*activity',
+                r'organism.*detection',
+                r'marine.*biology',
+                r'deep.*sea.*life',
+                r'plankton',
+                r'biomass'
+            ],
             'range_query': [
                 r'between.*(\d+).*and.*(\d+)',
                 r'from.*(\d+).*to.*(\d+)',
@@ -123,6 +158,15 @@ class QueryInterpreter:
         
         elif self._matches_pattern(query_lower, 'map_query'):
             return self._handle_map_query(query)
+        
+        elif self._matches_pattern(query_lower, 'pollution_query'):
+            return self._handle_pollution_query(query)
+        
+        elif self._matches_pattern(query_lower, 'climate_query'):
+            return self._handle_climate_query(query)
+        
+        elif self._matches_pattern(query_lower, 'organism_query'):
+            return self._handle_organism_query(query)
         
         else:
             return self._handle_general_query(query)
@@ -413,6 +457,13 @@ Here are some things you can ask me:
 • "Find thermocline"
 • "Compare profiles"
 
+🆕 **Innovation Features:**
+• "Analyze ocean pollution"
+• "Show climate change impact"
+• "Detect marine organisms"
+• "Ocean acidification analysis"
+• "Heat content analysis"
+
 Try asking me something specific about the oceanographic data!"""
         
         return {
@@ -420,3 +471,248 @@ Try asking me something specific about the oceanographic data!"""
             'data': {},
             'query_type': 'help'
         }
+    
+    def _handle_pollution_query(self, query: str) -> Dict[str, Any]:
+        """Handle pollution detection and ocean acidification queries."""
+        pollution_analysis = self.processor.analyze_ocean_acidification()
+        
+        ph_data = pollution_analysis['ph_analysis']
+        oxygen_data = pollution_analysis['oxygen_analysis']
+        indicators = pollution_analysis['pollution_indicators']
+        
+        response = f"""🏭 **Ocean Pollution Analysis**
+        
+🧪 **pH Analysis (Ocean Acidification):**
+• Mean pH: {ph_data['mean_ph']:.2f}
+• Minimum pH: {ph_data['min_ph']:.2f}
+• Acidified Areas: {ph_data['acidified_percentage']:.1f}%
+
+💨 **Dissolved Oxygen Analysis:**
+• Mean Oxygen: {oxygen_data['mean_oxygen']:.2f} mg/L
+• Minimum Oxygen: {oxygen_data['min_oxygen']:.2f} mg/L
+• Low Oxygen Areas: {oxygen_data['low_oxygen_percentage']:.1f}%
+
+⚠️ **Pollution Indicators:**
+• Severity Level: **{indicators['severity']}**
+• Risk Assessment: **{indicators['risk_level']}**
+• Acidification Trend: {indicators['acidification_trend']}
+• Oxygen Depletion: {indicators['oxygen_depletion']}
+
+📋 **Recommendations:**"""
+        
+        for i, rec in enumerate(pollution_analysis['recommendations'], 1):
+            response += f"\n{i}. {rec}"
+        
+        # Generate map data for pollution visualization
+        map_data = self._generate_pollution_map_data(pollution_analysis)
+        
+        return {
+            'response': response,
+            'data': pollution_analysis,
+            'query_type': 'pollution_analysis',
+            'show_map': True,
+            'map_data': map_data,
+            'map_parameter': 'pollution',
+            'map_region': None
+        }
+    
+    def _handle_climate_query(self, query: str) -> Dict[str, Any]:
+        """Handle climate change and heat content analysis queries."""
+        heat_analysis = self.processor.analyze_heat_content()
+        
+        climate_indicators = heat_analysis['climate_indicators']
+        climate_impact = heat_analysis['climate_impact']
+        
+        response = f"""🌡️ **Climate Change Analysis**
+        
+🔥 **Ocean Heat Content:**
+• Total Heat Content: {heat_analysis['total_heat_content']:.2e} J/m²
+• Surface Temperature: {heat_analysis['surface_temperature']:.2f}°C
+• Temperature Anomaly: {heat_analysis['temperature_anomaly']:.2f}°C
+
+📊 **Heat Distribution by Depth:**"""
+        
+        for layer, data in heat_analysis['layer_analysis'].items():
+            response += f"\n• **{layer.title()} ({data['depth_range']}):** {data['temperature']:.2f}°C, Heat: {data['heat_content']:.2e} J/m²"
+        
+        response += f"""
+
+🌍 **Climate Indicators:**
+• Warming Trend: **{climate_indicators['warming_trend']}**
+• Heat Absorption: {climate_indicators['heat_absorption']}
+• Thermal Stratification: {climate_indicators['thermal_stratification']}
+
+🌊 **Climate Impact Assessment:**
+• Impact Level: **{climate_impact['impact_level']}**
+• Sea Level Contribution: {climate_impact['sea_level_contribution']}
+• Ecosystem Stress: {climate_impact['ecosystem_stress']}
+• Weather Pattern Influence: {climate_impact['weather_pattern_influence']}
+
+This analysis shows the ocean's role in climate change through heat absorption and thermal expansion."""
+        
+        # Generate map data for heat content visualization
+        map_data = self._generate_heat_content_map_data(heat_analysis)
+        
+        return {
+            'response': response,
+            'data': heat_analysis,
+            'query_type': 'climate_analysis',
+            'show_map': True,
+            'map_data': map_data,
+            'map_parameter': 'heat_content',
+            'map_region': None
+        }
+    
+    def _handle_organism_query(self, query: str) -> Dict[str, Any]:
+        """Handle mesopelagic organism detection queries."""
+        organism_analysis = self.processor.detect_mesopelagic_organisms()
+        
+        if 'message' in organism_analysis:
+            response = f"ℹ️ {organism_analysis['message']}"
+            return {
+                'response': response,
+                'data': organism_analysis,
+                'query_type': 'organism_detection'
+            }
+        
+        fluor_data = organism_analysis['fluorescence_analysis']
+        insights = organism_analysis['organism_insights']
+        
+        response = f"""🐟 **Mesopelagic Organism Detection**
+        
+📊 **Detection Summary:**
+• Total Detections: {organism_analysis['total_detections']}
+• Detection Rate: {organism_analysis['detection_rate']:.1f}%
+• Organism Density: {insights['organism_density']}
+
+🔬 **Fluorescence Analysis:**
+• Chlorophyll Mean: {fluor_data['chlorophyll_mean']:.3f}
+• Chlorophyll Max: {fluor_data['chlorophyll_max']:.3f}
+• CDOM Mean: {fluor_data['cdom_mean']:.3f}
+• CDOM Max: {fluor_data['cdom_max']:.3f}
+
+📏 **Depth Distribution:**"""
+        
+        for depth_range, count in organism_analysis['depth_distribution'].items():
+            response += f"\n• {depth_range}: {count} detections"
+        
+        response += f"""
+
+🔍 **Organism Insights:**
+• Most Active Depth: {insights.get('most_active_depth_range', 'N/A')}
+• High Confidence Detections: {insights['high_confidence_detections']}
+• Migration Pattern: {insights['migration_pattern']}
+• Ecological Significance: {insights['ecological_significance']}
+
+⚠️ **Note:** These detections are based on fluorescent matter spikes and provide approximate organism presence indicators."""
+        
+        # Generate map data for organism visualization
+        map_data = self._generate_organism_map_data(organism_analysis)
+        
+        return {
+            'response': response,
+            'data': organism_analysis,
+            'query_type': 'organism_detection',
+            'show_map': True,
+            'map_data': map_data,
+            'map_parameter': 'organisms',
+            'map_region': None
+        }
+    
+    def _generate_pollution_map_data(self, pollution_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Generate map data for pollution visualization."""
+        surface_data = self.processor.df[self.processor.df['Level'] <= 50]
+        ph_values = pollution_data['ph_analysis']['ph_values']
+        oxygen_values = pollution_data['oxygen_analysis']['oxygen_values']
+        
+        map_points = []
+        for i, (_, row) in enumerate(surface_data.iterrows()):
+            if i < len(ph_values):
+                # Determine pollution level based on pH and oxygen
+                ph_val = ph_values[i]
+                oxy_val = oxygen_values[i]
+                
+                if ph_val < 7.9 or oxy_val < 4.0:
+                    pollution_level = "High"
+                    severity_score = 0.8
+                elif ph_val < 8.0 or oxy_val < 5.0:
+                    pollution_level = "Medium"
+                    severity_score = 0.5
+                else:
+                    pollution_level = "Low"
+                    severity_score = 0.2
+                
+                map_points.append({
+                    'lat': row['LAT'],
+                    'lng': row['LON'],
+                    'value': severity_score,
+                    'ph': ph_val,
+                    'oxygen': oxy_val,
+                    'pollution_level': pollution_level,
+                    'depth': row['Level'],
+                    'profile': row['Prof_id']
+                })
+        
+        return map_points
+    
+    def _generate_heat_content_map_data(self, heat_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Generate map data for heat content visualization."""
+        surface_data = self.processor.df[self.processor.df['Level'] <= 50]
+        
+        map_points = []
+        for _, row in surface_data.iterrows():
+            # Calculate normalized heat content value
+            temp = row['TEMP']
+            heat_intensity = max(0, min(1, (temp + 2) / 7))  # Normalize to 0-1
+            
+            # Determine heat level
+            if temp > 3:
+                heat_level = "High"
+            elif temp > 1:
+                heat_level = "Medium"
+            else:
+                heat_level = "Low"
+            
+            map_points.append({
+                'lat': row['LAT'],
+                'lng': row['LON'],
+                'value': heat_intensity,
+                'temperature': temp,
+                'heat_level': heat_level,
+                'depth': row['Level'],
+                'profile': row['Prof_id']
+            })
+        
+        return map_points
+    
+    def _generate_organism_map_data(self, organism_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Generate map data for organism detection visualization."""
+        map_points = []
+        
+        # Add organism detection points
+        for detection in organism_data['organism_locations']:
+            map_points.append({
+                'lat': detection['latitude'],
+                'lng': detection['longitude'],
+                'value': 0.8 if detection['confidence'] == 'High' else 0.5,
+                'depth': detection['depth'],
+                'chlorophyll_spike': detection['chlorophyll_spike'],
+                'cdom_spike': detection['cdom_spike'],
+                'confidence': detection['confidence'],
+                'organism_detected': True,
+                'profile': f"organism_{len(map_points)}"
+            })
+        
+        # Add some background points from surface data
+        surface_data = self.processor.df[self.processor.df['Level'] <= 50]
+        for _, row in surface_data.iterrows():
+            map_points.append({
+                'lat': row['LAT'],
+                'lng': row['LON'],
+                'value': 0.1,  # Low background value
+                'depth': row['Level'],
+                'organism_detected': False,
+                'profile': row['Prof_id']
+            })
+        
+        return map_points

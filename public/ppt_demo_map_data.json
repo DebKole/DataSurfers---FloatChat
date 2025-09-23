@@ -1,0 +1,778 @@
+{
+  "floatMarkers": [
+    {
+      "lat": 44.268,
+      "lng": -28.385,
+      "temperature": 15.1,
+      "salinity": 35.53,
+      "depth": 50,
+      "floatId": "4900000",
+      "region": "north_atlantic",
+      "popup": "Float 4900000<br/>Temp: 15.1\u00b0C<br/>Salinity: 35.53 PSU"
+    },
+    {
+      "lat": 54.195,
+      "lng": -36.572,
+      "temperature": 8.7,
+      "salinity": 35.55,
+      "depth": 20,
+      "floatId": "4900001",
+      "region": "north_atlantic",
+      "popup": "Float 4900001<br/>Temp: 8.7\u00b0C<br/>Salinity: 35.55 PSU"
+    },
+    {
+      "lat": 44.919,
+      "lng": -42.424,
+      "temperature": 17.6,
+      "salinity": 35.68,
+      "depth": 0,
+      "floatId": "4900002",
+      "region": "north_atlantic",
+      "popup": "Float 4900002<br/>Temp: 17.6\u00b0C<br/>Salinity: 35.68 PSU"
+    },
+    {
+      "lat": 49.043,
+      "lng": -11.913,
+      "temperature": 10.6,
+      "salinity": 34.98,
+      "depth": 100,
+      "floatId": "4900003",
+      "region": "north_atlantic",
+      "popup": "Float 4900003<br/>Temp: 10.6\u00b0C<br/>Salinity: 34.98 PSU"
+    },
+    {
+      "lat": 46.897,
+      "lng": -36.411,
+      "temperature": 14.6,
+      "salinity": 36.12,
+      "depth": 20,
+      "floatId": "4900004",
+      "region": "north_atlantic",
+      "popup": "Float 4900004<br/>Temp: 14.6\u00b0C<br/>Salinity: 36.12 PSU"
+    },
+    {
+      "lat": 47.371,
+      "lng": -43.705,
+      "temperature": 12.2,
+      "salinity": 35.54,
+      "depth": 0,
+      "floatId": "4900005",
+      "region": "north_atlantic",
+      "popup": "Float 4900005<br/>Temp: 12.2\u00b0C<br/>Salinity: 35.54 PSU"
+    },
+    {
+      "lat": 49.976,
+      "lng": -31.29,
+      "temperature": 16.3,
+      "salinity": 35.99,
+      "depth": 100,
+      "floatId": "4900006",
+      "region": "north_atlantic",
+      "popup": "Float 4900006<br/>Temp: 16.3\u00b0C<br/>Salinity: 35.99 PSU"
+    },
+    {
+      "lat": 42.615,
+      "lng": -34.005,
+      "temperature": 10.4,
+      "salinity": 34.88,
+      "depth": 20,
+      "floatId": "4900007",
+      "region": "north_atlantic",
+      "popup": "Float 4900007<br/>Temp: 10.4\u00b0C<br/>Salinity: 34.88 PSU"
+    },
+    {
+      "lat": 43.666,
+      "lng": -29.156,
+      "temperature": 11.2,
+      "salinity": 35.94,
+      "depth": 100,
+      "floatId": "4900008",
+      "region": "north_atlantic",
+      "popup": "Float 4900008<br/>Temp: 11.2\u00b0C<br/>Salinity: 35.94 PSU"
+    },
+    {
+      "lat": 47.813,
+      "lng": -27.194,
+      "temperature": 17.2,
+      "salinity": 35.05,
+      "depth": 20,
+      "floatId": "4900009",
+      "region": "north_atlantic",
+      "popup": "Float 4900009<br/>Temp: 17.2\u00b0C<br/>Salinity: 35.05 PSU"
+    },
+    {
+      "lat": 41.91,
+      "lng": -41.975,
+      "temperature": 9.1,
+      "salinity": 35.58,
+      "depth": 0,
+      "floatId": "4900010",
+      "region": "north_atlantic",
+      "popup": "Float 4900010<br/>Temp: 9.1\u00b0C<br/>Salinity: 35.58 PSU"
+    },
+    {
+      "lat": 47.838,
+      "lng": -32.525,
+      "temperature": 14.9,
+      "salinity": 35.06,
+      "depth": 50,
+      "floatId": "4900011",
+      "region": "north_atlantic",
+      "popup": "Float 4900011<br/>Temp: 14.9\u00b0C<br/>Salinity: 35.06 PSU"
+    },
+    {
+      "lat": -25.007,
+      "lng": -12.688,
+      "temperature": 16.4,
+      "salinity": 35.03,
+      "depth": 0,
+      "floatId": "4900100",
+      "region": "south_atlantic",
+      "popup": "Float 4900100<br/>Temp: 16.4\u00b0C<br/>Salinity: 35.03 PSU"
+    },
+    {
+      "lat": -16.857,
+      "lng": -13.597,
+      "temperature": 19.0,
+      "salinity": 35.05,
+      "depth": 20,
+      "floatId": "4900101",
+      "region": "south_atlantic",
+      "popup": "Float 4900101<br/>Temp: 19.0\u00b0C<br/>Salinity: 35.05 PSU"
+    },
+    {
+      "lat": -25.987,
+      "lng": -10.761,
+      "temperature": 18.9,
+      "salinity": 35.59,
+      "depth": 50,
+      "floatId": "4900102",
+      "region": "south_atlantic",
+      "popup": "Float 4900102<br/>Temp: 18.9\u00b0C<br/>Salinity: 35.59 PSU"
+    },
+    {
+      "lat": -13.188,
+      "lng": -12.742,
+      "temperature": 23.7,
+      "salinity": 36.26,
+      "depth": 50,
+      "floatId": "4900103",
+      "region": "south_atlantic",
+      "popup": "Float 4900103<br/>Temp: 23.7\u00b0C<br/>Salinity: 36.26 PSU"
+    },
+    {
+      "lat": -23.818,
+      "lng": -18.612,
+      "temperature": 23.9,
+      "salinity": 35.62,
+      "depth": 10,
+      "floatId": "4900104",
+      "region": "south_atlantic",
+      "popup": "Float 4900104<br/>Temp: 23.9\u00b0C<br/>Salinity: 35.62 PSU"
+    },
+    {
+      "lat": -29.636,
+      "lng": -14.2,
+      "temperature": 16.0,
+      "salinity": 35.03,
+      "depth": 50,
+      "floatId": "4900105",
+      "region": "south_atlantic",
+      "popup": "Float 4900105<br/>Temp: 16.0\u00b0C<br/>Salinity: 35.03 PSU"
+    },
+    {
+      "lat": -38.974,
+      "lng": -19.956,
+      "temperature": 16.1,
+      "salinity": 36.22,
+      "depth": 20,
+      "floatId": "4900106",
+      "region": "south_atlantic",
+      "popup": "Float 4900106<br/>Temp: 16.1\u00b0C<br/>Salinity: 36.22 PSU"
+    },
+    {
+      "lat": -16.158,
+      "lng": -28.322,
+      "temperature": 15.4,
+      "salinity": 36.12,
+      "depth": 0,
+      "floatId": "4900107",
+      "region": "south_atlantic",
+      "popup": "Float 4900107<br/>Temp: 15.4\u00b0C<br/>Salinity: 36.12 PSU"
+    },
+    {
+      "lat": 51.375,
+      "lng": -152.161,
+      "temperature": 10.1,
+      "salinity": 33.62,
+      "depth": 10,
+      "floatId": "4900200",
+      "region": "north_pacific",
+      "popup": "Float 4900200<br/>Temp: 10.1\u00b0C<br/>Salinity: 33.62 PSU"
+    },
+    {
+      "lat": 34.718,
+      "lng": -165.501,
+      "temperature": 6.9,
+      "salinity": 33.64,
+      "depth": 10,
+      "floatId": "4900201",
+      "region": "north_pacific",
+      "popup": "Float 4900201<br/>Temp: 6.9\u00b0C<br/>Salinity: 33.64 PSU"
+    },
+    {
+      "lat": 27.657,
+      "lng": -134.036,
+      "temperature": 15.3,
+      "salinity": 34.27,
+      "depth": 10,
+      "floatId": "4900202",
+      "region": "north_pacific",
+      "popup": "Float 4900202<br/>Temp: 15.3\u00b0C<br/>Salinity: 34.27 PSU"
+    },
+    {
+      "lat": 31.633,
+      "lng": -140.156,
+      "temperature": 16.7,
+      "salinity": 34.86,
+      "depth": 10,
+      "floatId": "4900203",
+      "region": "north_pacific",
+      "popup": "Float 4900203<br/>Temp: 16.7\u00b0C<br/>Salinity: 34.86 PSU"
+    },
+    {
+      "lat": 59.998,
+      "lng": -141.398,
+      "temperature": 5.6,
+      "salinity": 34.7,
+      "depth": 10,
+      "floatId": "4900204",
+      "region": "north_pacific",
+      "popup": "Float 4900204<br/>Temp: 5.6\u00b0C<br/>Salinity: 34.7 PSU"
+    },
+    {
+      "lat": 26.724,
+      "lng": -138.536,
+      "temperature": 18.6,
+      "salinity": 34.31,
+      "depth": 0,
+      "floatId": "4900205",
+      "region": "north_pacific",
+      "popup": "Float 4900205<br/>Temp: 18.6\u00b0C<br/>Salinity: 34.31 PSU"
+    },
+    {
+      "lat": 34.976,
+      "lng": -149.479,
+      "temperature": 6.4,
+      "salinity": 34.37,
+      "depth": 10,
+      "floatId": "4900206",
+      "region": "north_pacific",
+      "popup": "Float 4900206<br/>Temp: 6.4\u00b0C<br/>Salinity: 34.37 PSU"
+    },
+    {
+      "lat": 32.148,
+      "lng": -146.141,
+      "temperature": 8.6,
+      "salinity": 33.91,
+      "depth": 0,
+      "floatId": "4900207",
+      "region": "north_pacific",
+      "popup": "Float 4900207<br/>Temp: 8.6\u00b0C<br/>Salinity: 33.91 PSU"
+    },
+    {
+      "lat": 41.532,
+      "lng": -155.116,
+      "temperature": 19.5,
+      "salinity": 34.93,
+      "depth": 0,
+      "floatId": "4900208",
+      "region": "north_pacific",
+      "popup": "Float 4900208<br/>Temp: 19.5\u00b0C<br/>Salinity: 34.93 PSU"
+    },
+    {
+      "lat": 34.658,
+      "lng": -157.479,
+      "temperature": 16.3,
+      "salinity": 34.77,
+      "depth": 0,
+      "floatId": "4900209",
+      "region": "north_pacific",
+      "popup": "Float 4900209<br/>Temp: 16.3\u00b0C<br/>Salinity: 34.77 PSU"
+    },
+    {
+      "lat": 27.565,
+      "lng": -139.25,
+      "temperature": 19.4,
+      "salinity": 34.54,
+      "depth": 10,
+      "floatId": "4900210",
+      "region": "north_pacific",
+      "popup": "Float 4900210<br/>Temp: 19.4\u00b0C<br/>Salinity: 34.54 PSU"
+    },
+    {
+      "lat": 30.836,
+      "lng": -154.195,
+      "temperature": 8.2,
+      "salinity": 34.78,
+      "depth": 0,
+      "floatId": "4900211",
+      "region": "north_pacific",
+      "popup": "Float 4900211<br/>Temp: 8.2\u00b0C<br/>Salinity: 34.78 PSU"
+    },
+    {
+      "lat": 29.074,
+      "lng": -159.366,
+      "temperature": 8.8,
+      "salinity": 34.73,
+      "depth": 10,
+      "floatId": "4900212",
+      "region": "north_pacific",
+      "popup": "Float 4900212<br/>Temp: 8.8\u00b0C<br/>Salinity: 34.73 PSU"
+    },
+    {
+      "lat": 26.691,
+      "lng": -151.249,
+      "temperature": 12.8,
+      "salinity": 33.66,
+      "depth": 20,
+      "floatId": "4900213",
+      "region": "north_pacific",
+      "popup": "Float 4900213<br/>Temp: 12.8\u00b0C<br/>Salinity: 33.66 PSU"
+    },
+    {
+      "lat": 30.292,
+      "lng": -144.031,
+      "temperature": 16.3,
+      "salinity": 34.2,
+      "depth": 10,
+      "floatId": "4900214",
+      "region": "north_pacific",
+      "popup": "Float 4900214<br/>Temp: 16.3\u00b0C<br/>Salinity: 34.2 PSU"
+    },
+    {
+      "lat": -8.893,
+      "lng": -106.61,
+      "temperature": 19.7,
+      "salinity": 34.73,
+      "depth": 0,
+      "floatId": "4900300",
+      "region": "south_pacific",
+      "popup": "Float 4900300<br/>Temp: 19.7\u00b0C<br/>Salinity: 34.73 PSU"
+    },
+    {
+      "lat": -21.591,
+      "lng": -126.772,
+      "temperature": 25.0,
+      "salinity": 35.54,
+      "depth": 0,
+      "floatId": "4900301",
+      "region": "south_pacific",
+      "popup": "Float 4900301<br/>Temp: 25.0\u00b0C<br/>Salinity: 35.54 PSU"
+    },
+    {
+      "lat": -13.396,
+      "lng": -113.914,
+      "temperature": 20.3,
+      "salinity": 35.55,
+      "depth": 200,
+      "floatId": "4900302",
+      "region": "south_pacific",
+      "popup": "Float 4900302<br/>Temp: 20.3\u00b0C<br/>Salinity: 35.55 PSU"
+    },
+    {
+      "lat": -12.292,
+      "lng": -105.195,
+      "temperature": 21.1,
+      "salinity": 34.67,
+      "depth": 10,
+      "floatId": "4900303",
+      "region": "south_pacific",
+      "popup": "Float 4900303<br/>Temp: 21.1\u00b0C<br/>Salinity: 34.67 PSU"
+    },
+    {
+      "lat": -19.467,
+      "lng": -144.237,
+      "temperature": 26.0,
+      "salinity": 34.02,
+      "depth": 10,
+      "floatId": "4900304",
+      "region": "south_pacific",
+      "popup": "Float 4900304<br/>Temp: 26.0\u00b0C<br/>Salinity: 34.02 PSU"
+    },
+    {
+      "lat": -15.187,
+      "lng": -123.326,
+      "temperature": 26.9,
+      "salinity": 34.86,
+      "depth": 0,
+      "floatId": "4900305",
+      "region": "south_pacific",
+      "popup": "Float 4900305<br/>Temp: 26.9\u00b0C<br/>Salinity: 34.86 PSU"
+    },
+    {
+      "lat": -12.931,
+      "lng": -109.751,
+      "temperature": 19.5,
+      "salinity": 35.95,
+      "depth": 20,
+      "floatId": "4900306",
+      "region": "south_pacific",
+      "popup": "Float 4900306<br/>Temp: 19.5\u00b0C<br/>Salinity: 35.95 PSU"
+    },
+    {
+      "lat": -15.727,
+      "lng": -108.369,
+      "temperature": 26.8,
+      "salinity": 34.17,
+      "depth": 200,
+      "floatId": "4900307",
+      "region": "south_pacific",
+      "popup": "Float 4900307<br/>Temp: 26.8\u00b0C<br/>Salinity: 34.17 PSU"
+    },
+    {
+      "lat": -22.543,
+      "lng": -121.046,
+      "temperature": 23.7,
+      "salinity": 34.34,
+      "depth": 50,
+      "floatId": "4900308",
+      "region": "south_pacific",
+      "popup": "Float 4900308<br/>Temp: 23.7\u00b0C<br/>Salinity: 34.34 PSU"
+    },
+    {
+      "lat": -20.018,
+      "lng": -117.725,
+      "temperature": 21.9,
+      "salinity": 34.42,
+      "depth": 50,
+      "floatId": "4900309",
+      "region": "south_pacific",
+      "popup": "Float 4900309<br/>Temp: 21.9\u00b0C<br/>Salinity: 34.42 PSU"
+    },
+    {
+      "lat": -20.935,
+      "lng": 82.947,
+      "temperature": 30.0,
+      "salinity": 35.52,
+      "depth": 20,
+      "floatId": "4900400",
+      "region": "indian_ocean",
+      "popup": "Float 4900400<br/>Temp: 30.0\u00b0C<br/>Salinity: 35.52 PSU"
+    },
+    {
+      "lat": 4.558,
+      "lng": 72.592,
+      "temperature": 26.3,
+      "salinity": 35.79,
+      "depth": 20,
+      "floatId": "4900401",
+      "region": "indian_ocean",
+      "popup": "Float 4900401<br/>Temp: 26.3\u00b0C<br/>Salinity: 35.79 PSU"
+    },
+    {
+      "lat": -6.023,
+      "lng": 84.789,
+      "temperature": 23.0,
+      "salinity": 36.11,
+      "depth": 0,
+      "floatId": "4900402",
+      "region": "indian_ocean",
+      "popup": "Float 4900402<br/>Temp: 23.0\u00b0C<br/>Salinity: 36.11 PSU"
+    },
+    {
+      "lat": -20.368,
+      "lng": 75.451,
+      "temperature": 24.3,
+      "salinity": 34.91,
+      "depth": 20,
+      "floatId": "4900403",
+      "region": "indian_ocean",
+      "popup": "Float 4900403<br/>Temp: 24.3\u00b0C<br/>Salinity: 34.91 PSU"
+    },
+    {
+      "lat": -25.04,
+      "lng": 75.201,
+      "temperature": 28.3,
+      "salinity": 36.12,
+      "depth": 10,
+      "floatId": "4900404",
+      "region": "indian_ocean",
+      "popup": "Float 4900404<br/>Temp: 28.3\u00b0C<br/>Salinity: 36.12 PSU"
+    },
+    {
+      "lat": -9.725,
+      "lng": 92.981,
+      "temperature": 23.7,
+      "salinity": 34.91,
+      "depth": 20,
+      "floatId": "4900405",
+      "region": "indian_ocean",
+      "popup": "Float 4900405<br/>Temp: 23.7\u00b0C<br/>Salinity: 34.91 PSU"
+    },
+    {
+      "lat": -32.718,
+      "lng": 41.779,
+      "temperature": 27.4,
+      "salinity": 36.4,
+      "depth": 20,
+      "floatId": "4900406",
+      "region": "indian_ocean",
+      "popup": "Float 4900406<br/>Temp: 27.4\u00b0C<br/>Salinity: 36.4 PSU"
+    },
+    {
+      "lat": -14.567,
+      "lng": 60.805,
+      "temperature": 24.0,
+      "salinity": 36.1,
+      "depth": 0,
+      "floatId": "4900407",
+      "region": "indian_ocean",
+      "popup": "Float 4900407<br/>Temp: 24.0\u00b0C<br/>Salinity: 36.1 PSU"
+    },
+    {
+      "lat": -22.883,
+      "lng": 78.981,
+      "temperature": 27.1,
+      "salinity": 36.39,
+      "depth": 100,
+      "floatId": "4900408",
+      "region": "indian_ocean",
+      "popup": "Float 4900408<br/>Temp: 27.1\u00b0C<br/>Salinity: 36.39 PSU"
+    },
+    {
+      "lat": -57.105,
+      "lng": 9.166,
+      "temperature": 3.0,
+      "salinity": 34.53,
+      "depth": 20,
+      "floatId": "4900500",
+      "region": "southern_ocean",
+      "popup": "Float 4900500<br/>Temp: 3.0\u00b0C<br/>Salinity: 34.53 PSU"
+    },
+    {
+      "lat": -53.11,
+      "lng": -3.731,
+      "temperature": 2.7,
+      "salinity": 34.46,
+      "depth": 0,
+      "floatId": "4900501",
+      "region": "southern_ocean",
+      "popup": "Float 4900501<br/>Temp: 2.7\u00b0C<br/>Salinity: 34.46 PSU"
+    },
+    {
+      "lat": -45.497,
+      "lng": -19.481,
+      "temperature": 4.9,
+      "salinity": 34.43,
+      "depth": 50,
+      "floatId": "4900502",
+      "region": "southern_ocean",
+      "popup": "Float 4900502<br/>Temp: 4.9\u00b0C<br/>Salinity: 34.43 PSU"
+    },
+    {
+      "lat": -48.722,
+      "lng": -35.307,
+      "temperature": 3.3,
+      "salinity": 34.6,
+      "depth": 100,
+      "floatId": "4900503",
+      "region": "southern_ocean",
+      "popup": "Float 4900503<br/>Temp: 3.3\u00b0C<br/>Salinity: 34.6 PSU"
+    },
+    {
+      "lat": -57.146,
+      "lng": 7.606,
+      "temperature": 3.5,
+      "salinity": 34.0,
+      "depth": 10,
+      "floatId": "4900504",
+      "region": "southern_ocean",
+      "popup": "Float 4900504<br/>Temp: 3.5\u00b0C<br/>Salinity: 34.0 PSU"
+    },
+    {
+      "lat": -56.342,
+      "lng": 6.107,
+      "temperature": 4.0,
+      "salinity": 34.34,
+      "depth": 50,
+      "floatId": "4900505",
+      "region": "southern_ocean",
+      "popup": "Float 4900505<br/>Temp: 4.0\u00b0C<br/>Salinity: 34.34 PSU"
+    },
+    {
+      "lat": -55.69,
+      "lng": -13.665,
+      "temperature": -0.2,
+      "salinity": 33.89,
+      "depth": 50,
+      "floatId": "4900506",
+      "region": "southern_ocean",
+      "popup": "Float 4900506<br/>Temp: -0.2\u00b0C<br/>Salinity: 33.89 PSU"
+    },
+    {
+      "lat": 36.896,
+      "lng": 19.953,
+      "temperature": 21.8,
+      "salinity": 38.36,
+      "depth": 10,
+      "floatId": "4900600",
+      "region": "mediterranean",
+      "popup": "Float 4900600<br/>Temp: 21.8\u00b0C<br/>Salinity: 38.36 PSU"
+    },
+    {
+      "lat": 34.741,
+      "lng": 16.183,
+      "temperature": 20.9,
+      "salinity": 38.99,
+      "depth": 10,
+      "floatId": "4900601",
+      "region": "mediterranean",
+      "popup": "Float 4900601<br/>Temp: 20.9\u00b0C<br/>Salinity: 38.99 PSU"
+    },
+    {
+      "lat": 38.412,
+      "lng": 14.847,
+      "temperature": 18.0,
+      "salinity": 38.83,
+      "depth": 10,
+      "floatId": "4900602",
+      "region": "mediterranean",
+      "popup": "Float 4900602<br/>Temp: 18.0\u00b0C<br/>Salinity: 38.83 PSU"
+    },
+    {
+      "lat": 36.884,
+      "lng": 20.302,
+      "temperature": 19.0,
+      "salinity": 38.71,
+      "depth": 20,
+      "floatId": "4900603",
+      "region": "mediterranean",
+      "popup": "Float 4900603<br/>Temp: 19.0\u00b0C<br/>Salinity: 38.71 PSU"
+    },
+    {
+      "lat": 35.757,
+      "lng": 8.058,
+      "temperature": 21.9,
+      "salinity": 38.05,
+      "depth": 0,
+      "floatId": "4900604",
+      "region": "mediterranean",
+      "popup": "Float 4900604<br/>Temp: 21.9\u00b0C<br/>Salinity: 38.05 PSU"
+    },
+    {
+      "lat": 71.747,
+      "lng": -19.474,
+      "temperature": 2.5,
+      "salinity": 34.27,
+      "depth": 10,
+      "floatId": "4900700",
+      "region": "arctic_atlantic",
+      "popup": "Float 4900700<br/>Temp: 2.5\u00b0C<br/>Salinity: 34.27 PSU"
+    },
+    {
+      "lat": 66.689,
+      "lng": -12.898,
+      "temperature": 0.7,
+      "salinity": 34.49,
+      "depth": 20,
+      "floatId": "4900701",
+      "region": "arctic_atlantic",
+      "popup": "Float 4900701<br/>Temp: 0.7\u00b0C<br/>Salinity: 34.49 PSU"
+    },
+    {
+      "lat": 71.019,
+      "lng": -5.97,
+      "temperature": -0.7,
+      "salinity": 34.23,
+      "depth": 50,
+      "floatId": "4900702",
+      "region": "arctic_atlantic",
+      "popup": "Float 4900702<br/>Temp: -0.7\u00b0C<br/>Salinity: 34.23 PSU"
+    },
+    {
+      "lat": 73.995,
+      "lng": -14.198,
+      "temperature": -0.5,
+      "salinity": 34.32,
+      "depth": 0,
+      "floatId": "4900703",
+      "region": "arctic_atlantic",
+      "popup": "Float 4900703<br/>Temp: -0.5\u00b0C<br/>Salinity: 34.32 PSU"
+    }
+  ],
+  "pollutionMarkers": [
+    {
+      "lat": 31.2,
+      "lng": 121.5,
+      "level": "high",
+      "severity": 8.5,
+      "popup": "Pollution Level: high<br/>Severity: 8.5/10"
+    },
+    {
+      "lat": 34.0,
+      "lng": -118.2,
+      "level": "medium",
+      "severity": 6.2,
+      "popup": "Pollution Level: medium<br/>Severity: 6.2/10"
+    },
+    {
+      "lat": 40.7,
+      "lng": -74.0,
+      "level": "medium",
+      "severity": 5.8,
+      "popup": "Pollution Level: medium<br/>Severity: 5.8/10"
+    },
+    {
+      "lat": 51.5,
+      "lng": 1.3,
+      "level": "low",
+      "severity": 3.2,
+      "popup": "Pollution Level: low<br/>Severity: 3.2/10"
+    },
+    {
+      "lat": -23.5,
+      "lng": -46.6,
+      "level": "high",
+      "severity": 7.8,
+      "popup": "Pollution Level: high<br/>Severity: 7.8/10"
+    }
+  ],
+  "organismMarkers": [
+    {
+      "lat": 36.0,
+      "lng": -140.0,
+      "biomass": "high",
+      "depth": "200-800m",
+      "popup": "Organisms: lanternfish, bristlemouth<br/>Depth: 200-800m<br/>Biomass: high"
+    },
+    {
+      "lat": -10.0,
+      "lng": 65.0,
+      "biomass": "medium",
+      "depth": "300-600m",
+      "popup": "Organisms: hatchetfish, squid<br/>Depth: 300-600m<br/>Biomass: medium"
+    },
+    {
+      "lat": 45.0,
+      "lng": -25.0,
+      "biomass": "very_high",
+      "depth": "150-700m",
+      "popup": "Organisms: krill, copepods<br/>Depth: 150-700m<br/>Biomass: very_high"
+    },
+    {
+      "lat": -35.0,
+      "lng": 150.0,
+      "biomass": "medium",
+      "depth": "250-500m",
+      "popup": "Organisms: myctophids, siphonophores<br/>Depth: 250-500m<br/>Biomass: medium"
+    },
+    {
+      "lat": -50.0,
+      "lng": -60.0,
+      "biomass": "high",
+      "depth": "100-400m",
+      "popup": "Organisms: antarctic_krill, salps<br/>Depth: 100-400m<br/>Biomass: high"
+    }
+  ]
+}
