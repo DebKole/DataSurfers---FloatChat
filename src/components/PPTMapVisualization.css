@@ -1,0 +1,341 @@
+.ppt-map-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(5px);
+}
+
+.ppt-map-container {
+  width: 95vw;
+  height: 95vh;
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.ppt-map-header {
+  background: linear-gradient(90deg, #1a365d 0%, #2c5282 100%);
+  padding: 20px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.ppt-map-title h2 {
+  color: #ffffff;
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.ppt-map-title p {
+  color: #a0c4ff;
+  font-size: 16px;
+  margin: 5px 0 0 0;
+  opacity: 0.9;
+}
+
+.ppt-map-close {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: bold;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.ppt-map-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.ppt-map-controls {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 15px 30px;
+  display: flex;
+  gap: 30px;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.layer-controls, .parameter-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.layer-controls label, .parameter-controls label {
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.layer-controls select, .parameter-controls select {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  min-width: 180px;
+}
+
+.layer-controls select:focus, .parameter-controls select:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.3);
+}
+
+.ppt-map-content {
+  flex: 1;
+  display: flex;
+  position: relative;
+}
+
+.ppt-leaflet-map {
+  flex: 1;
+  height: 100%;
+  border-radius: 0;
+}
+
+.ppt-map-legend {
+  width: 280px;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 20px;
+  overflow-y: auto;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.legend-section {
+  margin-bottom: 25px;
+}
+
+.legend-section h4 {
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.legend-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+}
+
+.ppt-map-stats {
+  background: linear-gradient(90deg, #1a365d 0%, #2c5282 100%);
+  padding: 20px 30px;
+  display: flex;
+  justify-content: space-around;
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.stat-item {
+  text-align: center;
+  color: #ffffff;
+}
+
+.stat-number {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: #4299e1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.stat-label {
+  display: block;
+  font-size: 12px;
+  color: #a0c4ff;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Popup Styles */
+.leaflet-popup-content-wrapper {
+  background: rgba(0, 0, 0, 0.9);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  padding: 0;
+}
+
+.float-popup, .pollution-popup, .organism-popup {
+  padding: 15px;
+  min-width: 200px;
+}
+
+.float-popup h4, .pollution-popup h4, .organism-popup h4 {
+  color: #ffffff;
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 8px;
+}
+
+.popup-data {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.data-row .label {
+  color: #a0c4ff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.data-row .value {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pollution-high {
+  color: #ff6b6b !important;
+}
+
+.pollution-medium {
+  color: #ffa726 !important;
+}
+
+.pollution-low {
+  color: #ffeb3b !important;
+}
+
+.biomass-very_high {
+  color: #4caf50 !important;
+}
+
+.biomass-high {
+  color: #8bc34a !important;
+}
+
+.biomass-medium {
+  color: #cddc39 !important;
+}
+
+.biomass-low {
+  color: #ffeb3b !important;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .ppt-map-container {
+    width: 98vw;
+    height: 98vh;
+  }
+  
+  .ppt-map-legend {
+    width: 240px;
+  }
+}
+
+@media (max-width: 768px) {
+  .ppt-map-controls {
+    flex-direction: column;
+    gap: 15px;
+    align-items: stretch;
+  }
+  
+  .layer-controls, .parameter-controls {
+    justify-content: space-between;
+  }
+  
+  .ppt-map-legend {
+    width: 200px;
+  }
+  
+  .ppt-map-stats {
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+  
+  .stat-item {
+    flex: 1;
+    min-width: 120px;
+  }
+}
+
+/* Animation for smooth transitions */
+.ppt-map-overlay {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Leaflet marker animations */
+.leaflet-marker-icon {
+  animation: markerPulse 2s infinite;
+}
+
+@keyframes markerPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
