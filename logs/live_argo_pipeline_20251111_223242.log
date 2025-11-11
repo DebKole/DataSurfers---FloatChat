@@ -1,0 +1,32 @@
+2025-11-11 22:32:42,350 - INFO - 🌊 === Live Argo Pipeline Started ===
+2025-11-11 22:32:42,350 - INFO - Config: {
+  "base_url": "https://data-argo.ifremer.fr/geo/indian_ocean/",
+  "download_dir": "./data/live_downloads/",
+  "processed_data_dir": "./processed_data_live/",
+  "log_dir": "./logs/",
+  "years_to_monitor": [
+    "2025"
+  ],
+  "months_to_monitor": [
+    "11",
+    "12"
+  ],
+  "file_extensions": [
+    ".nc"
+  ],
+  "max_files_per_run": 10,
+  "enable_database_import": true,
+  "cleanup_old_files": true,
+  "cleanup_days": 30,
+  "download_timeout": 120,
+  "max_retries": 3,
+  "retry_delay": 5
+}
+2025-11-11 22:32:42,386 - INFO - 🔍 Discovering new files from IFREMER Argo database...
+2025-11-11 22:32:42,386 - INFO - 📡 Checking https://data-argo.ifremer.fr/geo/indian_ocean/2025/11/
+2025-11-11 22:32:43,430 - INFO - 📊 Found 10 NetCDF files in 11/2025
+2025-11-11 22:32:48,404 - INFO - 📡 Checking https://data-argo.ifremer.fr/geo/indian_ocean/2025/12/
+2025-11-11 22:32:48,925 - WARNING - ⚠️  Could not access https://data-argo.ifremer.fr/geo/indian_ocean/2025/12/ (Status: 404)
+2025-11-11 22:32:48,926 - INFO - 📊 Discovery complete: 0 new files found from 10 total files
+2025-11-11 22:32:48,959 - INFO - 📭 No new files found - database is up to date
+2025-11-11 22:32:48,984 - INFO - 🌊 === Live Argo Pipeline Finished ===

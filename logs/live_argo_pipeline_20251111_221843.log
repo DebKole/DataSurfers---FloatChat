@@ -1,0 +1,76 @@
+2025-11-11 22:18:43,128 - INFO - 🌊 === Live Argo Pipeline Started ===
+2025-11-11 22:18:43,129 - INFO - Config: {
+  "base_url": "https://data-argo.ifremer.fr/geo/indian_ocean/",
+  "download_dir": "./data/live_downloads/",
+  "processed_data_dir": "./processed_data_live/",
+  "log_dir": "./logs/",
+  "years_to_monitor": [
+    "2025"
+  ],
+  "months_to_monitor": [
+    "11",
+    "12"
+  ],
+  "file_extensions": [
+    ".nc"
+  ],
+  "max_files_per_run": 10,
+  "enable_database_import": true,
+  "cleanup_old_files": true,
+  "cleanup_days": 30,
+  "download_timeout": 120,
+  "max_retries": 3,
+  "retry_delay": 5
+}
+2025-11-11 22:18:43,171 - INFO - 🔍 Discovering new files from IFREMER Argo database...
+2025-11-11 22:18:43,171 - INFO - 📡 Checking https://data-argo.ifremer.fr/geo/indian_ocean/2025/11/
+2025-11-11 22:18:44,175 - INFO - 📊 Found 10 NetCDF files in 11/2025
+2025-11-11 22:18:44,680 - INFO - 🆕 New file: 20251101_prof.nc (3.2 MB)
+2025-11-11 22:18:45,174 - INFO - 🆕 New file: 20251102_prof.nc (3.9 MB)
+2025-11-11 22:18:45,678 - INFO - 🆕 New file: 20251103_prof.nc (4.0 MB)
+2025-11-11 22:18:46,219 - INFO - 🆕 New file: 20251104_prof.nc (4.0 MB)
+2025-11-11 22:18:46,728 - INFO - 🆕 New file: 20251105_prof.nc (4.5 MB)
+2025-11-11 22:18:47,232 - INFO - 🆕 New file: 20251106_prof.nc (3.5 MB)
+2025-11-11 22:18:47,741 - INFO - 🆕 New file: 20251107_prof.nc (3.6 MB)
+2025-11-11 22:18:48,316 - INFO - 🆕 New file: 20251108_prof.nc (4.0 MB)
+2025-11-11 22:18:48,858 - INFO - 🆕 New file: 20251109_prof.nc (7.2 MB)
+2025-11-11 22:18:49,362 - INFO - 🆕 New file: 20251110_prof.nc (1.9 MB)
+2025-11-11 22:18:49,363 - INFO - 📊 Discovery complete: 10 new files found from 10 total files
+2025-11-11 22:18:49,398 - INFO - ⬇️  Starting download of 10 files...
+2025-11-11 22:18:49,399 - INFO - 📥 [1/10] Downloading 20251101_prof.nc (3.2 MB)
+2025-11-11 22:18:51,349 - INFO - ✅ Downloaded 20251101_prof.nc
+2025-11-11 22:18:51,349 - INFO - 📥 [2/10] Downloading 20251102_prof.nc (3.9 MB)
+2025-11-11 22:18:53,738 - INFO - ✅ Downloaded 20251102_prof.nc
+2025-11-11 22:18:53,738 - INFO - 📥 [3/10] Downloading 20251103_prof.nc (4.0 MB)
+2025-11-11 22:18:56,225 - INFO - ✅ Downloaded 20251103_prof.nc
+2025-11-11 22:18:56,225 - INFO - 📥 [4/10] Downloading 20251104_prof.nc (4.0 MB)
+2025-11-11 22:18:58,418 - INFO - ✅ Downloaded 20251104_prof.nc
+2025-11-11 22:18:58,418 - INFO - 📥 [5/10] Downloading 20251105_prof.nc (4.5 MB)
+2025-11-11 22:19:01,167 - INFO - ✅ Downloaded 20251105_prof.nc
+2025-11-11 22:19:01,167 - INFO - 📥 [6/10] Downloading 20251106_prof.nc (3.5 MB)
+2025-11-11 22:19:03,582 - INFO - ✅ Downloaded 20251106_prof.nc
+2025-11-11 22:19:03,583 - INFO - 📥 [7/10] Downloading 20251107_prof.nc (3.6 MB)
+2025-11-11 22:19:09,418 - INFO - ✅ Downloaded 20251107_prof.nc
+2025-11-11 22:19:09,418 - INFO - 📥 [8/10] Downloading 20251108_prof.nc (4.0 MB)
+2025-11-11 22:19:11,456 - INFO - ✅ Downloaded 20251108_prof.nc
+2025-11-11 22:19:11,456 - INFO - 📥 [9/10] Downloading 20251109_prof.nc (7.2 MB)
+2025-11-11 22:19:14,734 - INFO - ✅ Downloaded 20251109_prof.nc
+2025-11-11 22:19:14,734 - INFO - 📥 [10/10] Downloading 20251110_prof.nc (1.9 MB)
+2025-11-11 22:19:16,450 - INFO - ✅ Downloaded 20251110_prof.nc
+2025-11-11 22:19:16,451 - INFO - 📊 Download complete: 10/10 files successful
+2025-11-11 22:19:16,486 - INFO - 🔄 Processing 10 files...
+2025-11-11 22:19:30,153 - INFO - 📊 Processed 700 profiles and 465,008 measurements
+2025-11-11 22:19:30,153 - INFO - 💾 Importing data to live PostgreSQL database...
+2025-11-11 22:19:30,172 - INFO - 📊 Importing profiles metadata...
+2025-11-11 22:19:30,186 - INFO - 📊 Importing oceanographic measurements...
+2025-11-11 22:19:52,765 - INFO - ✅ Data imported successfully!
+2025-11-11 22:19:52,765 - INFO - 📊 Live database now contains:
+2025-11-11 22:19:52,765 - INFO -    • Total profiles: 700
+2025-11-11 22:19:52,765 - INFO -    • Total measurements: 465,008
+2025-11-11 22:19:52,793 - INFO - 🎉 Live pipeline completed successfully!
+2025-11-11 22:19:52,793 - INFO - ⏱️  Duration: 69.66 seconds
+2025-11-11 22:19:52,793 - INFO - 📊 Results:
+2025-11-11 22:19:52,793 - INFO -    • Files downloaded: 10
+2025-11-11 22:19:52,793 - INFO -    • Profiles added: 700
+2025-11-11 22:19:52,793 - INFO -    • Measurements added: 465,008
+2025-11-11 22:19:52,814 - INFO - 🌊 === Live Argo Pipeline Finished ===
