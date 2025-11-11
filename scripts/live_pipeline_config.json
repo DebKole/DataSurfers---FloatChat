@@ -1,0 +1,23 @@
+{
+  "base_url": "https://data-argo.ifremer.fr/geo/indian_ocean/",
+  "download_dir": "./data/live_downloads/",
+  "processed_data_dir": "./processed_data_live/",
+  "log_dir": "./logs/",
+  "years_to_monitor": [
+    "2025"
+  ],
+  "months_to_monitor": [
+    "11",
+    "12"
+  ],
+  "file_extensions": [
+    ".nc"
+  ],
+  "max_files_per_run": 10,
+  "enable_database_import": true,
+  "cleanup_old_files": true,
+  "cleanup_days": 30,
+  "download_timeout": 120,
+  "max_retries": 3,
+  "retry_delay": 5
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=FloatChat Live Argo Data Pipeline
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=satakucodes
+WorkingDirectory=/home/satakucodes/Desktop/Coding/SIH/DataSurfers---FloatChat
+ExecStart=/home/satakucodes/Desktop/Coding/SIH/DataSurfers---FloatChat/scripts/run_live_pipeline.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

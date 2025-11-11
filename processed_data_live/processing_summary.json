@@ -1,0 +1,58 @@
+{
+  "processing_date": "2025-11-11T22:19:30.152892",
+  "total_files": 10,
+  "total_profiles": 700,
+  "total_measurements": 465008,
+  "files_processed": [
+    {
+      "filename": "20251101_prof.nc",
+      "profiles": 68,
+      "measurements": 39079
+    },
+    {
+      "filename": "20251102_prof.nc",
+      "profiles": 73,
+      "measurements": 46213
+    },
+    {
+      "filename": "20251103_prof.nc",
+      "profiles": 66,
+      "measurements": 41916
+    },
+    {
+      "filename": "20251104_prof.nc",
+      "profiles": 74,
+      "measurements": 48500
+    },
+    {
+      "filename": "20251105_prof.nc",
+      "profiles": 71,
+      "measurements": 52155
+    },
+    {
+      "filename": "20251106_prof.nc",
+      "profiles": 68,
+      "measurements": 48735
+    },
+    {
+      "filename": "20251107_prof.nc",
+      "profiles": 69,
+      "measurements": 44708
+    },
+    {
+      "filename": "20251108_prof.nc",
+      "profiles": 80,
+      "measurements": 53694
+    },
+    {
+      "filename": "20251109_prof.nc",
+      "profiles": 87,
+      "measurements": 56408
+    },
+    {
+      "filename": "20251110_prof.nc",
+      "profiles": 44,
+      "measurements": 33600
+    }
+  ]
+}

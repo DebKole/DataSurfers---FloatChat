@@ -1,0 +1,11 @@
+[Unit]
+Description=Run FloatChat Live Argo Pipeline every hour
+Requires=floatchat-live.service
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

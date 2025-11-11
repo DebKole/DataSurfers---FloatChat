@@ -1,0 +1,53 @@
+2025-11-11 20:47:51,726 - INFO - === Argo Auto Pipeline Started ===
+2025-11-11 20:47:51,726 - INFO - Config: {
+  "base_url": "https://data-argo.ifremer.fr/geo/indian_ocean/2025/",
+  "download_dir": "./data/demo_downloads/",
+  "processed_data_dir": "./processed_data_demo/",
+  "log_dir": "./logs/",
+  "max_files_per_run": 3,
+  "demo_mode": true,
+  "months_to_check": [
+    "02",
+    "03"
+  ],
+  "file_extensions": [
+    ".nc"
+  ],
+  "enable_database_import": false,
+  "cleanup_enabled": true
+}
+2025-11-11 20:47:51,727 - INFO - 🔍 Checking for new files...
+2025-11-11 20:47:51,727 - INFO - 📡 Checking https://data-argo.ifremer.fr/geo/indian_ocean/2025/02/ (Month 02/2025)
+2025-11-11 20:47:53,068 - INFO - 📊 Found 28 NetCDF files in 02/2025
+2025-11-11 20:47:53,069 - INFO - 🆕 New file detected: 20250201_prof.nc (48.2 MB)
+2025-11-11 20:47:53,069 - INFO - 🆕 New file detected: 20250202_prof.nc (51.2 MB)
+2025-11-11 20:47:53,069 - INFO - 🆕 New file detected: 20250203_prof.nc (54.2 MB)
+2025-11-11 20:47:53,069 - INFO - 📊 Found 3 new files ready for processing
+2025-11-11 20:47:53,071 - INFO - ⬇️  Downloading 20250201_prof.nc (45.2 MB)
+2025-11-11 20:47:54,073 - INFO - 📡 Connecting to IFREMER server...
+2025-11-11 20:47:54,573 - INFO - 📥 Downloading oceanographic data from 02/2025...
+2025-11-11 20:47:55,574 - INFO - ✅ Would download 20250201_prof.nc (45.2 MB)
+2025-11-11 20:47:55,574 - INFO - 💾 File would be saved to: ./data/demo_downloads/20250201_prof.nc
+2025-11-11 20:47:55,574 - INFO - ⬇️  Downloading 20250202_prof.nc (48.2 MB)
+2025-11-11 20:47:56,575 - INFO - 📡 Connecting to IFREMER server...
+2025-11-11 20:47:57,075 - INFO - 📥 Downloading oceanographic data from 02/2025...
+2025-11-11 20:47:58,076 - INFO - ✅ Would download 20250202_prof.nc (48.2 MB)
+2025-11-11 20:47:58,076 - INFO - 💾 File would be saved to: ./data/demo_downloads/20250202_prof.nc
+2025-11-11 20:47:58,077 - INFO - ⬇️  Downloading 20250203_prof.nc (51.2 MB)
+2025-11-11 20:47:59,078 - INFO - 📡 Connecting to IFREMER server...
+2025-11-11 20:47:59,578 - INFO - 📥 Downloading oceanographic data from 02/2025...
+2025-11-11 20:48:00,579 - INFO - ✅ Would download 20250203_prof.nc (51.2 MB)
+2025-11-11 20:48:00,579 - INFO - 💾 File would be saved to: ./data/demo_downloads/20250203_prof.nc
+2025-11-11 20:48:00,579 - INFO - 🔄 Processing 3 files into PostgreSQL format...
+2025-11-11 20:48:00,579 - INFO - 🔬 Extracting oceanographic data from NetCDF files...
+2025-11-11 20:48:01,580 - INFO - 🌊 Processing temperature, salinity, and pressure measurements...
+2025-11-11 20:48:02,580 - INFO - 🗂️  Creating global profile IDs and organizing data...
+2025-11-11 20:48:03,081 - INFO - ✅ Extracted 255 profiles and 165,750 measurements
+2025-11-11 20:48:03,081 - INFO - 💾 Generating PostgreSQL-ready CSV files...
+2025-11-11 20:48:03,582 - INFO - 📁 Profiles data: 255 records → argo_profiles.csv
+2025-11-11 20:48:03,582 - INFO - 📁 Measurements data: 165,750 records → argo_measurements.csv
+2025-11-11 20:48:03,583 - INFO - 💡 Database import disabled in demo mode
+2025-11-11 20:48:03,583 - INFO - 🔧 To enable: Set 'enable_database_import': true in config
+2025-11-11 20:48:03,585 - INFO - 🎉 Pipeline completed in 11.86 seconds
+2025-11-11 20:48:03,585 - INFO - 📊 Processed 3 files
+2025-11-11 20:48:03,585 - INFO - === Argo Auto Pipeline Finished ===
