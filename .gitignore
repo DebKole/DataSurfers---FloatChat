@@ -78,12 +78,26 @@ processed_data_live/
 processed_data_demo/
 processed_data_auto/
 
+# Processed data files (more specific)
+processed_data_live/**
+processed_data_demo/**
+processed_data_auto/**
+
 # NetCDF files
 *.nc
 
 # CSV files (except demo data)
 *.csv
 !argo_demo.csv
+
+# Large CSV files specifically
+**/argo_measurements.csv
+**/argo_profiles.csv
+processed_data_live/*.csv
+processed_data/*.csv
+
+# Processing summary files
+**/processing_summary.json
 
 # ===== LOGS & MONITORING =====
 logs/
