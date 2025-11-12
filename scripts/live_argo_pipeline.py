@@ -13,6 +13,7 @@ import logging
 import argparse
 import requests
 import psycopg2
+import pandas as pd
 from datetime import datetime, timedelta
 from pathlib import Path
 from bs4 import BeautifulSoup
@@ -292,35 +293,22 @@ class LiveArgoAutomation:
         return downloaded_files
     
     def process_files(self, downloaded_files):
-        """Process downloaded NetCDF files into PostgreSQL format"""
+        """Process only the newly downloaded NetCDF files"""
         if not downloaded_files:
             self.logger.info("No files to process")
             return 0, 0
         
-        self.logger.info(f"🔄 Processing {len(downloaded_files)} files...")
+        self.logger.info(f"🔄 Processing {len(downloaded_files)} newly downloaded files...")
         
         try:
-            # Initialize processor with live download directory
-            processor = NetCDFProcessor(self.config["download_dir"])
+            # Process only the specific downloaded files
+            profiles_count, measurements_count = self.process_specific_files(downloaded_files)
             
-            # Process files
-            profiles_df, measurements_df = processor.process_all_files()
-            
-            if profiles_df.empty:
+            if profiles_count == 0:
                 self.logger.warning("No data extracted from files")
                 return 0, 0
             
-            # Save processed data
-            output_dir = processor.save_to_csv(profiles_df, measurements_df, self.config["processed_data_dir"])
-            
-            profiles_count = len(profiles_df)
-            measurements_count = len(measurements_df)
-            
             self.logger.info(f"📊 Processed {profiles_count} profiles and {measurements_count:,} measurements")
-            
-            # Import to live database
-            if self.config["enable_database_import"]:
-                self.import_to_live_database(output_dir, profiles_count, measurements_count)
             
             self.log_automation_run("processing", 
                                   files_processed=len(downloaded_files),
@@ -334,8 +322,56 @@ class LiveArgoAutomation:
             self.log_automation_run("error", error_message=str(e))
             return 0, 0
     
+    def process_specific_files(self, file_paths):
+        """Process only specific NetCDF files"""
+        import sys
+        sys.path.append(str(Path(__file__).parent.parent))
+        from process_netcdf_to_postgres import NetCDFProcessor
+        
+        # Create a processor with the download directory
+        processor = NetCDFProcessor(self.config["download_dir"], self.db_config)
+        
+        all_profiles = []
+        all_measurements = []
+        
+        for file_path in file_paths:
+            filename = os.path.basename(file_path)
+            self.logger.info(f"🔬 Processing {filename}...")
+            
+            try:
+                profiles_df, measurements_df = processor.process_single_file(filename)
+                
+                if not profiles_df.empty:
+                    all_profiles.append(profiles_df)
+                if not measurements_df.empty:
+                    all_measurements.append(measurements_df)
+                    
+            except Exception as e:
+                self.logger.error(f"❌ Error processing {file_path}: {e}")
+        
+        # Combine all data
+        if all_profiles:
+            master_profiles = pd.concat(all_profiles, ignore_index=True)
+        else:
+            master_profiles = pd.DataFrame()
+            
+        if all_measurements:
+            master_measurements = pd.concat(all_measurements, ignore_index=True)
+        else:
+            master_measurements = pd.DataFrame()
+        
+        # Save processed data
+        if not master_profiles.empty:
+            output_dir = processor.save_to_csv(master_profiles, master_measurements, self.config["processed_data_dir"])
+            
+            # Import to live database
+            if self.config["enable_database_import"]:
+                self.import_to_live_database(output_dir, len(master_profiles), len(master_measurements))
+        
+        return len(master_profiles), len(master_measurements)
+    
     def import_to_live_database(self, processed_data_dir, profiles_count, measurements_count):
-        """Import processed data to live PostgreSQL database"""
+        """Import processed data to live PostgreSQL database and Vector DB"""
         self.logger.info("💾 Importing data to live PostgreSQL database...")
         
         try:
@@ -373,7 +409,7 @@ class LiveArgoAutomation:
             cursor.execute("SELECT COUNT(*) FROM argo_measurements;")
             total_measurements = cursor.fetchone()[0]
             
-            self.logger.info(f"✅ Data imported successfully!")
+            self.logger.info(f"✅ PostgreSQL import successful!")
             self.logger.info(f"📊 Live database now contains:")
             self.logger.info(f"   • Total profiles: {total_profiles:,}")
             self.logger.info(f"   • Total measurements: {total_measurements:,}")
@@ -381,9 +417,44 @@ class LiveArgoAutomation:
             cursor.close()
             conn.close()
             
+            # Now import to Vector Database
+            self.import_to_vector_database(profiles_file, profiles_count)
+            
         except Exception as e:
             self.logger.error(f"❌ Database import error: {e}")
             raise
+    
+    def import_to_vector_database(self, profiles_file, profiles_count):
+        """Import newly processed profiles to Vector Database"""
+        self.logger.info("🧠 Importing profiles to Vector Database...")
+        
+        try:
+            # Import vector DB manager
+            sys.path.append(str(Path(__file__).parent.parent))
+            from vector_db_manager import FloatChatVectorDB
+            
+            # Initialize vector DB
+            vector_db = FloatChatVectorDB()
+            
+            # Read the newly processed profiles
+            profiles_df = pd.read_csv(profiles_file)
+            
+            # Add to live collection
+            added_count = vector_db.add_profiles_to_collection(profiles_df, "live")
+            
+            # Get updated stats
+            stats = vector_db.get_collection_stats()
+            
+            self.logger.info(f"✅ Vector DB import successful!")
+            self.logger.info(f"🧠 Added {added_count} profiles to vector search")
+            self.logger.info(f"📊 Vector DB now contains:")
+            self.logger.info(f"   • January profiles: {stats.get('january_profiles', 0):,}")
+            self.logger.info(f"   • Live profiles: {stats.get('live_profiles', 0):,}")
+            self.logger.info(f"   • Total searchable profiles: {stats.get('total_profiles', 0):,}")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Vector DB import error: {e}")
+            # Don't raise - PostgreSQL import was successful, vector DB is optional
     
     def cleanup_old_files(self):
         """Clean up old downloaded files to save disk space"""
