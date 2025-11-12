@@ -101,6 +101,16 @@ logs/
 backup/
 dumps/
 
+# Vector Database
+chroma_db/
+*.chroma
+chromadb/
+vector_store/
+
+# ChromaDB cache and models
+.cache/chroma/
+onnx_models/
+
 # ===== SYSTEM FILES =====
 .DS_Store
 .DS_Store?
@@ -158,6 +168,14 @@ cron_*.log
 *.part
 *.downloading
 
+# Live pipeline status
+live_pipeline_status.json
+pipeline_*.json
+
+# Automation lock files
+*.lock
+*.pid
+
 # ===== DOCKER =====
 Dockerfile.local
 docker-compose.override.yml
@@ -182,3 +200,20 @@ site/
 .sass-cache/
 .connect.lock
 .nyc_output
+
+# ===== FLOATCHAT SPECIFIC =====
+# Vector embeddings cache
+embeddings_cache/
+*.embeddings
+
+# Model downloads
+models/
+*.model
+
+# Performance monitoring
+performance_*.json
+stats_*.json
+
+# Development testing
+test_output/
+debug_*.txt

@@ -31,6 +31,9 @@ cp .env.example .env
 # Set up main development database (January 2025 data)
 python setup_postgres_database.py
 
+# Set up vector database with January data
+python scripts/import_january_to_vector.py
+
 # Set up live automation database (optional)
 ./scripts/setup_live_automation.sh
 ```
@@ -96,17 +99,19 @@ npm start
 5. **Map Data Provider** (`map_data_provider.py`) - Geospatial visualization support
 
 ### 🗄️ Database Architecture
-- **Development Database** (`floatchat_argo`): Stable January 2025 dataset
-- **Live Database** (`floatchat_argo_live`): Real-time automation with current data
-- **Dual-database approach** ensures development stability while enabling live features
+- **Development Database** (`floatchat_argo`): Stable January 2025 dataset (2,434 profiles)
+- **Live Database** (`floatchat_argo_live`): Real-time automation with current data (224+ profiles)
+- **Vector Database** (`ChromaDB`): Semantic search with 2,658+ searchable profiles
+- **Dual-database + Vector approach** ensures development stability while enabling live features and AI-powered search
 
 ### 🔄 Data Processing Pipeline
 1. **NetCDF Ingestion** → Raw Argo float data from IFREMER
 2. **Data Processing** → Extract profiles, measurements, metadata
 3. **PostgreSQL Storage** → Optimized schema with spatial indexes
-4. **Query Processing** → Natural language to SQL conversion
-5. **AI Enhancement** → Gemini AI for complex analysis
-6. **Response Generation** → Structured data + natural language
+4. **Vector Database** → ChromaDB with semantic embeddings for AI search
+5. **Query Processing** → Natural language to SQL + vector search
+6. **AI Enhancement** → Gemini AI + semantic search for complex analysis
+7. **Response Generation** → Structured data + natural language + contextual insights
 
 ### 🤖 Live Automation System
 - **Hourly monitoring** of IFREMER Argo database
@@ -118,6 +123,7 @@ npm start
 
 ### ✅ Core Features
 - **🤖 Natural Language Processing**: Advanced query understanding and routing
+- **🧠 Semantic Search**: AI-powered vector database for contextual profile discovery
 - **🌊 Oceanographic Analysis**: Temperature, salinity, pressure profiling
 - **📊 Statistical Analysis**: Comprehensive data summaries and comparisons
 - **🗺️ Interactive Maps**: Real-time oceanographic visualizations
@@ -153,9 +159,11 @@ npm start
 - **Predictive Analytics**: Climate trend analysis and environmental forecasting
 
 ### 🗄️ Database Design
-- **PostgreSQL**: Optimized schema for oceanographic data
-- **Spatial Indexing**: Fast geographic queries
+- **PostgreSQL**: Optimized schema for oceanographic data with 2,658+ profiles
+- **ChromaDB Vector Store**: Semantic embeddings for AI-powered search
+- **Spatial Indexing**: Fast geographic queries with region detection
 - **Composite Keys**: Efficient profile and measurement relationships
+- **Global ID Management**: Conflict-free numbering across multiple databases
 - **Automation Logging**: Comprehensive pipeline monitoring
 
 ### 🔄 Automation Pipeline
@@ -242,6 +250,8 @@ psql -h localhost -U postgres -d floatchat_argo_live -c "SELECT COUNT(*) FROM ar
 "What's the salinity profile?"
 "Find the thermocline"
 "Compare the profiles"
+"Show INCOIS floats in Arabian Sea"
+"Find deep water profiles from winter"
 ```
 
 ### Innovation Feature Queries
@@ -289,11 +299,12 @@ psql -h localhost -U postgres -d floatchat_argo_live -c "SELECT COUNT(*) FROM ar
 This project was developed for Smart India Hackathon 2025 by Team DataSurfers. The system demonstrates advanced oceanographic data processing with real-time automation capabilities.
 
 ### Key Technologies
-- **Backend**: Python, FastAPI, LangGraph, PostgreSQL
+- **Backend**: Python, FastAPI, LangGraph, PostgreSQL, ChromaDB
 - **Frontend**: React, JavaScript, Leaflet Maps
-- **AI/ML**: Google Gemini AI, Natural Language Processing
+- **AI/ML**: Google Gemini AI, Vector Embeddings, Semantic Search
 - **Data**: NetCDF, Argo Float Network, IFREMER Database
 - **Automation**: Cron, Systemd, Shell Scripting
+- **Vector DB**: ChromaDB with all-MiniLM-L6-v2 embeddings
 
 ---
 

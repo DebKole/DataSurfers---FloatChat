@@ -12,10 +12,35 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class NetCDFProcessor:
-    def __init__(self, data_dir="./data/indian_ocean/2025/01/"):
+    def __init__(self, data_dir="./data/indian_ocean/2025/01/", db_config=None):
         self.data_dir = data_dir
-        self.global_profile_counter = 1  # Start from 1
+        self.db_config = db_config
+        self.global_profile_counter = self._get_next_profile_id()
         self.processed_files = []
+    
+    def _get_next_profile_id(self):
+        """Get the next available global profile ID from database"""
+        if not self.db_config:
+            return 1  # Default for non-database usage
+        
+        try:
+            import psycopg2
+            conn = psycopg2.connect(**self.db_config)
+            cursor = conn.cursor()
+            
+            # Get the current maximum global_profile_id
+            cursor.execute("SELECT COALESCE(MAX(global_profile_id), 0) + 1 FROM argo_profiles")
+            next_id = cursor.fetchone()[0]
+            
+            cursor.close()
+            conn.close()
+            
+            print(f"Starting global profile counter from: {next_id}")
+            return next_id
+            
+        except Exception as e:
+            print(f"Warning: Could not connect to database to get next ID: {e}")
+            return 1  # Fallback to 1 if database connection fails
         
     def get_netcdf_files(self):
         """Get all NetCDF files from the directory"""
