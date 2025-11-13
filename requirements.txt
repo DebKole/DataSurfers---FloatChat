@@ -10,3 +10,7 @@ python-dotenv
 chromadb
 beautifulsoup4
 requests
+fastmcp
+matplotlib
+sqlalchemy
+psycopg2
