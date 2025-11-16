@@ -15,3 +15,5 @@ fastmcp
 matplotlib
 sqlalchemy
 psycopg2
+redis
+mcp
