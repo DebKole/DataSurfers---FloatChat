@@ -125,23 +125,30 @@ RELATIONSHIPS:
 
 IMPORTANT RULES:
 1. Always use proper JOIN syntax when accessing both tables
-2. Use LIMIT to prevent huge result sets (default 100, max 1000)
-3. Always ORDER BY datetime DESC for temporal queries
-4. Use BETWEEN for coordinate ranges
-5. Use ILIKE for case-insensitive text matching
-6. Return only SELECT queries (no INSERT/UPDATE/DELETE)
-7. Handle potential NULL values appropriately
+2. For queries asking about general patterns/trends, use aggregation (AVG, MIN, MAX, COUNT, GROUP BY) instead of raw data
+3. Only use LIMIT for specific data point requests - prefer aggregated summaries for analytical queries
+4. Always ORDER BY datetime DESC for temporal queries
+5. Use BETWEEN for coordinate ranges
+6. Use ILIKE for case-insensitive text matching
+7. Return only SELECT queries (no INSERT/UPDATE/DELETE)
+8. Handle potential NULL values appropriately
+
+QUERY STRATEGY:
+- If user asks "show me temperature in Arabian Sea" → Use GROUP BY depth ranges or locations with AVG/MIN/MAX
+- If user asks "data from float 123456" → Return raw data with LIMIT 100
+- If user asks about "patterns", "trends", "conditions" → Use aggregation, no LIMIT needed
+- If user asks "latest" or "recent" → Use ORDER BY datetime DESC LIMIT 10-50
 
 COMMON QUERY PATTERNS:
-- Float lookup: WHERE float_id = 'XXXXXX'
-- Regional: WHERE latitude BETWEEN X AND Y AND longitude BETWEEN A AND B
+- Float lookup: WHERE float_id = 'XXXXXX' LIMIT 100
+- Regional analysis: WHERE latitude BETWEEN X AND Y AND longitude BETWEEN A AND B GROUP BY depth_range
 - Temporal: WHERE datetime >= 'YYYY-MM-DD' AND datetime <= 'YYYY-MM-DD'
-- Parameter-specific: WHERE temperature IS NOT NULL (or salinity, pressure)
+- Parameter analysis: SELECT AVG(temperature), MIN(temperature), MAX(temperature), depth_range FROM ... GROUP BY depth_range
 - Institution: WHERE institution ILIKE '%keyword%'
 
 USER QUERY: "{user_query}"
 
-Generate a PostgreSQL query that answers this question. Return ONLY the SQL query, no explanations or markdown formatting.
+Generate a PostgreSQL query that answers this question intelligently. Return ONLY the SQL query, no explanations or markdown formatting.
 """
 
         try:
@@ -229,6 +236,127 @@ Generate a PostgreSQL query that answers this question. Return ONLY the SQL quer
                 "sql": sql
             }
     
+    def analyze_results(self, user_query: str, sql: str, results: Dict[str, Any]) -> str:
+        """
+        Use Gemini to analyze query results and provide oceanographic insights
+        
+        Args:
+            user_query: Original user query
+            sql: SQL query that was executed
+            results: Query execution results
+            
+        Returns:
+            Natural language analysis of the results
+        """
+        if results["status"] != "success" or results["row_count"] == 0:
+            return "No data found for your query. Try adjusting the region, time period, or parameters."
+        
+        # Prepare data summary for Gemini
+        data_summary = self._prepare_data_summary(results)
+        
+        # Create analysis prompt
+        prompt = f"""
+You are an expert oceanographer analyzing Argo float data. Provide a concise, insightful analysis of the query results.
+
+USER QUERY: "{user_query}"
+
+SQL EXECUTED: {sql}
+
+DATA SUMMARY:
+- Total data points: {results['row_count']}
+- Columns: {', '.join(results['columns'])}
+
+{data_summary}
+
+ANALYSIS GUIDELINES:
+1. Start with a direct answer to the user's question
+2. Provide oceanographic context (what do these values mean?)
+3. Mention any notable patterns, ranges, or anomalies
+4. Keep it concise (2-4 sentences)
+5. Use plain text only - NO markdown formatting, NO bold, NO headers
+6. Be conversational and informative
+
+Provide your analysis:
+"""
+        
+        try:
+            response = self.model.generate_content(prompt)
+            analysis = response.text.strip()
+            
+            # Clean up any markdown that might have slipped through
+            analysis = analysis.replace('**', '').replace('*', '').replace('#', '')
+            
+            return analysis
+            
+        except Exception as e:
+            print(f"⚠️ Gemini analysis failed: {e}")
+            # Fallback to basic summary
+            return self._generate_basic_summary(user_query, results)
+    
+    def _prepare_data_summary(self, results: Dict[str, Any]) -> str:
+        """Prepare a concise summary of the data for Gemini analysis"""
+        data = results["data"]
+        columns = results["columns"]
+        
+        summary_parts = []
+        
+        # Analyze numeric columns
+        numeric_cols = ['temperature', 'salinity', 'pressure', 'depth', 'latitude', 'longitude']
+        
+        for col in columns:
+            col_lower = col.lower()
+            if any(nc in col_lower for nc in numeric_cols):
+                values = [row[col] for row in data if row.get(col) is not None and isinstance(row.get(col), (int, float))]
+                if values:
+                    min_val = min(values)
+                    max_val = max(values)
+                    avg_val = sum(values) / len(values)
+                    summary_parts.append(
+                        f"- {col}: min={min_val:.2f}, max={max_val:.2f}, "
+                        f"avg={avg_val:.2f}, count={len(values)}"
+                    )
+        
+        # Add sample data (first row only, safely)
+        if len(data) > 0:
+            try:
+                summary_parts.append(f"\nSample data (first row): {json.dumps(data[0], default=str)}")
+            except:
+                summary_parts.append(f"\nSample data available: {len(data)} rows")
+        
+        return "\n".join(summary_parts)
+    
+    def _generate_basic_summary(self, user_query: str, results: Dict[str, Any]) -> str:
+        """Generate a basic summary when Gemini analysis fails"""
+        data = results["data"]
+        row_count = results["row_count"]
+        
+        # Try to extract key metrics
+        summary = f"I found {row_count} data points for your query. "
+        
+        if data and len(data) > 0:
+            first_row = data[0]
+            
+            # Check for temperature
+            if 'temperature' in first_row:
+                temps = [row['temperature'] for row in data if row.get('temperature') is not None]
+                if temps:
+                    summary += f"Temperature ranges from {min(temps):.1f}°C to {max(temps):.1f}°C. "
+            
+            # Check for salinity
+            if 'salinity' in first_row:
+                sals = [row['salinity'] for row in data if row.get('salinity') is not None]
+                if sals:
+                    summary += f"Salinity ranges from {min(sals):.1f} to {max(sals):.1f} PSU. "
+            
+            # Check for depth/pressure
+            if 'depth' in first_row or 'pressure' in first_row:
+                depth_col = 'depth' if 'depth' in first_row else 'pressure'
+                depths = [row[depth_col] for row in data if row.get(depth_col) is not None]
+                if depths:
+                    summary += f"Depth range: {min(depths):.0f}m to {max(depths):.0f}m."
+        
+        return summary
+    
     def query_and_execute(self, user_query: str) -> Dict[str, Any]:
         """Complete workflow: generate SQL and execute it"""
         print(f"🧠 Processing query: '{user_query}'")
@@ -257,13 +385,26 @@ Generate a PostgreSQL query that answers this question. Return ONLY the SQL quer
                 "validation": validation
             }
         
-        # Add LIMIT if missing
-        if not validation["has_limit"] and "limit" not in generated_sql.lower():
+        # Smart LIMIT handling - only add if query doesn't have aggregation or LIMIT
+        sql_lower = generated_sql.lower()
+        has_aggregation = any(keyword in sql_lower for keyword in ['group by', 'avg(', 'sum(', 'count(', 'min(', 'max('])
+        
+        if not validation["has_limit"] and not has_aggregation:
+            # Only add LIMIT for non-aggregated queries
             generated_sql += " LIMIT 100"
-            print("🔧 Added LIMIT 100 for safety")
+            print("🔧 Added LIMIT 100 for safety (non-aggregated query)")
+        elif has_aggregation:
+            print("✅ Aggregated query - no LIMIT needed")
         
         # Step 3: Execute query
         execution_result = self.execute_generated_query(generated_sql)
+        
+        # Step 4: Analyze results with Gemini
+        analysis = ""
+        if execution_result["status"] == "success":
+            print("🧠 Analyzing results with Gemini AI...")
+            analysis = self.analyze_results(user_query, generated_sql, execution_result)
+            print(f"✅ Analysis: {analysis[:100]}...")
         
         # Combine results
         return {
@@ -272,7 +413,8 @@ Generate a PostgreSQL query that answers this question. Return ONLY the SQL quer
             "generated_sql": generated_sql,
             "validation": validation,
             "execution": execution_result,
-            "ai_model": "gemini-2.0-flash-exp"
+            "analysis": analysis,  # Add Gemini analysis
+            "ai_model": "gemini-2.5-flash"
         }
 
 def demo_gemini_sql_generator():

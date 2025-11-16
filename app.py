@@ -55,9 +55,9 @@ async def query_answer(req: QueryRequest):
         "show_map": result.get("show_map", False)
     }
     
-    # Add structured data if available (for potential future visualization)
-    if result.get("use_data") and "data" in result.get("data_response", {}):
-        response_data["structured_data"] = result["data_response"]["data"]
+    # Add table data for frontend display
+    if result.get("table_data") and result["table_data"].get("rows"):
+        response_data["table_data"] = result["table_data"]
     
     # Add map data if available
     if result.get("show_map", False):

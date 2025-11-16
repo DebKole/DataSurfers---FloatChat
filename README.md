@@ -3,6 +3,12 @@
 ## 🌊 Overview
 FloatChat is an intelligent oceanographic data platform that provides real-time analysis of Argo float data through natural language queries. Built for the Smart India Hackathon (SIH) 2025, it combines AI-powered query processing with live data automation to deliver comprehensive ocean insights.
 
+### 🎯 Key Highlights
+- **Gemini AI-Powered Analysis**: Intelligent SQL generation and oceanographic insights
+- **Smart Query Routing**: Automatically distinguishes data queries from informational questions
+- **Adaptive SQL Generation**: Uses aggregation for analytical queries, raw data for specific requests
+- **Contextual Responses**: Provides oceanographic context and meaningful analysis, not just data dumps
+
 ## 🏆 SIH 2025 Innovation Features
 - **🤖 AI-Powered Query Processing**: Natural language to oceanographic insights
 - **📡 Live Data Automation**: Real-time Argo data ingestion and processing
@@ -56,12 +62,17 @@ npm start
 ## 🤖 What FloatChat Can Do
 
 ### 🌊 Core Oceanographic Queries
-- **Temperature Analysis**: "What's the surface temperature?", "Temperature at 100m depth"
-- **Salinity Profiling**: "Show salinity profile", "Salinity at 50m depth"
+- **Temperature Analysis**: "Show me temperature in Arabian Sea", "Temperature at 100m depth"
+- **Salinity Profiling**: "What are the salinity patterns in Bay of Bengal?", "Salinity at 50m depth"
 - **Depth Analysis**: "Conditions at 200m", "Data between 50 and 150m"
-- **Profile Comparisons**: "Show profile summary", "Compare profiles"
+- **Profile Comparisons**: "What are the profiles linked with float id 1902482", "Compare profiles"
 - **Ocean Structure**: "Find thermocline", "Temperature gradient"
 - **Statistical Analysis**: "Dataset overview", "Basic statistics"
+
+### 💬 Informational Queries
+- **About Argo Floats**: "What are Argo floats?", "How do Argo floats work?"
+- **System Capabilities**: "What data do you have?", "What can you do?"
+- **Oceanographic Concepts**: "What is the Arabian Sea?", "Explain thermocline"
 
 ### 🚀 Innovation Features
 - **🏭 Pollution Detection**: "Analyze ocean pollution", "Show acidification levels"
@@ -71,22 +82,84 @@ npm start
 - **📡 Live Data**: "Latest oceanographic data", "Real-time conditions"
 
 ### 🧠 AI-Powered Insights
-- Advanced oceanographic explanations
-- Climate change impact analysis
-- Marine ecosystem health assessment
-- Data-driven environmental recommendations
+- **Intelligent Query Understanding**: Distinguishes between data queries and informational questions
+- **Smart SQL Generation**: Automatically chooses aggregation vs raw data based on query intent
+- **Oceanographic Context**: Provides meaningful analysis with thermal stratification, thermocline patterns, etc.
+- **Concise Responses**: Direct answers without verbose explanations
+- **Climate Analysis**: Ocean heat content, warming trends, and environmental impact assessment
 
 ## 📊 Sample Queries to Try
 
+### Data Queries (Returns actual data with analysis)
 ```
-"What are the basic statistics?"
+"Show me temperature in the Arabian Sea"
+"What are the profiles linked with float id 1902482"
+"Get data from float 1902482"
+"What is the latest temperature measurement?"
+"Show me salinity patterns in Bay of Bengal"
+"Find profiles in the Arabian Sea from winter 2025"
 "What's the surface temperature?"
-"Show me temperature at 100 meters depth"
-"What's the salinity profile?"
+"Temperature at 100 meters depth"
+```
+
+### Informational Queries (Returns explanations)
+```
+"What are Argo floats?"
+"How do Argo floats work?"
+"Do you have information about argo floats?"
+"What data do you have?"
+"Tell me about the Arabian Sea"
+```
+
+### Analytical Queries (Returns aggregated insights)
+```
+"What are the temperature patterns in Bay of Bengal?"
+"Show me temperature trends by depth"
+"Compare salinity profiles across regions"
 "Find the thermocline"
-"What are surface conditions?"
-"Compare the profiles"
-"Show temperature range"
+"Analyze ocean heat content"
+```
+
+## ✨ Recent Improvements
+
+### 🎯 Intelligent Query Processing
+1. **Smart Query Routing**: System now distinguishes between:
+   - Data queries → Routes to database (e.g., "Show me temperature in Arabian Sea")
+   - Informational queries → Routes to LLM (e.g., "What are Argo floats?")
+
+2. **Adaptive SQL Generation**: 
+   - Analytical queries use aggregation without arbitrary limits
+   - Example: "Show me temperature in Arabian Sea" returns 41 aggregated depth bins, not 100 random points
+   - Specific data requests still use appropriate LIMIT for safety
+
+3. **Gemini-Powered Analysis**:
+   - Every query result is analyzed by Gemini AI
+   - Provides oceanographic context and insights
+   - Example: Instead of "I found 100 data points", you get "The Arabian Sea exhibits strong thermal stratification with warm surface waters around 26-29°C transitioning through a pronounced thermocline..."
+
+4. **Concise Responses**:
+   - Informational queries: 2-4 sentences maximum
+   - Data queries: Analysis + structured data
+   - No verbose explanations
+
+### 📊 Query Examples
+
+**Before Improvements:**
+```
+Query: "Show me temperature in Arabian Sea"
+Response: "I found 100 data points. Temperature ranges from 2.8°C to 3.4°C."
+SQL: SELECT * FROM ... LIMIT 100
+```
+
+**After Improvements:**
+```
+Query: "Show me temperature in Arabian Sea"
+Response: "The Arabian Sea exhibits strong thermal stratification with warm surface 
+waters around 26-29°C transitioning through a pronounced thermocline to cold deep 
+waters around 3°C. This profile reflects typical oceanographic conditions."
+SQL: SELECT depth_range, AVG(temperature), MIN(temperature), MAX(temperature) 
+     FROM ... GROUP BY depth_range
+Data: 41 aggregated depth bins with comprehensive statistics
 ```
 
 ## 🏗️ System Architecture
@@ -154,9 +227,16 @@ npm start
 
 ### 🧠 AI & Machine Learning
 - **LangGraph Integration**: Intelligent query routing and decision making
-- **Gemini AI**: Advanced natural language understanding and generation
+- **Gemini AI**: 
+  - Advanced natural language understanding and SQL generation
+  - Oceanographic result analysis with contextual insights
+  - Smart query classification (data vs informational)
+- **Adaptive SQL Generation**: 
+  - Analytical queries → Aggregation (GROUP BY, AVG, MIN, MAX)
+  - Specific queries → Raw data with appropriate LIMIT
+  - No arbitrary limits on aggregated data
 - **Pattern Recognition**: Automated detection of oceanographic phenomena
-- **Predictive Analytics**: Climate trend analysis and environmental forecasting
+- **Contextual Analysis**: Thermal stratification, thermocline identification, climate patterns
 
 ### 🗄️ Database Design
 - **PostgreSQL**: Optimized schema for oceanographic data with 2,658+ profiles
@@ -233,13 +313,65 @@ psql -h localhost -U postgres -d floatchat_argo_live -c "SELECT COUNT(*) FROM ar
 ```json
 {
   "status": 201,
-  "message": "Natural language response",
-  "query_type": "temperature_analysis",
+  "message": "The Arabian Sea exhibits strong thermal stratification...",
+  "query_type": "spatial",
   "has_data": true,
-  "show_map": false,
-  "structured_data": {...}
+  "show_map": true,
+  "table_data": {
+    "columns": ["depth_range", "avg_temperature", "min_temperature", "max_temperature", "measurement_count"],
+    "rows": [
+      {"depth_range": "0-50m", "avg_temperature": 28.5, "min_temperature": 27.2, "max_temperature": 29.8, "measurement_count": 150},
+      {"depth_range": "50-100m", "avg_temperature": 25.3, "min_temperature": 24.1, "max_temperature": 26.5, "measurement_count": 145}
+    ],
+    "total_rows": 41
+  },
+  "map_data": {
+    "points": [
+      {"lat": 15.5, "lng": 65.2, "temperature": 28.5, "salinity": 35.2, "float_id": "1902482"}
+    ],
+    "parameter": "temperature",
+    "region": "Arabian Sea"
+  }
 }
 ```
+
+### Data Export for Analysis/ML Teams
+
+All query results are returned in JSON format with structured data that can be easily exported:
+
+**For ML/Analysis:**
+```python
+# Extract data from API response
+data_rows = response['table_data']['rows']
+columns = response['table_data']['columns']
+
+# Convert to DataFrame
+import pandas as pd
+df = pd.DataFrame(data_rows)
+
+# Export to various formats
+df.to_csv('argo_data.csv', index=False)
+df.to_json('argo_data.json', orient='records')
+df.to_parquet('argo_data.parquet')
+```
+
+**For Visualization:**
+```python
+# Map data for geographic visualizations
+map_points = response['map_data']['points']
+# Each point has: lat, lng, temperature, salinity, float_id, datetime
+
+# Table data for charts
+table_data = response['table_data']['rows']
+# Ready for Plotly, Matplotlib, or any visualization library
+```
+
+**Data Structure:**
+- All responses are Python dictionaries (JSON-compatible)
+- `table_data.rows`: List of dictionaries (one per data row)
+- `table_data.columns`: Column names
+- `map_data.points`: Geographic coordinates with measurements
+- Easily convertible to CSV, JSON, Parquet, or any format
 
 ## 📊 Sample Queries
 
