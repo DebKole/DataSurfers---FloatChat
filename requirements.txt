@@ -3,6 +3,7 @@ fastapi
 langchain
 langchain-core
 langchain-google-genai
+google-generativeai
 pandas
 numpy
 scipy
@@ -15,3 +16,5 @@ fastmcp
 matplotlib
 sqlalchemy
 psycopg2
+redis
+mcp
