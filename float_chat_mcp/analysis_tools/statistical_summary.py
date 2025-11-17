@@ -1,42 +1,41 @@
 from server import mcp
 import pandas as pd
 import numpy as np
+from typing import Dict, List, Any
 
 @mcp.tool
-def argo_stat_summary(df: pd.DataFrame) -> pd.DataFrame:
+def argo_stat_summary(data: List[Dict[str, Any]]) -> Dict[str, Dict[str, float]]:
     """
     Compute summary statistics for temperature, salinity, and pressure
-    from a pre-filtered ARGO dataframe.
+    from ARGO data.
 
     Args:
-        df: Pandas DataFrame containing at least ['temperature', 'salinity', 'pressure'] columns.
-             The data should already be filtered for region, depth, etc.
+        data: List of dictionaries containing at least 'temperature', 'salinity', 'pressure' keys.
+              The data should already be filtered for region, depth, etc.
 
     Returns:
-        summary_df: DataFrame containing statistical summary of each variable.
+        Dictionary containing statistical summary of each variable.
     """
-
-    # --- Validate input columns ---
+    # Convert to DataFrame
+    df = pd.DataFrame(data)
+    
+    # Validate input columns
     required_cols = ['temperature', 'salinity', 'pressure']
     for col in required_cols:
         if col not in df.columns:
-            raise ValueError(f"Missing required column '{col}' in input DataFrame.")
+            raise ValueError(f"Missing required column '{col}' in input data.")
 
-    # --- Compute statistics ---
+    # Compute statistics
     summary_data = {}
     for var in required_cols:
-        data = df[var].dropna()
+        values = df[var].dropna()
         summary_data[var] = {
-            "count": len(data),
-            "mean": np.mean(data),
-            "median": np.median(data),
-            "std_dev": np.std(data),
-            "min": np.min(data),
-            "max": np.max(data),
+            "count": int(len(values)),
+            "mean": float(np.mean(values)),
+            "median": float(np.median(values)),
+            "std_dev": float(np.std(values)),
+            "min": float(np.min(values)),
+            "max": float(np.max(values)),
         }
 
-    # --- Convert to DataFrame for easy display ---
-    summary_df = pd.DataFrame(summary_data).T  # transpose so variables are rows
-    summary_df = summary_df.round(4)  # format nicely
-
-    return summary_df
+    return summary_data
