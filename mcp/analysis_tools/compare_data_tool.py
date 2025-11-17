@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Any
 
 @mcp.tool
 def argo_comparison_tool(
-    dfs: List[pd.DataFrame],
+    datasets: List[List[Dict[str, Any]]],
     labels: List[str],
     variable: str,
     axis_var: Optional[str] = None
@@ -14,48 +14,43 @@ def argo_comparison_tool(
     Compare statistical summaries and curve data for multiple ARGO datasets.
 
     Args:
-        dfs: List of pre-filtered pandas DataFrames (same structure, e.g. same variable column).
-        labels: List of dataset labels (same length as dfs).
+        datasets: List of datasets (each dataset is a list of dictionaries).
+        labels: List of dataset labels (same length as datasets).
         variable: The variable to compare ('temperature', 'salinity', or 'pressure').
-        axis_var: Optional column to use for plotting curves (e.g., 'depth' or 'time').
+        axis_var: Optional column to use for plotting curves (e.g., 'depth' or 'datetime').
 
     Returns:
         {
-            "comparison_df": <DataFrame summarizing stats across datasets>,
-            "curves": {
-                label1: {"x": [...], "y": [...]},
-                label2: {"x": [...], "y": [...]},
-                ...
-            }
+            "comparison": {label: {stats...}},
+            "curves": {label: {"x": [...], "y": [...]}}
         }
     """
 
-    if len(dfs) != len(labels):
-        raise ValueError("The number of DataFrames and labels must be equal.")
+    if len(datasets) != len(labels):
+        raise ValueError("The number of datasets and labels must be equal.")
 
-    # --- Compute statistics for each dataset ---
+    # Compute statistics for each dataset
     summaries = {}
-    for df, label in zip(dfs, labels):
+    curves = {}
+    
+    for dataset, label in zip(datasets, labels):
+        df = pd.DataFrame(dataset)
+        
         if variable not in df.columns:
-            raise ValueError(f"'{variable}' not found in DataFrame '{label}'.")
+            raise ValueError(f"'{variable}' not found in dataset '{label}'.")
 
-        data = df[variable].dropna()
+        values = df[variable].dropna()
         summaries[label] = {
-            "count": len(data),
-            "mean": np.mean(data),
-            "median": np.median(data),
-            "std_dev": np.std(data),
-            "min": np.min(data),
-            "max": np.max(data),
+            "count": int(len(values)),
+            "mean": float(np.mean(values)),
+            "median": float(np.median(values)),
+            "std_dev": float(np.std(values)),
+            "min": float(np.min(values)),
+            "max": float(np.max(values)),
         }
 
-    comparison_df = pd.DataFrame(summaries).T.round(4)
-    comparison_df.index.name = "Dataset"
-
-    # --- Prepare curve data (for visualization tool) ---
-    curves = {}
-    if axis_var and all(axis_var in df.columns for df in dfs):
-        for df, label in zip(dfs, labels):
+        # Prepare curve data if axis_var is provided
+        if axis_var and axis_var in df.columns:
             curve_df = df[[axis_var, variable]].dropna().sort_values(axis_var)
             curves[label] = {
                 "x": curve_df[axis_var].tolist(),
@@ -63,6 +58,6 @@ def argo_comparison_tool(
             }
 
     return {
-        "comparison_df": comparison_df,
+        "comparison": summaries,
         "curves": curves
     }
