@@ -178,3 +178,33 @@ async def get_float_details(
             "error": str(e)
         }
 
+
+@app.get("/floats/trajectories/radius")
+async def get_trajectories_in_radius(
+    lat: float = Query(..., description="Center latitude"),
+    lon: float = Query(..., description="Center longitude"),
+    radius: float = Query(default=10, ge=1, le=20000, description="Radius in kilometers"),
+    limit: int = Query(default=50, ge=1, le=500)
+):
+    """Get trajectory data (all positions over time) for floats within radius"""
+    try:
+        trajectories = float_service.get_trajectories_in_radius(
+            center_lat=lat,
+            center_lon=lon,
+            radius_km=radius,
+            limit=limit
+        )
+        return {
+            "status": 200,
+            "count": len(trajectories),
+            "trajectories": trajectories,
+            "center": {"lat": lat, "lon": lon},
+            "radius_km": radius
+        }
+    except Exception as e:
+        return {
+            "status": 500,
+            "error": str(e),
+            "trajectories": []
+        }
+

@@ -310,6 +310,122 @@ class FloatLocationService:
                 
         finally:
             conn.close()
+    
+    def get_trajectories_in_radius(
+        self, 
+        center_lat: float, 
+        center_lon: float, 
+        radius_km: float = 10,
+        limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """
+        Get trajectory data (all positions over time) for floats within radius
+        Returns all profiles for each float to show movement path
+        
+        Args:
+            center_lat: Center latitude
+            center_lon: Center longitude
+            radius_km: Radius in kilometers
+            limit: Maximum number of floats (not profiles)
+            
+        Returns:
+            List of trajectory points with format:
+            {
+                "profileId": global_profile_id,
+                "lat": latitude,
+                "lon": longitude,
+                "floatId": float_id,
+                "cycleNumber": cycle_number,
+                "datetime": datetime
+            }
+        """
+        conn = self._connect()
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Step 1: Get floats within radius (latest position)
+                lat_delta = radius_km / 111.0
+                lon_delta = radius_km / (111.0 * math.cos(math.radians(float(center_lat))))
+                
+                min_lat = float(center_lat) - lat_delta
+                max_lat = float(center_lat) + lat_delta
+                min_lon = float(center_lon) - lon_delta
+                max_lon = float(center_lon) + lon_delta
+                
+                # Get floats within bounding box
+                floats_query = """
+                WITH latest_profiles AS (
+                    SELECT DISTINCT ON (float_id)
+                        float_id,
+                        latitude,
+                        longitude
+                    FROM argo_profiles
+                    WHERE latitude IS NOT NULL 
+                        AND longitude IS NOT NULL
+                        AND datetime >= '2025-01-01'
+                        AND latitude BETWEEN %s AND %s
+                        AND longitude BETWEEN %s AND %s
+                    ORDER BY float_id, datetime DESC
+                )
+                SELECT float_id, latitude, longitude
+                FROM latest_profiles
+                LIMIT %s
+                """
+                
+                cur.execute(floats_query, (min_lat, max_lat, min_lon, max_lon, limit * 2))
+                candidate_floats = cur.fetchall()
+                
+                # Filter by exact distance
+                floats_in_radius = []
+                for row in candidate_floats:
+                    distance = self.haversine_distance(
+                        center_lat, center_lon,
+                        float(row['latitude']), float(row['longitude'])
+                    )
+                    if distance <= radius_km:
+                        floats_in_radius.append(row['float_id'])
+                
+                if not floats_in_radius:
+                    return []
+                
+                # Limit to requested number of floats
+                floats_in_radius = floats_in_radius[:limit]
+                
+                # Step 2: Get ALL profiles for these floats (trajectory data)
+                trajectory_query = """
+                SELECT 
+                    global_profile_id as "profileId",
+                    latitude as lat,
+                    longitude as lon,
+                    float_id as "floatId",
+                    cycle_number as "cycleNumber",
+                    datetime
+                FROM argo_profiles
+                WHERE float_id = ANY(%s)
+                    AND latitude IS NOT NULL
+                    AND longitude IS NOT NULL
+                    AND datetime >= '2025-01-01'
+                ORDER BY float_id, datetime
+                """
+                
+                cur.execute(trajectory_query, (floats_in_radius,))
+                trajectories = cur.fetchall()
+                
+                # Convert to list of dicts with proper format
+                result = []
+                for row in trajectories:
+                    result.append({
+                        "profileId": row['profileId'],
+                        "lat": float(row['lat']),
+                        "lon": float(row['lon']),
+                        "floatId": row['floatId'],
+                        "cycleNumber": row['cycleNumber'],
+                        "datetime": str(row['datetime']) if row['datetime'] else None
+                    })
+                
+                return result
+                
+        finally:
+            conn.close()
 
 
 # Test function
