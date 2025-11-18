@@ -8,11 +8,13 @@ from data_processor import ArgoDataProcessor
 from query_interpreter import QueryInterpreter
 
 load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.getenv("GOOGLE_API_KEY")
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=api_key)
 
 # Initialize data processor and query interpreter
-data_processor = ArgoDataProcessor("argo_demo.csv")
+# Initialize data processor and query interpreter
+csv_path = os.path.join(os.path.dirname(__file__), "argo_demo.csv")
+data_processor = ArgoDataProcessor(csv_path)
 query_interpreter = QueryInterpreter(data_processor)
 
 class AgentState(TypedDict):
