@@ -7,6 +7,7 @@ import './index.css';
 function App() {
 
   const [dataSidebarView, setDataSidebarView] = useState('table');
+  const [tableData, setTableData] = useState(null);
 
   const handleMapRequest = () => {
     setDataSidebarView('map');
@@ -24,17 +25,22 @@ function App() {
     setShowMap(false);
   };
 
+  const handleTableData = (data) => {
+    setTableData(data);
+  };
+
   return (
     <div className="container">
       <Sidebar />
 
-      <ChatContainer onMapRequest={handleMapRequest} onMapData={handleMapData} />
+      <ChatContainer onMapRequest={handleMapRequest} onMapData={handleMapData} onTableData={handleTableData} />
       <DataSidebar 
         selectedView={dataSidebarView} 
         onViewChange={setDataSidebarView}
         mapData={mapData} 
         showMap={showMap} 
-        onMapClose={handleMapClose} 
+        onMapClose={handleMapClose}
+        tableData={tableData}
       />
 
     </div>

@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import './ChatContainer.css';
 import axios from 'axios';
 
-const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
+const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTableData = () => { } }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef(null);
-  
+
   const actionOptions = [
     {
       title: "Retrieve Argo Data",
@@ -37,66 +37,19 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
   }, [messages]);
 
   const handleOptionClick = async (option) => {
-  const newMessages = [...messages, { type: 'user', content: option.prompt }];
-  setMessages(newMessages);
-
-  // Trigger map view if this is the "Use Map" action
-  if (option.title === "Use Map" && onMapRequest) {
-    onMapRequest();
-  }
-
-  try {
-    const response = await axios.post("http://127.0.0.1:8000", {
-      query: option.prompt,
-    });
-
-    setMessages(prev => [
-      ...prev,
-      { type: 'bot', content: response.data.message }
-    ]);
-
-    // Handle map data if present
-    if (response.data.show_map && response.data.map_data) {
-      onMapData(response.data.map_data, true);
-    }
-  } catch (error) {
-    console.error("Error fetching response:", error);
-    setMessages(prev => [
-      ...prev,
-      { type: 'bot', content: "⚠️ Could not fetch response from server." }
-    ]);
-  }
-};
-
-
-  const handleSend = async () => {
-  if (inputValue.trim()) {
-    // Add user message
-    console.log("handle send");
-    const newMessages = [...messages, { type: 'user', content: inputValue }];
+    const newMessages = [...messages, { type: 'user', content: option.prompt }];
     setMessages(newMessages);
 
-    // Store the current query before clearing
-    const query = inputValue;
-    setInputValue('');
-
-    // Check if user is asking for map-related functionality
-    const mapKeywords = ['map', 'visualize', 'show location', 'geographic', 'coordinates', 'latitude', 'longitude', 'plot', 'chart'];
-    const isMapRequest = mapKeywords.some(keyword => 
-      query.toLowerCase().includes(keyword.toLowerCase())
-    );
-    
-    if (isMapRequest && onMapRequest) {
+    // Trigger map view if this is the "Use Map" action
+    if (option.title === "Use Map" && onMapRequest) {
       onMapRequest();
     }
 
     try {
-      // Call FastAPI backend
       const response = await axios.post("http://127.0.0.1:8000", {
-        query: query,
+        query: option.prompt,
       });
 
-      // Add bot message with response
       setMessages(prev => [
         ...prev,
         { type: 'bot', content: response.data.message }
@@ -107,15 +60,72 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
         onMapData(response.data.map_data, true);
       }
 
+      // Handle table data if present
+      if (response.data.table_data) {
+        onTableData(response.data.table_data);
+      }
     } catch (error) {
-      console.log("Error fetching response:", error);
+      console.error("Error fetching response from server:", error);
       setMessages(prev => [
         ...prev,
-        { type: 'bot', content: "⚠️ Sorry, something went wrong connecting to the server." }
+        { type: 'bot', content: "⚠️ Sorry, could not fetch response from server." }
       ]);
     }
-  }
-};
+  };
+
+
+  const handleSend = async () => {
+    if (inputValue.trim()) {
+      // Add user message
+      console.log("handle send");
+      const newMessages = [...messages, { type: 'user', content: inputValue }];
+      setMessages(newMessages);
+
+      // Store the current query before clearing
+      const query = inputValue;
+      setInputValue('');
+
+      // Check if user is asking for map-related functionality
+      const mapKeywords = ['map', 'visualize', 'show location', 'geographic', 'coordinates', 'latitude', 'longitude', 'plot', 'chart'];
+      const isMapRequest = mapKeywords.some(keyword =>
+        query.toLowerCase().includes(keyword.toLowerCase())
+      );
+
+      if (isMapRequest && onMapRequest) {
+        onMapRequest();
+      }
+
+      try {
+        // Call FastAPI backend
+        const response = await axios.post("http://127.0.0.1:8000", {
+          query: query,
+        });
+
+        // Add bot message with response
+        setMessages(prev => [
+          ...prev,
+          { type: 'bot', content: response.data.message }
+        ]);
+
+        // Handle map data if present
+        if (response.data.show_map && response.data.map_data) {
+          onMapData(response.data.map_data, true);
+        }
+
+        // Handle table data if present
+        if (response.data.table_data) {
+          onTableData(response.data.table_data);
+        }
+
+      } catch (error) {
+        console.log("Error fetching response:", error);
+        setMessages(prev => [
+          ...prev,
+          { type: 'bot', content: "⚠️ Sorry, something went wrong connecting to the server." }
+        ]);
+      }
+    }
+  };
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
@@ -139,11 +149,11 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
               </div>
               <h2>How can I help you today?</h2>
               <p>I'm your oceanographic data assistant. Choose an option below to get started:</p>
-              
+
               <div className="action-options">
                 {actionOptions.map((option, index) => (
-                  <div 
-                    key={index} 
+                  <div
+                    key={index}
                     className="action-card"
                     onClick={() => handleOptionClick(option)}
                   >
@@ -174,9 +184,9 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
       </div>
 
       <div className="chat-input">
-        <input 
-          type="text" 
-          placeholder="Ask about ocean data..." 
+        <input
+          type="text"
+          placeholder="Ask about ocean data..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}

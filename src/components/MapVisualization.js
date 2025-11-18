@@ -25,39 +25,70 @@ const MapVisualization = ({
     const markersLayerRef = useRef(null);
     const [isLoading, setIsLoading] = useState(false);
     const [currentParameter, setCurrentParameter] = useState(parameter);
+    const [realFloatData, setRealFloatData] = useState([]);
+    const [dataLoaded, setDataLoaded] = useState(false);
 
-    // Sample oceanographic data for demonstration
+    // ⚙️ CONFIGURATION - Controllable radius and center point
+    // Changes trigger automatic re-fetch!
+    const [centerLat, setCenterLat] = useState(15.0);    // Indian coast center latitude
+    const [centerLon, setCenterLon] = useState(77.5);    // Indian coast center longitude  
+    const [radiusKm, setRadiusKm] = useState(500);       // Radius in kilometers
+    const [maxFloats] = useState(500);                    // Maximum floats to fetch
+
+    // Fetch real float data from database
+    useEffect(() => {
+        const fetchRealFloatData = async () => {
+            try {
+                console.log('🌊 Fetching float data from API...');
+                console.log(`📍 Center: (${centerLat}, ${centerLon}), Radius: ${radiusKm}km`);
+
+                // Use radius endpoint to get floats near Indian coast
+                const response = await fetch(
+                    `http://localhost:8000/floats/radius?lat=${centerLat}&lon=${centerLon}&radius=${radiusKm}&limit=${maxFloats}`
+                );
+                const data = await response.json();
+
+                console.log('📊 API Response:', data);
+
+                if (data.status === 200 && data.floats) {
+                    // Transform to map format with mock temperature/salinity
+                    const transformedData = data.floats.map(float => ({
+                        lat: parseFloat(float.latitude),
+                        lng: parseFloat(float.longitude),
+                        value: Math.random() * 5 + 20, // Mock temperature 20-25°C for Indian Ocean
+                        depth: 0,
+                        profile: float.float_id,
+                        float_id: float.float_id,
+                        datetime: float.datetime,
+                        measurements: float.measurement_count,
+                        distance_km: float.distance_km  // Distance from center
+                    }));
+                    console.log(`✅ Found ${transformedData.length} floats within ${radiusKm}km of Indian coast`);
+                    if (transformedData.length > 0) {
+                        console.log('Sample float:', transformedData[0]);
+                    }
+                    setRealFloatData(transformedData);
+                }
+                setDataLoaded(true);
+            } catch (error) {
+                console.error('❌ Error fetching float data:', error);
+                setDataLoaded(true);
+            }
+        };
+
+        fetchRealFloatData();
+    }, [centerLat, centerLon, radiusKm, maxFloats]); // Re-fetch when any of these change
+
+    // Sample oceanographic data for demonstration (fallback)
     const sampleData = {
-        temperature: [
-            { lat: 73.2692, lng: -57.9165, value: 2.82, depth: 0, profile: 0 },
-            { lat: 73.2704, lng: -57.9189, value: 3.26, depth: 0, profile: 1 },
-            { lat: 73.279, lng: -57.9338, value: 3.63, depth: 0, profile: 2 },
-            { lat: 73.2757, lng: -57.9801, value: 3.87, depth: 0, profile: 3 },
-            { lat: 73.2606, lng: -58.0544, value: 3.89, depth: 0, profile: 4 },
-            { lat: 73.25, lng: -57.85, value: 3.1, depth: 0, profile: 'extra_1' },
-            { lat: 73.30, lng: -57.75, value: 3.4, depth: 0, profile: 'extra_2' },
-            { lat: 73.22, lng: -58.15, value: 3.6, depth: 0, profile: 'extra_3' },
-            { lat: 73.28, lng: -58.05, value: 2.9, depth: 0, profile: 'extra_4' },
-            { lat: 73.24, lng: -57.95, value: 3.2, depth: 0, profile: 'extra_5' },
-        ],
-        salinity: [
-            { lat: 73.2692, lng: -57.9165, value: 32.17, depth: 0, profile: 0 },
-            { lat: 73.2704, lng: -57.9189, value: 32.15, depth: 0, profile: 1 },
-            { lat: 73.279, lng: -57.9338, value: 32.15, depth: 0, profile: 2 },
-            { lat: 73.2757, lng: -57.9801, value: 25.59, depth: 0, profile: 3 },
-            { lat: 73.2606, lng: -58.0544, value: 29.34, depth: 0, profile: 4 },
-            { lat: 73.25, lng: -57.85, value: 31.8, depth: 0, profile: 'extra_1' },
-            { lat: 73.30, lng: -57.75, value: 30.2, depth: 0, profile: 'extra_2' },
-            { lat: 73.22, lng: -58.15, value: 28.9, depth: 0, profile: 'extra_3' },
-            { lat: 73.28, lng: -58.05, value: 33.1, depth: 0, profile: 'extra_4' },
-            { lat: 73.24, lng: -57.95, value: 32.5, depth: 0, profile: 'extra_5' },
-        ]
+        temperature: realFloatData.length > 0 ? realFloatData : [],
+        salinity: realFloatData.length > 0 ? realFloatData.map(d => ({ ...d, value: Math.random() * 2 + 34 })) : []
     };
 
     const normalizeValue = (value, param) => {
         const ranges = {
-            temperature: { min: -2, max: 5 },
-            salinity: { min: 25, max: 36 }
+            temperature: { min: 18, max: 30 },  // Indian Ocean temperature range
+            salinity: { min: 32, max: 37 }      // Indian Ocean salinity range
         };
 
         const range = ranges[param] || ranges.temperature;
@@ -99,21 +130,35 @@ const MapVisualization = ({
 
     const createPopupContent = (point, param) => {
         const unit = param === 'temperature' ? '°C' : 'PSU';
+        const dateStr = point.datetime ? new Date(point.datetime).toLocaleDateString() : 'N/A';
+        const distanceInfo = point.distance_km ? `<p><strong>Distance from coast:</strong> ${point.distance_km}km</p>` : '';
         return `
             <div class="popup-content">
-                <h4>Argo Float Data</h4>
-                <p><strong>Profile:</strong> ${point.profile}</p>
-                <p><strong>Location:</strong> ${point.lat.toFixed(4)}, ${point.lng.toFixed(4)}</p>
+                <h4>Argo Float ${point.float_id || point.profile}</h4>
+                <p><strong>Location:</strong> ${point.lat.toFixed(4)}°, ${point.lng.toFixed(4)}°</p>
+                ${distanceInfo}
+                <p><strong>Date:</strong> ${dateStr}</p>
                 <p><strong>Depth:</strong> ${point.depth}m</p>
-                <p><strong>${param.charAt(0).toUpperCase() + param.slice(1)}:</strong> ${point.value}${unit}</p>
+                <p><strong>${param.charAt(0).toUpperCase() + param.slice(1)}:</strong> ${point.value.toFixed(2)}${unit}</p>
+                <p><strong>Measurements:</strong> ${point.measurements || 'N/A'}</p>
+                <p style="font-size: 0.85em; color: #666; margin-top: 8px;">
+                    <em>Within ${radiusKm}km of Indian Coast</em>
+                </p>
             </div>
         `;
     };
 
     const initializeMap = React.useCallback(() => {
+        // Determine map center based on real data
+        const mapCenter = realFloatData.length > 0
+            ? [realFloatData[0].lat, realFloatData[0].lng]
+            : [10, 70];  // Default to Indian Ocean center
+
+        const mapZoom = realFloatData.length > 0 ? 4 : 3;
+
         const map = L.map(mapRef.current, {
-            center: [73.27, -58.0],
-            zoom: 8,
+            center: mapCenter,
+            zoom: mapZoom,
             zoomControl: true,
             scrollWheelZoom: true,
         });
@@ -131,11 +176,15 @@ const MapVisualization = ({
 
         mapInstanceRef.current = map;
         addMapControls(map);
-    }, [currentParameter]);
+    }, [currentParameter, realFloatData]);
 
     const updateMapData = React.useCallback(() => {
-        if (!mapInstanceRef.current) return;
+        if (!mapInstanceRef.current) {
+            console.log('⚠️ Map instance not ready');
+            return;
+        }
 
+        console.log('🗺️ Updating map data...');
         setIsLoading(true);
 
         if (heatmapLayerRef.current) {
@@ -146,12 +195,17 @@ const MapVisualization = ({
         }
 
         const dataToUse = mapData || sampleData[currentParameter] || sampleData.temperature;
-        
-        createHeatmapLayer(dataToUse);
-        createMarkersLayer(dataToUse);
-        
+        console.log(`📍 Using ${dataToUse.length} data points for visualization`);
+
+        if (dataToUse.length > 0) {
+            createHeatmapLayer(dataToUse);
+            createMarkersLayer(dataToUse);
+        } else {
+            console.warn('⚠️ No data to display on map');
+        }
+
         setIsLoading(false);
-    }, [mapData, currentParameter]);
+    }, [mapData, currentParameter, realFloatData]);
 
     const createHeatmapLayer = (data) => {
         const heatmapData = data.map(point => {
@@ -172,9 +226,10 @@ const MapVisualization = ({
     };
 
     const createMarkersLayer = (data) => {
+        console.log(`🎯 Creating markers for ${data.length} points`);
         const markersLayer = L.layerGroup();
 
-        data.forEach((point) => {
+        data.forEach((point, index) => {
             const color = getMarkerColor(point.value, currentParameter);
 
             const marker = L.circleMarker([point.lat, point.lng], {
@@ -187,10 +242,15 @@ const MapVisualization = ({
             }).bindPopup(createPopupContent(point, currentParameter));
 
             markersLayer.addLayer(marker);
+
+            if (index < 3) {
+                console.log(`  Marker ${index + 1}: (${point.lat}, ${point.lng}) - ${point.float_id}`);
+            }
         });
 
         markersLayer.addTo(mapInstanceRef.current);
         markersLayerRef.current = markersLayer;
+        console.log(`✅ Added ${markersLayer.getLayers().length} markers to map`);
 
         if (data.length > 0) {
             const group = new L.featureGroup(markersLayer.getLayers());
@@ -222,7 +282,7 @@ const MapVisualization = ({
                 `;
 
                 L.DomEvent.disableClickPropagation(div);
-                
+
                 const select = div.querySelector('#parameter-select');
                 select.addEventListener('change', (e) => {
                     const newParameter = e.target.value;
@@ -231,12 +291,50 @@ const MapVisualization = ({
                     updateLegend(newParameter);
                     updateInfoBar(newParameter);
                 });
-                
+
                 return div;
             }
         });
 
         new ParameterControl({ position: 'topright' }).addTo(map);
+
+        // Radius Control for visualization team
+        const RadiusControl = L.Control.extend({
+            onAdd: function () {
+                const div = L.DomUtil.create('div', 'leaflet-control-radius');
+                div.innerHTML = `
+                    <div class="radius-control" style="background: white; padding: 10px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-top: 10px;">
+                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Radius (km):</label>
+                        <input type="range" id="radius-slider" min="100" max="5000" step="100" value="${radiusKm}" 
+                               style="width: 150px; display: block; margin-bottom: 5px;" />
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span id="radius-value" style="font-size: 14px; font-weight: bold;">${radiusKm}km</span>
+                            <button id="apply-radius" style="padding: 4px 8px; background: #1e90ff; color: white; border: none; border-radius: 3px; cursor: pointer;">Apply</button>
+                        </div>
+                    </div>
+                `;
+
+                L.DomEvent.disableClickPropagation(div);
+
+                const slider = div.querySelector('#radius-slider');
+                const valueDisplay = div.querySelector('#radius-value');
+                const applyButton = div.querySelector('#apply-radius');
+
+                slider.addEventListener('input', (e) => {
+                    valueDisplay.textContent = e.target.value + 'km';
+                });
+
+                applyButton.addEventListener('click', () => {
+                    const newRadius = parseInt(slider.value);
+                    console.log(`🎯 Applying new radius: ${newRadius}km`);
+                    setRadiusKm(newRadius);
+                });
+
+                return div;
+            }
+        });
+
+        new RadiusControl({ position: 'topright' }).addTo(map);
 
         const LegendControl = L.Control.extend({
             onAdd: function () {
@@ -280,25 +378,25 @@ const MapVisualization = ({
 
     const updateMarkersForParameter = (newParameter) => {
         if (!mapInstanceRef.current) return;
-        
+
         if (markersLayerRef.current) {
             mapInstanceRef.current.removeLayer(markersLayerRef.current);
         }
         if (heatmapLayerRef.current) {
             mapInstanceRef.current.removeLayer(heatmapLayerRef.current);
         }
-        
+
         const dataToUse = mapData || sampleData[newParameter] || sampleData.temperature;
-        
+
         // Create new heatmap
         createHeatmapLayer(dataToUse, newParameter);
-        
+
         // Create new markers
         const markersLayer = L.layerGroup();
-        
+
         dataToUse.forEach((point) => {
             const color = getMarkerColor(point.value, newParameter);
-            
+
             const marker = L.circleMarker([point.lat, point.lng], {
                 radius: 12,
                 fillColor: color,
@@ -307,19 +405,19 @@ const MapVisualization = ({
                 opacity: 1,
                 fillOpacity: 0.9
             }).bindPopup(createPopupContent(point, newParameter));
-            
+
             markersLayer.addLayer(marker);
         });
-        
+
         markersLayer.addTo(mapInstanceRef.current);
         markersLayerRef.current = markersLayer;
     };
 
     const updateLegend = (newParameter) => {
         if (!mapInstanceRef.current || !mapInstanceRef.current.legendControl) return;
-        
+
         mapInstanceRef.current.removeControl(mapInstanceRef.current.legendControl);
-        
+
         const LegendControl = L.Control.extend({
             onAdd: function () {
                 const div = L.DomUtil.create('div', 'leaflet-control-legend');
@@ -327,7 +425,7 @@ const MapVisualization = ({
                 return div;
             }
         });
-        
+
         const legendControl = new LegendControl({ position: 'bottomright' }).addTo(mapInstanceRef.current);
         mapInstanceRef.current.legendControl = legendControl;
     };
@@ -335,17 +433,19 @@ const MapVisualization = ({
     const updateInfoBar = (newParameter) => {
         const parameterDisplay = document.getElementById('parameter-display');
         const parameterIcon = parameterDisplay?.parentElement.querySelector('i');
-        
+
         if (parameterDisplay) {
             parameterDisplay.textContent = `Showing ${newParameter} data`;
         }
-        
+
         if (parameterIcon) {
             parameterIcon.className = `fas ${newParameter === 'temperature' ? 'fa-thermometer-half' : 'fa-tint'}`;
         }
     };
 
     useEffect(() => {
+        if (!dataLoaded) return; // Wait for data to load first
+
         if (isVisible && mapRef.current && !mapInstanceRef.current) {
             setTimeout(() => {
                 initializeMap();
@@ -368,7 +468,7 @@ const MapVisualization = ({
                 mapInstanceRef.current = null;
             }
         };
-    }, [isVisible, mapData, currentParameter, initializeMap, updateMapData]);
+    }, [isVisible, mapData, currentParameter, dataLoaded, initializeMap, updateMapData]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -446,7 +546,7 @@ const MapVisualization = ({
                     </div>
                     <div className="info-item">
                         <i className="fas fa-map-marker-alt"></i>
-                        <span>10 Argo Float Profiles</span>
+                        <span>{realFloatData.length} Argo Float Profiles</span>
                     </div>
                     <div className="info-item">
                         <i className="fas fa-layer-group"></i>
