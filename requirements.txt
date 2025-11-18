@@ -6,6 +6,7 @@ langchain-google-genai
 google-generativeai
 pandas
 numpy
+scipy
 uvicorn
 python-dotenv
 chromadb
@@ -15,3 +16,5 @@ fastmcp
 matplotlib
 sqlalchemy
 psycopg2
+redis
+mcp

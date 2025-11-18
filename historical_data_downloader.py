@@ -52,6 +52,16 @@ class ArgoDataProcessor:
         self._ensure_database()
         self._ensure_tables()
 
+    def is_file_processed(self, filename: str) -> bool:
+        """Check if a file has already been processed in the database."""
+        conn = self._connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM argo_profiles WHERE source_file = %s LIMIT 1", (filename,))
+                return cur.fetchone() is not None
+        finally:
+            conn.close()
+
     def _connect(self):
         return psycopg2.connect(**self.db_config)
 
@@ -104,7 +114,6 @@ class ArgoDataProcessor:
             data_mode TEXT,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
         );
-        CREATE INDEX IF NOT EXISTS idx_profiles_float_id ON argo_profiles(float_id);
         """
 
         create_measurements = """
@@ -120,8 +129,39 @@ class ArgoDataProcessor:
             datetime TIMESTAMP WITH TIME ZONE,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
         );
-        CREATE INDEX IF NOT EXISTS idx_meas_profile ON argo_measurements(global_profile_id);
         """
+
+        # All indexes for optimal query performance
+        create_indexes = [
+            # Primary indexes
+            "CREATE INDEX IF NOT EXISTS idx_profiles_float_id ON argo_profiles(float_id);",
+            "CREATE INDEX IF NOT EXISTS idx_meas_profile ON argo_measurements(global_profile_id);",
+            
+            # Spatial queries
+            "CREATE INDEX IF NOT EXISTS idx_profiles_location ON argo_profiles(latitude, longitude);",
+            "CREATE INDEX IF NOT EXISTS idx_measurements_location ON argo_measurements(latitude, longitude);",
+            
+            # Temporal queries
+            "CREATE INDEX IF NOT EXISTS idx_profiles_datetime ON argo_profiles(datetime);",
+            "CREATE INDEX IF NOT EXISTS idx_measurements_datetime ON argo_measurements(datetime);",
+            
+            # Depth/pressure queries
+            "CREATE INDEX IF NOT EXISTS idx_measurements_pressure ON argo_measurements(pressure);",
+            
+            # Temperature and salinity queries
+            "CREATE INDEX IF NOT EXISTS idx_measurements_temp ON argo_measurements(temperature);",
+            "CREATE INDEX IF NOT EXISTS idx_measurements_salinity ON argo_measurements(salinity);",
+            
+            # Float-specific queries
+            "CREATE INDEX IF NOT EXISTS idx_profiles_cycle ON argo_profiles(cycle_number);",
+            
+            # Composite indexes for common query patterns
+            "CREATE INDEX IF NOT EXISTS idx_measurements_location_pressure ON argo_measurements(latitude, longitude, pressure);",
+            "CREATE INDEX IF NOT EXISTS idx_measurements_temp_depth ON argo_measurements(temperature, pressure);",
+            
+            # Source file index for deduplication
+            "CREATE INDEX IF NOT EXISTS idx_profiles_source_file ON argo_profiles(source_file);"
+        ]
 
         conn = self._connect()
         try:
@@ -129,9 +169,13 @@ class ArgoDataProcessor:
                 with conn.cursor() as cur:
                     cur.execute(create_profiles)
                     cur.execute(create_measurements)
+                    
+                    # Create all indexes
+                    for idx_sql in create_indexes:
+                        cur.execute(idx_sql)
         finally:
             conn.close()
-        LOG.info("Ensured DB tables exist (argo_profiles, argo_measurements)")
+        LOG.info("Ensured DB tables and indexes exist (argo_profiles, argo_measurements)")
 
     def insert_profiles(self, profiles_df: pd.DataFrame, chunk_size: int = 1000):
         """Bulk insert profiles dataframe (upsert on primary key)."""
@@ -319,6 +363,11 @@ class HistoricalArgoDownloader:
         """
         Use NetCDFProcessor.process_single_file which expects to find `filename` in its data_dir.
         """
+        # Check if file already processed in database
+        if self.data_processor.is_file_processed(filename):
+            LOG.info(f"Skip (already in DB): {filename}")
+            return 0, 0
+        
         try:
             profiles_df, measurements_df = self.netcdf_processor.process_single_file(filename)
             if profiles_df is None or measurements_df is None:
@@ -331,6 +380,10 @@ class HistoricalArgoDownloader:
             if not measurements_df.empty:
                 self.data_processor.insert_measurements(measurements_df)
 
+            # Optionally save to CSV
+            if self.config.get("save_csv", False):
+                self._save_to_csv(profiles_df, measurements_df, filename)
+
             self.stats["profiles"] += 0 if profiles_df is None else len(profiles_df)
             self.stats["measurements"] += 0 if measurements_df is None else len(measurements_df)
             self.stats["processed_files"] += 1
@@ -340,6 +393,24 @@ class HistoricalArgoDownloader:
             LOG.exception(f"Processing failed for {filename}: {e}")
             self.stats["errors"].append({"file": filename, "error": str(e)})
             return 0, 0
+
+    def _save_to_csv(self, profiles_df: pd.DataFrame, measurements_df: pd.DataFrame, filename: str):
+        """Save processed data to CSV files."""
+        try:
+            csv_dir = self.config["processed_data_dir"]
+            base_name = os.path.splitext(filename)[0]
+            
+            if not profiles_df.empty:
+                profiles_csv = os.path.join(csv_dir, f"{base_name}_profiles.csv")
+                profiles_df.to_csv(profiles_csv, index=False)
+            
+            if not measurements_df.empty:
+                measurements_csv = os.path.join(csv_dir, f"{base_name}_measurements.csv")
+                measurements_df.to_csv(measurements_csv, index=False)
+            
+            LOG.debug(f"Saved CSV files for {filename}")
+        except Exception as e:
+            LOG.warning(f"Failed to save CSV for {filename}: {e}")
 
     # ---------- run ----------
     def run(self):
@@ -383,7 +454,8 @@ DEFAULT_CONFIG = {
     "download_timeout": 180,
     "max_retries": 3,
     "retry_delay": 5,
-    "skip_existing": True
+    "skip_existing": True,
+    "save_csv": False  # Set to True if you want CSV backups
 }
 
 
