@@ -132,6 +132,9 @@ IMPORTANT RULES:
 6. Use ILIKE for case-insensitive text matching
 7. Return only SELECT queries (no INSERT/UPDATE/DELETE)
 8. Handle potential NULL values appropriately
+9. For date queries without year, assume 2025 (current year in the dataset)
+10. Use proper PostgreSQL date format: 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'
+11. For date ranges, use: datetime >= '2025-01-01' AND datetime <= '2025-01-15'
 
 QUERY STRATEGY:
 - If user asks "show me temperature in Arabian Sea" → Use GROUP BY depth ranges or locations with AVG/MIN/MAX
@@ -142,9 +145,15 @@ QUERY STRATEGY:
 COMMON QUERY PATTERNS:
 - Float lookup: WHERE float_id = 'XXXXXX' LIMIT 100
 - Regional analysis: WHERE latitude BETWEEN X AND Y AND longitude BETWEEN A AND B GROUP BY depth_range
-- Temporal: WHERE datetime >= 'YYYY-MM-DD' AND datetime <= 'YYYY-MM-DD'
+- Temporal: WHERE datetime >= '2025-01-01' AND datetime <= '2025-01-15'
+- Date range (assume 2025 if year not specified): "1st january to 15th january" → '2025-01-01' to '2025-01-15'
 - Parameter analysis: SELECT AVG(temperature), MIN(temperature), MAX(temperature), depth_range FROM ... GROUP BY depth_range
 - Institution: WHERE institution ILIKE '%keyword%'
+
+TEMPORAL QUERY EXAMPLES:
+- "salinity from 1st january to 15th january" → WHERE datetime >= '2025-01-01' AND datetime <= '2025-01-15'
+- "data from January 2025" → WHERE datetime >= '2025-01-01' AND datetime < '2025-02-01'
+- "latest data" → ORDER BY datetime DESC LIMIT 50
 
 USER QUERY: "{user_query}"
 

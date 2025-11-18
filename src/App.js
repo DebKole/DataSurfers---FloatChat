@@ -11,6 +11,8 @@ function App() {
   const argoRows = useArgoDemoData();
 
   const [dataSidebarView, setDataSidebarView] = useState('table');
+  // Keep BOTH: table data (your changes) AND map/trajectory (pulled changes)
+  const [tableData, setTableData] = useState(null);
   const [mapData, setMapData] = useState(null);
   const [showMap, setShowMap] = useState(false);
   const [showTrajectoryOverlay, setShowTrajectoryOverlay] = useState(false);
@@ -28,17 +30,22 @@ function App() {
     setShowMap(false);
   };
 
+  const handleTableData = (data) => {
+    setTableData(data);
+  };
+
   return (
     <div className="container">
       <Sidebar />
 
-      <ChatContainer onMapRequest={handleMapRequest} onMapData={handleMapData} />
-      <DataSidebar 
-        selectedView={dataSidebarView} 
+      <ChatContainer onMapRequest={handleMapRequest} onMapData={handleMapData} onTableData={handleTableData} />
+      <DataSidebar
+        selectedView={dataSidebarView}
         onViewChange={setDataSidebarView}
-        mapData={mapData} 
-        showMap={showMap} 
-        onMapClose={handleMapClose} 
+        mapData={mapData}
+        showMap={showMap}
+        onMapClose={handleMapClose}
+        tableData={tableData}
         onOpenTrajectoryOverlay={() => setShowTrajectoryOverlay(true)}
         argoRows={argoRows}
       />

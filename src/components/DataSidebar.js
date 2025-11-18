@@ -7,7 +7,7 @@ import MapTrajectories from './MapTrajectories';
 import profiles from '../profiles_jan.json';
 import trajectories from '../trajectories_jan.json';
 
-const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, showMap = false, onMapClose = () => {}, onOpenTrajectoryOverlay = () => {} }) => {
+const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, showMap = false, onMapClose = () => {}, tableData = null, onOpenTrajectoryOverlay = () => {} }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [isMapVisible, setIsMapVisible] = useState(false);
   const [showProfilePreview, setShowProfilePreview] = useState(false);
@@ -111,65 +111,59 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
         <div className="data-card">
           <h3><i className="fas fa-table"></i> Table</h3>
           <div className="table-preview">
-            <div className="table-row header">
-              <span>Float ID</span>
-              <span>Temp</span>
-              <span>Salinity</span>
-            </div>
-            <div className="table-row">
-              <span>4902916</span>
-              <span>22.4°C</span>
-              <span>35.1</span>
-            </div>
-            <div className="table-row">
-              <span>4902917</span>
-              <span>21.8°C</span>
-              <span>35.3</span>
-            </div>
-            <div className="table-row">
-              <span>4902918</span>
-              <span>23.1°C</span>
-              <span>34.9</span>
-            </div>
-            <div className="table-row">
-              <span>4902919</span>
-              <span>22.9°C</span>
-              <span>35.0</span>
-            </div>
-            <div className="table-row">
-              <span>4902920</span>
-              <span>21.5°C</span>
-              <span>35.2</span>
-            </div>
-            <div className="table-row">
-              <span>4902921</span>
-              <span>23.3°C</span>
-              <span>34.8</span>
-            </div>
-            <div className="table-row">
-              <span>4902922</span>
-              <span>22.1°C</span>
-              <span>35.4</span>
-            </div>
-            <div className="table-row">
-              <span>4902923</span>
-              <span>21.9°C</span>
-              <span>35.0</span>
-            </div>
-            <div className="table-row">
-              <span>4902924</span>
-              <span>23.0°C</span>
-              <span>34.7</span>
-            </div>
-            <div className="table-row">
-              <span>4902925</span>
-              <span>22.7°C</span>
-              <span>35.3</span>
-            </div>
+            {tableData && tableData.columns && tableData.rows && tableData.rows.length > 0 ? (
+              <>
+                <div className="table-row header">
+                  {tableData.columns.slice(0, 5).map((col, idx) => (
+                    <span key={idx} title={col}>
+                      {col.length > 12 ? col.substring(0, 12) + '...' : col}
+                    </span>
+                  ))}
+                </div>
+                {tableData.rows.slice(0, 10).map((row, rowIdx) => (
+                  <div className="table-row" key={rowIdx}>
+                    {tableData.columns.slice(0, 5).map((col, colIdx) => {
+                      const value = row[col];
+                      let displayValue = value;
+                      
+                      // Format different data types
+                      if (value === null || value === undefined) {
+                        displayValue = '-';
+                      } else if (typeof value === 'number') {
+                        displayValue = value.toFixed(2);
+                      } else if (typeof value === 'string' && value.length > 15) {
+                        displayValue = value.substring(0, 15) + '...';
+                      }
+                      
+                      return (
+                        <span key={colIdx} title={String(value)}>
+                          {String(displayValue)}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ))}
+              </>
+            ) : (
+              <div className="no-data-message">
+                <i className="fas fa-inbox"></i>
+                <p>No data available</p>
+                <small>Run a query to see results</small>
+              </div>
+            )}
           </div>
           <div className="view-more">
-            <button className="view-more-btn">View Full Table</button>
-            <button className="view-more-btn">Export as CSV</button>
+            {tableData && tableData.total_rows > 0 && (
+              <div className="data-stats">
+                <small>Showing {Math.min(10, tableData.total_rows)} of {tableData.total_rows} rows</small>
+              </div>
+            )}
+            <button className="view-more-btn" disabled={!tableData || tableData.total_rows === 0}>
+              View Full Table
+            </button>
+            <button className="view-more-btn" disabled={!tableData || tableData.total_rows === 0}>
+              Export as CSV
+            </button>
           </div>
           <div className="view-more" style={{ marginTop: '0.5rem' }}>
             <button
