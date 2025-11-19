@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+
 import Sidebar from './components/Sidebar';
 import ChatContainer from './components/ChatContainer';
 import DataSidebar from './components/DataSidebar';
@@ -7,10 +8,7 @@ import PlotProfileTool from './components/PlotProfile';
 import CompareProfilesTool from './components/CompareProfilesTool';
 import './index.css';
 
-import { useArgoDemoData } from './useargodemodata';
-
 function App() {
-  const argoRows = useArgoDemoData();
 
   const [dataSidebarView, setDataSidebarView] = useState('table');
   // Keep BOTH: table data (your changes) AND map/trajectory (pulled changes)
@@ -145,7 +143,6 @@ function App() {
         onMapClose={handleMapClose}
         tableData={tableData}
         onOpenTrajectoryOverlay={() => setShowTrajectoryOverlay(true)}
-        argoRows={argoRows}
       />
       {/* Simple TS/TD demo panel using PlotProfileTool and FastAPI trend_api */}
       <div
