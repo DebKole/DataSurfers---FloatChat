@@ -1,0 +1,19 @@
+{
+  "center": {
+    "lat": -8.2858,
+    "lon": 107.0376,
+    "float_id": "5905521"
+  },
+  "radius_km": 10,
+  "floats_in_radius": [
+    {
+      "float_id": "5905521",
+      "latitude": -8.2858,
+      "longitude": 107.0376,
+      "distance_km": 0.0,
+      "datetime": "2025-01-31 23:56:21",
+      "measurements": 982
+    }
+  ],
+  "total_floats": 1
+}

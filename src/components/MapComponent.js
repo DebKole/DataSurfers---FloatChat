@@ -7,14 +7,41 @@ const MapComponent = () => {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
 
-  // Sample oceanographic data points
-  const sampleData = [
-    { id: '4902916', lat: 45.2, lng: -30.1, temp: 22.4, salinity: 35.1, depth: 150 },
-    { id: '4902917', lat: 42.8, lng: -28.5, temp: 21.8, salinity: 35.3, depth: 200 },
-    { id: '4902918', lat: 47.1, lng: -32.7, temp: 23.1, salinity: 34.9, depth: 120 },
-    { id: '4902919', lat: 44.5, lng: -29.3, temp: 20.2, salinity: 35.5, depth: 300 },
-    { id: '4902920', lat: 46.7, lng: -31.2, temp: 22.8, salinity: 35.0, depth: 180 },
-  ];
+  const [floatData, setFloatData] = useState([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
+  // Fetch real float data from database
+  useEffect(() => {
+    const fetchFloatData = async () => {
+      try {
+        // Fetch Indian Ocean floats from your January 2025 database
+        const response = await fetch('http://localhost:8000/floats/indian-ocean?limit=50');
+        const data = await response.json();
+        
+        if (data.status === 200 && data.floats) {
+          // Transform database format to map format
+          const transformedData = data.floats.map(float => ({
+            id: float.float_id,
+            lat: parseFloat(float.latitude),
+            lng: parseFloat(float.longitude),
+            datetime: float.datetime,
+            cycle: float.cycle_number,
+            measurements: float.measurement_count,
+            profile_id: float.global_profile_id
+          }));
+          setFloatData(transformedData);
+          setDataLoaded(true);
+        }
+      } catch (error) {
+        console.error('Error fetching float data:', error);
+        // Fallback to empty array if fetch fails
+        setFloatData([]);
+        setDataLoaded(true);
+      }
+    };
+
+    fetchFloatData();
+  }, []);
 
   // No separate initializeMap function to keep hooks simple and avoid lint warnings.
 
@@ -69,10 +96,17 @@ const MapComponent = () => {
       // Clear container children
       mapContainerRef.current.innerHTML = '';
 
+      // Determine map center based on data
+      const mapCenter = floatData.length > 0 
+        ? [floatData[0].lat, floatData[0].lng]  // Center on first float
+        : [10, 70];  // Default to Indian Ocean center
+      
+      const mapZoom = floatData.length > 0 ? 4 : 3;
+
       // Create Leaflet map with explicit dragging and zoom behaviors enabled
       const map = L.map(mapContainerRef.current, {
-        center: [45.0, -30.0],
-        zoom: 6,
+        center: mapCenter,
+        zoom: mapZoom,
         zoomControl: true,
         dragging: true,
         scrollWheelZoom: true,
@@ -86,8 +120,9 @@ const MapComponent = () => {
         attribution: '© OpenStreetMap contributors'
       }).addTo(map);
 
-      // Add data points as styled dots (circle markers)
-      const markers = sampleData.map(point => {
+      // Add data points as styled dots (circle markers) - use real float data
+      const dataToDisplay = floatData.length > 0 ? floatData : [];
+      const markers = dataToDisplay.map(point => {
         const color = '#1e90ff';
         const dot = L.circleMarker([point.lat, point.lng], {
           radius: 6,
@@ -98,12 +133,20 @@ const MapComponent = () => {
         }).addTo(map);
 
         dot.bindTooltip(`Float ${point.id}`, { direction: 'top', offset: [0, -6] });
+        
+        // Format datetime
+        const dateStr = point.datetime ? new Date(point.datetime).toLocaleDateString() : 'N/A';
+        
         dot.bindPopup(`
           <div class="map-popup">
             <h4>Float ${point.id}</h4>
-            <p><strong>Temperature:</strong> ${point.temp}°C</p>
-            <p><strong>Salinity:</strong> ${point.salinity} PSU</p>
-            <p><strong>Depth:</strong> ${point.depth}m</p>
+            <p><strong>Location:</strong> ${point.lat.toFixed(2)}°, ${point.lng.toFixed(2)}°</p>
+            <p><strong>Date:</strong> ${dateStr}</p>
+            <p><strong>Cycle:</strong> ${point.cycle || 'N/A'}</p>
+            <p><strong>Measurements:</strong> ${point.measurements || 0}</p>
+            <p style="font-size: 0.85em; color: #666; margin-top: 8px;">
+              <em>January 2025 Data</em>
+            </p>
           </div>
         `);
 
@@ -153,6 +196,7 @@ const MapComponent = () => {
 
   const initializeFallbackMap = () => {
     // Fallback static map representation
+    const dataToDisplay = floatData.length > 0 ? floatData : [];
     mapContainerRef.current.innerHTML = `
       <div class="fallback-map">
         <div class="map-header">
@@ -160,28 +204,30 @@ const MapComponent = () => {
           <h3>Ocean Data Visualization</h3>
         </div>
         <div class="data-points">
-          ${sampleData.map(point => `
+          ${dataToDisplay.length > 0 ? dataToDisplay.map(point => `
             <div class="data-point">
-              <div class="point-marker" style="background-color: hsl(${200 + point.temp * 2}, 70%, 50%)"></div>
+              <div class="point-marker" style="background-color: #1e90ff"></div>
               <div class="point-info">
                 <strong>Float ${point.id}</strong><br>
-                Lat: ${point.lat}°, Lng: ${point.lng}°<br>
-                Temp: ${point.temp}°C, Salinity: ${point.salinity}
+                Lat: ${point.lat.toFixed(2)}°, Lng: ${point.lng.toFixed(2)}°<br>
+                Measurements: ${point.measurements || 0}
               </div>
             </div>
-          `).join('')}
+          `).join('') : '<p>Loading float data...</p>'}
         </div>
         <div class="map-note">
           <i class="fas fa-info-circle"></i>
-          Install map libraries for interactive visualization
+          ${dataToDisplay.length} floats from January 2025 data
         </div>
       </div>
     `;
   };
 
-  // Initialize Leaflet once on mount
+  // Initialize Leaflet once data is loaded
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    if (!dataLoaded) return;  // Wait for data to load first
+    
     (async () => {
       if (!mapContainerRef.current) return;
       try {
@@ -207,7 +253,7 @@ const MapComponent = () => {
         mapInstanceRef.current = null;
       }
     };
-  }, []);
+  }, [dataLoaded, floatData]);
 
   return (
     <div className="map-component">
@@ -227,8 +273,9 @@ const MapComponent = () => {
       
       <div className="map-info">
         <div className="data-summary">
-          <span><i className="fas fa-map-marker-alt"></i> {sampleData.length} Active Floats</span>
-          <span><i className="fas fa-thermometer-half"></i> Avg Temp: {(sampleData.reduce((sum, d) => sum + d.temp, 0) / sampleData.length).toFixed(1)}°C</span>
+          <span><i className="fas fa-map-marker-alt"></i> {floatData.length} Active Floats</span>
+          <span><i className="fas fa-calendar"></i> January 2025 Data</span>
+          <span><i className="fas fa-globe"></i> Indian Ocean Region</span>
         </div>
       </div>
     </div>
