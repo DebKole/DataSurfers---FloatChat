@@ -1,0 +1,38 @@
+2025-11-11 22:15:10,198 - INFO - 🌊 === Live Argo Pipeline Started ===
+2025-11-11 22:15:10,198 - INFO - Config: {
+  "base_url": "https://data-argo.ifremer.fr/geo/indian_ocean/",
+  "download_dir": "./data/live_downloads/",
+  "processed_data_dir": "./processed_data_live/",
+  "log_dir": "./logs/",
+  "years_to_monitor": [
+    "2025"
+  ],
+  "months_to_monitor": [
+    "11",
+    "12"
+  ],
+  "file_extensions": [
+    ".nc"
+  ],
+  "max_files_per_run": 10,
+  "enable_database_import": true,
+  "cleanup_old_files": true,
+  "cleanup_days": 30,
+  "download_timeout": 120,
+  "max_retries": 3,
+  "retry_delay": 5
+}
+2025-11-11 22:15:10,198 - INFO - 🔍 Discovering new files from IFREMER Argo database...
+2025-11-11 22:15:10,199 - INFO - 📡 Checking https://data-argo.ifremer.fr/geo/indian_ocean/2025/11/
+2025-11-11 22:15:11,183 - INFO - 📊 Found 10 NetCDF files in 11/2025
+2025-11-11 22:15:11,688 - INFO - 🆕 New file: 20251101_prof.nc (3.2 MB)
+2025-11-11 22:15:12,210 - INFO - 🆕 New file: 20251102_prof.nc (3.9 MB)
+2025-11-11 22:15:12,702 - INFO - 🆕 New file: 20251103_prof.nc (4.0 MB)
+2025-11-11 22:15:13,195 - INFO - 🆕 New file: 20251104_prof.nc (4.0 MB)
+2025-11-11 22:15:13,681 - INFO - 🆕 New file: 20251105_prof.nc (4.5 MB)
+2025-11-11 22:15:14,167 - INFO - 🆕 New file: 20251106_prof.nc (3.5 MB)
+2025-11-11 22:15:14,652 - INFO - 🆕 New file: 20251107_prof.nc (3.6 MB)
+2025-11-11 22:15:15,182 - INFO - 🆕 New file: 20251108_prof.nc (4.0 MB)
+2025-11-11 22:15:15,705 - INFO - 🆕 New file: 20251109_prof.nc (7.2 MB)
+2025-11-11 22:15:16,191 - INFO - 🆕 New file: 20251110_prof.nc (1.9 MB)
+2025-11-11 22:15:16,193 - INFO - 📊 Discovery complete: 10 new files found from 10 total files

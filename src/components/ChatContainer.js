@@ -4,7 +4,7 @@ import './ChatContainer.css';
 import axios from 'axios';
 import FAQ from './FAQ';
 
-const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
+const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTableData = () => { } }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [showFAQ, setShowFAQ] = useState(false);
@@ -51,16 +51,13 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
     const newMessages = [...messages, { type: 'user', content: option.prompt }];
     setMessages(newMessages);
 
-    // Special handling for "Use Map": show fetching message and open map immediately
+    // Open map immediately and continue backend call
     if (option.title === "Use Map") {
       setMessages(prev => [
         ...prev,
         { type: 'bot', content: 'Fetching details...' }
       ]);
-      if (onMapRequest) {
-        onMapRequest();
-      }
-      return; // Skip backend call
+      if (onMapRequest) onMapRequest();
     }
 
     try {
@@ -77,11 +74,15 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
       if (response.data.show_map && response.data.map_data) {
         onMapData(response.data.map_data, true);
       }
+      // Handle table data if present
+      if (response.data.table_data) {
+        onTableData(response.data.table_data);
+      }
     } catch (error) {
       console.error("Error fetching response:", error);
       setMessages(prev => [
         ...prev,
-        { type: 'bot', content: "⚠️ Could not fetch response from server." }
+        { type: 'bot', content: "⚠️ Sorry, could not fetch response from server." }
       ]);
     }
   };
@@ -99,10 +100,10 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
 
       // Check if user is asking for map-related functionality
       const mapKeywords = ['map', 'visualize', 'show location', 'geographic', 'coordinates', 'latitude', 'longitude', 'plot', 'chart'];
-      const isMapRequest = mapKeywords.some(keyword => 
+      const isMapRequest = mapKeywords.some(keyword =>
         query.toLowerCase().includes(keyword.toLowerCase())
       );
-      
+
       if (isMapRequest && onMapRequest) {
         onMapRequest();
       }
@@ -123,7 +124,10 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
         if (response.data.show_map && response.data.map_data) {
           onMapData(response.data.map_data, true);
         }
-
+        // Handle table data if present
+        if (response.data.table_data) {
+          onTableData(response.data.table_data);
+        }
       } catch (error) {
         console.log("Error fetching response:", error);
         setMessages(prev => [
@@ -175,11 +179,11 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
               </div>
               <h2>How can I help you today?</h2>
               <p>I'm your oceanographic data assistant. Choose an option below to get started:</p>
-              
+
               <div className="action-options">
                 {actionOptions.map((option, index) => (
-                  <div 
-                    key={index} 
+                  <div
+                    key={index}
                     className="action-card"
                     onClick={() => handleOptionClick(option)}
                   >
@@ -210,9 +214,9 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
       </div>
 
       <div className="chat-input">
-        <input 
-          type="text" 
-          placeholder="Ask about ocean data..." 
+        <input
+          type="text"
+          placeholder="Ask about ocean data..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}

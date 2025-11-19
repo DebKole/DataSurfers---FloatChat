@@ -9,14 +9,42 @@ const MapComponent = ({ fullPage = false, data = null }) => {
   const mapInstanceRef = useRef(null);
   const markersLayerRef = useRef(null);
 
-  // Sample oceanographic data points
-  const sampleData = [
-    { id: '4902916', lat: 45.2, lng: -30.1, temp: 22.4, salinity: 35.1, depth: 150 },
-    { id: '4902917', lat: 42.8, lng: -28.5, temp: 21.8, salinity: 35.3, depth: 200 },
-    { id: '4902918', lat: 47.1, lng: -32.7, temp: 23.1, salinity: 34.9, depth: 120 },
-    { id: '4902919', lat: 44.5, lng: -29.3, temp: 20.2, salinity: 35.5, depth: 300 },
-    { id: '4902920', lat: 46.7, lng: -31.2, temp: 22.8, salinity: 35.0, depth: 180 },
-  ];
+  const [floatData, setFloatData] = useState([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const sampleData = [];
+
+  // Fetch real float data from database
+  useEffect(() => {
+    const fetchFloatData = async () => {
+      try {
+        // Fetch Indian Ocean floats from your January 2025 database
+        const response = await fetch('http://localhost:8000/floats/indian-ocean?limit=50');
+        const data = await response.json();
+        
+        if (data.status === 200 && data.floats) {
+          // Transform database format to map format
+          const transformedData = data.floats.map(float => ({
+            id: float.float_id,
+            lat: parseFloat(float.latitude),
+            lng: parseFloat(float.longitude),
+            datetime: float.datetime,
+            cycle: float.cycle_number,
+            measurements: float.measurement_count,
+            profile_id: float.global_profile_id
+          }));
+          setFloatData(transformedData);
+          setDataLoaded(true);
+        }
+      } catch (error) {
+        console.error('Error fetching float data:', error);
+        // Fallback to empty array if fetch fails
+        setFloatData([]);
+        setDataLoaded(true);
+      }
+    };
+
+    fetchFloatData();
+  }, []);
 
   const initializeLeafletMap = async () => {
     try {
@@ -68,10 +96,17 @@ const MapComponent = ({ fullPage = false, data = null }) => {
       // Clear container children
       mapContainerRef.current.innerHTML = '';
 
+      // Determine map center based on data
+      const mapCenter = floatData.length > 0 
+        ? [floatData[0].lat, floatData[0].lng]  // Center on first float
+        : [10, 70];  // Default to Indian Ocean center
+      
+      const mapZoom = floatData.length > 0 ? 4 : 3;
+
       // Create Leaflet map with explicit dragging and zoom behaviors enabled
       const map = L.map(mapContainerRef.current, {
-        center: [45.0, -30.0],
-        zoom: 6,
+        center: mapCenter,
+        zoom: mapZoom,
         zoomControl: true,
         dragging: true,
         scrollWheelZoom: true,
@@ -85,8 +120,8 @@ const MapComponent = ({ fullPage = false, data = null }) => {
         attribution: ' OpenStreetMap contributors'
       }).addTo(map);
 
+      // Layer for markers and a unified renderer that supports both incoming data and real float data
       markersLayerRef.current = L.layerGroup().addTo(map);
-
       const renderMarkers = (points) => {
         if (!markersLayerRef.current) return;
         markersLayerRef.current.clearLayers();
@@ -101,13 +136,16 @@ const MapComponent = ({ fullPage = false, data = null }) => {
             fillColor: color,
             fillOpacity: 0.85
           });
-          dot.bindTooltip(`Float ${point.id}`, { direction: 'top', offset: [0, -6] });
+          const id = point.id || point.float_id || point.profile_id || '—';
+          const dateStr = point.datetime ? new Date(point.datetime).toLocaleDateString() : '';
+          dot.bindTooltip(`Float ${id}`, { direction: 'top', offset: [0, -6] });
           dot.bindPopup(`
             <div class="map-popup">
-              <h4>Float ${point.id}</h4>
-              <p><strong>Temperature:</strong> ${point.temp}°C</p>
-              <p><strong>Salinity:</strong> ${point.salinity} PSU</p>
-              <p><strong>Depth:</strong> ${point.depth}m</p>
+              <h4>Float ${id}</h4>
+              <p><strong>Location:</strong> ${Number(point.lat).toFixed(2)}°, ${Number(point.lng).toFixed(2)}°</p>
+              ${dateStr ? `<p><strong>Date:</strong> ${dateStr}</p>` : ''}
+              ${point.cycle ? `<p><strong>Cycle:</strong> ${point.cycle}</p>` : ''}
+              ${point.measurements ? `<p><strong>Measurements:</strong> ${point.measurements}</p>` : ''}
             </div>
           `);
           dot.on('mouseover', () => dot.setStyle({ radius: 9, fillOpacity: 1 }));
@@ -124,7 +162,7 @@ const MapComponent = ({ fullPage = false, data = null }) => {
         } catch (_) {}
       };
 
-      const initialPoints = Array.isArray(data) && data.length ? data : sampleData;
+      const initialPoints = floatData.length > 0 ? floatData : (Array.isArray(data) && data.length ? data : sampleData);
       renderMarkers(initialPoints);
 
       // Invalidate size after a tick and on container resize to avoid layout issues
@@ -160,6 +198,7 @@ const MapComponent = ({ fullPage = false, data = null }) => {
 
   const initializeFallbackMap = () => {
     // Fallback static map representation
+    const dataToDisplay = floatData.length > 0 ? floatData : [];
     mapContainerRef.current.innerHTML = `
       <div class="fallback-map">
         <div class="map-header">
@@ -167,27 +206,28 @@ const MapComponent = ({ fullPage = false, data = null }) => {
           <h3>Ocean Data Visualization</h3>
         </div>
         <div class="data-points">
-          ${sampleData.map(point => `
+          ${dataToDisplay.length > 0 ? dataToDisplay.map(point => `
             <div class="data-point">
-              <div class="point-marker" style="background-color: hsl(${200 + point.temp * 2}, 70%, 50%)"></div>
+              <div class="point-marker" style="background-color: #1e90ff"></div>
               <div class="point-info">
                 <strong>Float ${point.id}</strong><br>
-                Lat: ${point.lat}°, Lng: ${point.lng}°<br>
-                Temp: ${point.temp}°C, Salinity: ${point.salinity}
+                Lat: ${point.lat.toFixed(2)}°, Lng: ${point.lng.toFixed(2)}°<br>
+                Measurements: ${point.measurements || 0}
               </div>
             </div>
-          `).join('')}
+          `).join('') : '<p>Loading float data...</p>'}
         </div>
         <div class="map-note">
           <i class="fas fa-info-circle"></i>
-          Install map libraries for interactive visualization
+          ${dataToDisplay.length} floats from January 2025 data
         </div>
       </div>
     `;
   };
 
-  // Initialize Leaflet once on mount
   useEffect(() => {
+    if (!dataLoaded) return;  // Wait for data to load first
+    
     (async () => {
       if (!mapContainerRef.current) return;
       try {
@@ -199,7 +239,20 @@ const MapComponent = ({ fullPage = false, data = null }) => {
         setIsLoading(false);
       }
     })();
-  }, []);
+    return () => {
+      // Cleanup on unmount
+      if (mapInstanceRef.current) {
+        if (mapInstanceRef.current.cleanup) {
+          mapInstanceRef.current.cleanup();
+        } else if (mapInstanceRef.current.remove) {
+          mapInstanceRef.current.remove();
+        } else if (mapInstanceRef.current.destroy) {
+          mapInstanceRef.current.destroy();
+        }
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [dataLoaded, floatData]);
 
   // Update markers whenever incoming data changes
   useEffect(() => {
@@ -230,8 +283,9 @@ const MapComponent = ({ fullPage = false, data = null }) => {
       
       <div className="map-info">
         <div className="data-summary">
-          <span><i className="fas fa-map-marker-alt"></i> {currentPoints.length} Active Floats</span>
-          <span><i className="fas fa-thermometer-half"></i> Avg Temp: {(currentPoints.reduce((sum, d) => sum + (d.temp || 0), 0) / Math.max(currentPoints.length, 1)).toFixed(1)}°C</span>
+          <span><i className="fas fa-map-marker-alt"></i> {(floatData.length || currentPoints.length)} Active Floats</span>
+          <span><i className="fas fa-calendar"></i> January 2025 Data</span>
+          <span><i className="fas fa-globe"></i> Indian Ocean Region</span>
         </div>
       </div>
     </div>

@@ -1,0 +1,18 @@
+2025-11-11 20:52:39,891 - INFO - === Argo Auto Pipeline Started ===
+2025-11-11 20:52:39,891 - INFO - Config: {
+  "base_url": "https://data-argo.ifremer.fr/geo/indian_ocean/2025/",
+  "download_dir": "./data/demo_downloads/",
+  "processed_data_dir": "./processed_data_demo/",
+  "log_dir": "./logs/",
+  "max_files_per_run": 3,
+  "demo_mode": true,
+  "months_to_check": [
+    "02",
+    "03"
+  ],
+  "file_extensions": [
+    ".nc"
+  ],
+  "enable_database_import": false,
+  "cleanup_enabled": true
+}
