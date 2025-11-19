@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import './MapComponent.css';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-const MapComponent = () => {
+
+const MapComponent = ({ fullPage = false, data = null }) => { 
   const [isLoading, setIsLoading] = useState(true);
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const markersLayerRef = useRef(null);
 
   // Sample oceanographic data points
   const sampleData = [
@@ -16,11 +18,8 @@ const MapComponent = () => {
     { id: '4902920', lat: 46.7, lng: -31.2, temp: 22.8, salinity: 35.0, depth: 180 },
   ];
 
-  // No separate initializeMap function to keep hooks simple and avoid lint warnings.
-
   const initializeLeafletMap = async () => {
     try {
-      // Using static CSS import and static L from top-level import.
 
       // Wait until container has a measurable size (avoid offsetWidth null/0)
       const waitForSize = () => new Promise((resolve) => {
@@ -83,42 +82,50 @@ const MapComponent = () => {
 
       // Add tile layer
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
+        attribution: ' OpenStreetMap contributors'
       }).addTo(map);
 
-      // Add data points as styled dots (circle markers)
-      const markers = sampleData.map(point => {
-        const color = '#1e90ff';
-        const dot = L.circleMarker([point.lat, point.lng], {
-          radius: 6,
-          color,
-          weight: 2,
-          fillColor: color,
-          fillOpacity: 0.85
-        }).addTo(map);
+      markersLayerRef.current = L.layerGroup().addTo(map);
 
-        dot.bindTooltip(`Float ${point.id}`, { direction: 'top', offset: [0, -6] });
-        dot.bindPopup(`
-          <div class="map-popup">
-            <h4>Float ${point.id}</h4>
-            <p><strong>Temperature:</strong> ${point.temp}°C</p>
-            <p><strong>Salinity:</strong> ${point.salinity} PSU</p>
-            <p><strong>Depth:</strong> ${point.depth}m</p>
-          </div>
-        `);
+      const renderMarkers = (points) => {
+        if (!markersLayerRef.current) return;
+        markersLayerRef.current.clearLayers();
+        const created = [];
+        (points || []).forEach(point => {
+          if (typeof point.lat !== 'number' || typeof point.lng !== 'number') return;
+          const color = '#1e90ff';
+          const dot = L.circleMarker([point.lat, point.lng], {
+            radius: 6,
+            color,
+            weight: 2,
+            fillColor: color,
+            fillOpacity: 0.85
+          });
+          dot.bindTooltip(`Float ${point.id}`, { direction: 'top', offset: [0, -6] });
+          dot.bindPopup(`
+            <div class="map-popup">
+              <h4>Float ${point.id}</h4>
+              <p><strong>Temperature:</strong> ${point.temp}°C</p>
+              <p><strong>Salinity:</strong> ${point.salinity} PSU</p>
+              <p><strong>Depth:</strong> ${point.depth}m</p>
+            </div>
+          `);
+          dot.on('mouseover', () => dot.setStyle({ radius: 9, fillOpacity: 1 }));
+          dot.on('mouseout', () => dot.setStyle({ radius: 6, fillOpacity: 0.85 }));
+          dot.addTo(markersLayerRef.current);
+          created.push(dot);
+        });
+        try {
+          if (created.length > 0) {
+            const group = L.featureGroup(created);
+            const bounds = group.getBounds();
+            if (bounds.isValid()) map.fitBounds(bounds.pad(0.2));
+          }
+        } catch (_) {}
+      };
 
-        // Hover highlight
-        dot.on('mouseover', () => dot.setStyle({ radius: 9, fillOpacity: 1 }));
-        dot.on('mouseout', () => dot.setStyle({ radius: 6, fillOpacity: 0.85 }));
-        return dot;
-      });
-
-      // Fit map to markers (with small padding), ignore if bounds invalid
-      try {
-        const group = L.featureGroup(markers);
-        const bounds = group.getBounds();
-        if (bounds.isValid()) map.fitBounds(bounds.pad(0.2));
-      } catch (_) {}
+      const initialPoints = Array.isArray(data) && data.length ? data : sampleData;
+      renderMarkers(initialPoints);
 
       // Invalidate size after a tick and on container resize to avoid layout issues
       setTimeout(() => {
@@ -132,11 +139,13 @@ const MapComponent = () => {
       // Save for cleanup
       mapInstanceRef.current = {
         map,
+        renderMarkers,
         cleanup: () => {
           try { resizeObs.disconnect(); } catch (_) {}
           try { map.remove(); } catch (_) {}
         }
       };
+
     } catch (error) {
       // Gracefully ignore benign duplicate init errors in dev StrictMode
       const msg = (error && (error.message || String(error))) || '';
@@ -148,8 +157,6 @@ const MapComponent = () => {
       initializeFallbackMap();
     }
   };
-
-  // Removed Plotly and Cesium implementations to keep a single, lightweight Leaflet map.
 
   const initializeFallbackMap = () => {
     // Fallback static map representation
@@ -180,7 +187,6 @@ const MapComponent = () => {
   };
 
   // Initialize Leaflet once on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     (async () => {
       if (!mapContainerRef.current) return;
@@ -193,24 +199,21 @@ const MapComponent = () => {
         setIsLoading(false);
       }
     })();
-
-    return () => {
-      // Cleanup on unmount
-      if (mapInstanceRef.current) {
-        if (mapInstanceRef.current.cleanup) {
-          mapInstanceRef.current.cleanup();
-        } else if (mapInstanceRef.current.remove) {
-          mapInstanceRef.current.remove();
-        } else if (mapInstanceRef.current.destroy) {
-          mapInstanceRef.current.destroy();
-        }
-        mapInstanceRef.current = null;
-      }
-    };
   }, []);
 
+  // Update markers whenever incoming data changes
+  useEffect(() => {
+    const points = Array.isArray(data) && data.length ? data : sampleData;
+    if (mapInstanceRef.current && mapInstanceRef.current.renderMarkers) {
+      try { mapInstanceRef.current.renderMarkers(points); } catch (_) {}
+    }
+  }, [data]);
+
+  // Compute summary values from current points
+  const currentPoints = Array.isArray(data) && data.length ? data : sampleData;
+
   return (
-    <div className="map-component">
+    <div className={`map-component ${fullPage ? 'full-page' : ''}`}> {/* Add conditional class */}
       <div className="map-container">
         {isLoading && (
           <div className="map-loading">
@@ -227,8 +230,8 @@ const MapComponent = () => {
       
       <div className="map-info">
         <div className="data-summary">
-          <span><i className="fas fa-map-marker-alt"></i> {sampleData.length} Active Floats</span>
-          <span><i className="fas fa-thermometer-half"></i> Avg Temp: {(sampleData.reduce((sum, d) => sum + d.temp, 0) / sampleData.length).toFixed(1)}°C</span>
+          <span><i className="fas fa-map-marker-alt"></i> {currentPoints.length} Active Floats</span>
+          <span><i className="fas fa-thermometer-half"></i> Avg Temp: {(currentPoints.reduce((sum, d) => sum + (d.temp || 0), 0) / Math.max(currentPoints.length, 1)).toFixed(1)}°C</span>
         </div>
       </div>
     </div>

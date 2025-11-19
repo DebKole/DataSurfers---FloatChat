@@ -1,19 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './ChatContainer.css';
 import axios from 'axios';
+import FAQ from './FAQ';
 
 const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
+  const [showFAQ, setShowFAQ] = useState(false);
+  const [highlightFAQ, setHighlightFAQ] = useState(true);
   const messagesEndRef = useRef(null);
-  
+  const navigate = useNavigate();
+
   const actionOptions = [
-    {
-      title: "Retrieve Argo Data",
-      description: "Access oceanographic data from ARGO floats worldwide",
-      icon: "fa-download",
-      prompt: "Help me retrieve ARGO float data"
-    },
+    // {
+    //   title: "Retrieve Argo Data",
+    //   description: "Access oceanographic data from ARGO floats worldwide",
+    //   icon: "fa-download",
+    //   prompt: "Help me retrieve ARGO float data"
+    // },
     {
       title: "Analyse Data",
       description: "Perform analysis on oceanographic datasets",
@@ -36,67 +41,33 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
     scrollToBottom();
   }, [messages]);
 
+  // Subtle FAQ highlight on initial load for ~6 seconds
+  useEffect(() => {
+    const t = setTimeout(() => setHighlightFAQ(false), 6000);
+    return () => clearTimeout(t);
+  }, []);
+
   const handleOptionClick = async (option) => {
-  const newMessages = [...messages, { type: 'user', content: option.prompt }];
-  setMessages(newMessages);
-
-  // Trigger map view if this is the "Use Map" action
-  if (option.title === "Use Map" && onMapRequest) {
-    onMapRequest();
-  }
-
-  try {
-    const response = await axios.post("http://127.0.0.1:8000", {
-      query: option.prompt,
-    });
-
-    setMessages(prev => [
-      ...prev,
-      { type: 'bot', content: response.data.message }
-    ]);
-
-    // Handle map data if present
-    if (response.data.show_map && response.data.map_data) {
-      onMapData(response.data.map_data, true);
-    }
-  } catch (error) {
-    console.error("Error fetching response:", error);
-    setMessages(prev => [
-      ...prev,
-      { type: 'bot', content: "⚠️ Could not fetch response from server." }
-    ]);
-  }
-};
-
-
-  const handleSend = async () => {
-  if (inputValue.trim()) {
-    // Add user message
-    console.log("handle send");
-    const newMessages = [...messages, { type: 'user', content: inputValue }];
+    const newMessages = [...messages, { type: 'user', content: option.prompt }];
     setMessages(newMessages);
 
-    // Store the current query before clearing
-    const query = inputValue;
-    setInputValue('');
-
-    // Check if user is asking for map-related functionality
-    const mapKeywords = ['map', 'visualize', 'show location', 'geographic', 'coordinates', 'latitude', 'longitude', 'plot', 'chart'];
-    const isMapRequest = mapKeywords.some(keyword => 
-      query.toLowerCase().includes(keyword.toLowerCase())
-    );
-    
-    if (isMapRequest && onMapRequest) {
-      onMapRequest();
+    // Special handling for "Use Map": show fetching message and open map immediately
+    if (option.title === "Use Map") {
+      setMessages(prev => [
+        ...prev,
+        { type: 'bot', content: 'Fetching details...' }
+      ]);
+      if (onMapRequest) {
+        onMapRequest();
+      }
+      return; // Skip backend call
     }
 
     try {
-      // Call FastAPI backend
       const response = await axios.post("http://127.0.0.1:8000", {
-        query: query,
+        query: option.prompt,
       });
 
-      // Add bot message with response
       setMessages(prev => [
         ...prev,
         { type: 'bot', content: response.data.message }
@@ -106,16 +77,62 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
       if (response.data.show_map && response.data.map_data) {
         onMapData(response.data.map_data, true);
       }
-
     } catch (error) {
-      console.log("Error fetching response:", error);
+      console.error("Error fetching response:", error);
       setMessages(prev => [
         ...prev,
-        { type: 'bot', content: "⚠️ Sorry, something went wrong connecting to the server." }
+        { type: 'bot', content: "⚠️ Could not fetch response from server." }
       ]);
     }
-  }
-};
+  };
+
+  const handleSend = async () => {
+    if (inputValue.trim()) {
+      // Add user message
+      console.log("handle send");
+      const newMessages = [...messages, { type: 'user', content: inputValue }];
+      setMessages(newMessages);
+
+      // Store the current query before clearing
+      const query = inputValue;
+      setInputValue('');
+
+      // Check if user is asking for map-related functionality
+      const mapKeywords = ['map', 'visualize', 'show location', 'geographic', 'coordinates', 'latitude', 'longitude', 'plot', 'chart'];
+      const isMapRequest = mapKeywords.some(keyword => 
+        query.toLowerCase().includes(keyword.toLowerCase())
+      );
+      
+      if (isMapRequest && onMapRequest) {
+        onMapRequest();
+      }
+
+      try {
+        // Call FastAPI backend
+        const response = await axios.post("http://127.0.0.1:8000", {
+          query: query,
+        });
+
+        // Add bot message with response
+        setMessages(prev => [
+          ...prev,
+          { type: 'bot', content: response.data.message }
+        ]);
+
+        // Handle map data if present
+        if (response.data.show_map && response.data.map_data) {
+          onMapData(response.data.map_data, true);
+        }
+
+      } catch (error) {
+        console.log("Error fetching response:", error);
+        setMessages(prev => [
+          ...prev,
+          { type: 'bot', content: "⚠️ Sorry, something went wrong connecting to the server." }
+        ]);
+      }
+    }
+  };
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
@@ -125,6 +142,25 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
 
   return (
     <main className="chat-container" id="chat">
+      {/* Dashboard Button (top-left) */}
+      <button 
+        className="dashboard-top-btn"
+        onClick={() => navigate('/dashboard')}
+        aria-label="Open Dashboard"
+      >
+        <i className="fas fa-chart-line"></i>
+        Dashboard
+      </button>
+      {/* FAQ Button */}
+      <button 
+        className={`faq-button ${highlightFAQ ? 'highlight' : ''}`}
+        onClick={() => setShowFAQ(true)}
+        aria-label="Open Frequently Asked Questions"
+      >
+        <i className="fas fa-question-circle"></i>
+        FAQ
+      </button>
+
       <div className="chat-header">
         <h1>FloatChat</h1>
         <p>Your friendly marine scientist</p>
@@ -187,6 +223,9 @@ const ChatContainer = ({ onMapRequest = () => {}, onMapData = () => {} }) => {
           Send
         </button>
       </div>
+
+      {/* FAQ Modal */}
+      <FAQ isOpen={showFAQ} onClose={() => setShowFAQ(false)} />
     </main>
   );
 };

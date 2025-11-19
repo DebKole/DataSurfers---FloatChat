@@ -274,3 +274,29 @@
     border-color: #4a5568;
   }
 }
+/* Full-page mode styles */
+.map-component.full-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.map-component.full-page .map-container {
+  flex: 1;
+  min-height: 0; /* Allow container to shrink */
+}
+
+.map-component.full-page .map-display {
+  height: 100%;
+}
+
+/* Enhanced loading for full page */
+.map-component.full-page .map-loading {
+  font-size: 16px;
+}
+
+.map-component.full-page .map-loading i {
+  font-size: 32px;
+  margin-bottom: 15px;
+}

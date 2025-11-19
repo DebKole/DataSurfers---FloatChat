@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; // Add this import
 import './DataSidebar.css';
 import MapVisualization from './MapVisualization';
 
 const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, showMap = false, onMapClose = () => {} }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [isMapVisible, setIsMapVisible] = useState(false);
+  const navigate = useNavigate(); // Add this hook
 
   const toggleSidebar = () => {
     setCollapsed(!collapsed);
@@ -17,8 +19,14 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
     }
   };
 
+  // Updated function to navigate to full-page map
   const handleOpenMap = () => {
-    setIsMapVisible(true);
+    navigate('/map', { 
+      state: { 
+        mapData: mapData,
+        source: 'sidebar'
+      } 
+    });
   };
 
   const handleCloseMap = () => {
@@ -162,7 +170,7 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
           <div className="view-more">
             <button 
               className={`view-more-btn ${mapData ? 'has-data' : ''}`} 
-              onClick={handleOpenMap}
+              onClick={handleOpenMap} // This now navigates to full-page map
             >
               {mapData ? '🗺️ View Data Map' : 'Open Map View'}
             </button>
@@ -210,7 +218,7 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
 </div>
       )}
 
-      {/* Map Visualization Component */}
+      {/* Map Visualization Component - Keep this for any popup functionality you still want */}
       <MapVisualization
         mapData={mapData?.map_data}
         isVisible={isMapVisible}

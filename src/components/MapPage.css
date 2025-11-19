@@ -1,0 +1,102 @@
+.map-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: white;
+}
+
+.map-header {
+  display: flex;
+  align-items: center;
+  padding: 15px 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+  gap: 15px;
+  position: relative;
+}
+
+.back-button {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.back-button:hover {
+  background: #5a6268;
+}
+
+.map-header h1 {
+  margin: 0;
+  font-size: 1.5em;
+  color: #333;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.map-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+}
+
+/* Ask FloatChat button (top-right) */
+.ask-chat-button {
+  position: absolute;
+  right: 20px;
+  top: 12px;
+  background: #0077b6;
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(0, 119, 182, 0.3);
+  z-index: 1000; /* added to ensure proper stacking */
+}
+
+.ask-chat-button:hover {
+  background: #005f99;
+}
+
+/* Chat drawer + overlay */
+.chat-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 1000;
+  pointer-events: none; /* let interactions pass through to the map */
+}
+
+.chat-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: min(520px, 100vw);
+  background: rgba(26,54,93,0.96);
+  backdrop-filter: blur(8px);
+  border-left: 1px solid rgba(49,130,206,0.3);
+  box-shadow: -8px 0 24px rgba(0,0,0,0.3);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: transparent;
+  color: #fff;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 1002;
+}
