@@ -85,7 +85,7 @@ processed_data_auto/**
 
 # NetCDF files
 *.nc
-
+.kiro
 # CSV files (except demo data)
 *.csv
 !argo_demo.csv

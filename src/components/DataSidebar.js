@@ -4,11 +4,12 @@ import MapVisualization from './MapVisualization';
 import PlotProfileTool from './PlotProfile';
 import CompareProfilesTool from './CompareProfilesTool';
 import MapTrajectories from './MapTrajectories';
+// import MiniMapTrajectories from './MiniMapTrajectories';
 
 const profiles = [];
 const trajectories = [];
 
-const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, showMap = false, onMapClose = () => {}, tableData = null, onOpenTrajectoryOverlay = () => {} }) => {
+const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, showMap = false, onMapClose = () => { }, tableData = null, onOpenTrajectoryOverlay = () => { } }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [isMapVisible, setIsMapVisible] = useState(false);
   const [showProfilePreview, setShowProfilePreview] = useState(false);
@@ -126,7 +127,7 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
                     {tableData.columns.slice(0, 5).map((col, colIdx) => {
                       const value = row[col];
                       let displayValue = value;
-                      
+
                       // Format different data types
                       if (value === null || value === undefined) {
                         displayValue = '-';
@@ -135,7 +136,7 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
                       } else if (typeof value === 'string' && value.length > 15) {
                         displayValue = value.substring(0, 15) + '...';
                       }
-                      
+
                       return (
                         <span key={colIdx} title={String(value)}>
                           {String(displayValue)}
@@ -193,8 +194,8 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
             </div>
           </div>
           <div className="view-more">
-            <button 
-              className={`view-more-btn ${mapData ? 'has-data' : ''}`} 
+            <button
+              className={`view-more-btn ${mapData ? 'has-data' : ''}`}
               onClick={handleOpenMap}
             >
               {mapData ? '🗺️ View Data Map' : 'Open Map View'}
@@ -224,45 +225,45 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
           )}
         </div>
       )}
-      
+
 
       {selectedView === 'updates' && (
         <div className="data-card">
-  <h3><i className="fas fa-clock"></i> Latest Updates</h3>
-  <div className="update-list">
-    <div className="update-item">
-      <div className="update-time">2 min ago</div>
-      <div className="update-text">New data from Float 4902916</div>
-    </div>
-    <div className="update-item">
-      <div className="update-time">15 min ago</div>
-      <div className="update-text">Temperature anomaly detected</div>
-    </div>
-    <div className="update-item">
-      <div className="update-time">30 min ago</div>
-      <div className="update-text">Float 4902917 battery low</div>
-    </div>
-    <div className="update-item">
-      <div className="update-time">45 min ago</div>
-      <div className="update-text">Salinity spike in Float 4902918</div>
-    </div>
-    <div className="update-item">
-      <div className="update-time">1 hour ago</div>
-      <div className="update-text">3 floats synchronized</div>
-    </div>
-    <div className="update-item">
-      <div className="update-time">2 hours ago</div>
-      <div className="update-text">Firmware update applied to Float 4902920</div>
-    </div>
-    <div className="update-item">
-      <div className="update-time">3 hours ago</div>
-      <div className="update-text">New float added: 4902921</div>
-    </div>
-  </div>
-  <div className="view-more">
-    <button className="view-more-btn">View All Updates</button>
-  </div>
-</div>
+          <h3><i className="fas fa-clock"></i> Latest Updates</h3>
+          <div className="update-list">
+            <div className="update-item">
+              <div className="update-time">2 min ago</div>
+              <div className="update-text">New data from Float 4902916</div>
+            </div>
+            <div className="update-item">
+              <div className="update-time">15 min ago</div>
+              <div className="update-text">Temperature anomaly detected</div>
+            </div>
+            <div className="update-item">
+              <div className="update-time">30 min ago</div>
+              <div className="update-text">Float 4902917 battery low</div>
+            </div>
+            <div className="update-item">
+              <div className="update-time">45 min ago</div>
+              <div className="update-text">Salinity spike in Float 4902918</div>
+            </div>
+            <div className="update-item">
+              <div className="update-time">1 hour ago</div>
+              <div className="update-text">3 floats synchronized</div>
+            </div>
+            <div className="update-item">
+              <div className="update-time">2 hours ago</div>
+              <div className="update-text">Firmware update applied to Float 4902920</div>
+            </div>
+            <div className="update-item">
+              <div className="update-time">3 hours ago</div>
+              <div className="update-text">New float added: 4902921</div>
+            </div>
+          </div>
+          <div className="view-more">
+            <button className="view-more-btn">View All Updates</button>
+          </div>
+        </div>
       )}
 
       {/* Map Visualization Component */}
