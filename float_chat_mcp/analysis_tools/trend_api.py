@@ -2,11 +2,16 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any
+import os
 
 import pandas as pd
 from sqlalchemy import create_engine
+from dotenv import load_dotenv
 
 from . import server  # relative import within analysis_tools  # your MCP tools
+
+# Load environment variables
+load_dotenv()
 
 # Extract underlying Python functions from MCP tools
 argo_ts_curve = server.argo_ts_curve.fn
@@ -14,8 +19,14 @@ argo_td_curve = server.argo_td_curve.fn
 argo_temp_trend = server.argo_temp_trend.fn
 argo_comparison_tool = server.argo_comparison_tool.fn
 
-# --- DB setup (adjust if needed) ---
-DB_URL = "postgresql+psycopg2://postgres:pubgcodgerena123%40@localhost:5432/january_data"
+# --- DB setup using environment variables ---
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_USERNAME = os.getenv("DB_USERNAME", "postgres")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_NAME = os.getenv("DB_NAME", "floatchat_argo")
+
+DB_URL = f"postgresql+psycopg2://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 engine = create_engine(DB_URL)
 
 app = FastAPI(title="Argo Trend API")
