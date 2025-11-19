@@ -10,7 +10,15 @@ import Plot from 'react-plotly.js';
 //   }
 // ]
 
-function PlotProfileTool({ profiles, profileId, variable = 'TEMP' }) {
+function PlotProfileTool({
+  profiles,
+  profileId,
+  xKey = 'temperature',
+  yKey = 'pressure',
+  xLabel,
+  yLabel,
+  invertY = false,
+}) {
   const profile = useMemo(
     () => profiles.find(p => p.profileId === profileId),
     [profiles, profileId]
@@ -20,10 +28,11 @@ function PlotProfileTool({ profiles, profileId, variable = 'TEMP' }) {
     return <div>No profile selected or no data.</div>;
   }
 
-  const x = profile.measurements.map(m =>
-    variable === 'SAL' ? m.salinity : m.temperature
-  );
-  const y = profile.measurements.map(m => m.pressure);
+  const x = profile.measurements.map(m => m[xKey]);
+  const y = profile.measurements.map(m => m[yKey]);
+
+  const resolvedXLabel = xLabel || xKey;
+  const resolvedYLabel = yLabel || yKey;
 
   return (
     <Plot
@@ -33,13 +42,16 @@ function PlotProfileTool({ profiles, profileId, variable = 'TEMP' }) {
           y,
           mode: 'lines+markers',
           type: 'scatter',
-          name: `${variable} profile`,
+          name: `${resolvedYLabel} vs ${resolvedXLabel}`,
         },
       ]}
       layout={{
-        title: `Profile ${profileId} – ${variable} vs PRES`,
-        xaxis: { title: variable },
-        yaxis: { title: 'PRES', autorange: 'reversed' },
+        title: `Profile ${profileId} – ${resolvedYLabel} vs ${resolvedXLabel}`,
+        xaxis: { title: resolvedXLabel },
+        yaxis: {
+          title: resolvedYLabel,
+          ...(invertY ? { autorange: 'reversed' } : {}),
+        },
         margin: { l: 60, r: 20, t: 40, b: 50 },
       }}
       style={{ width: '100%', height: '400px' }}

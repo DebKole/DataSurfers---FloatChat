@@ -4,8 +4,9 @@ import MapVisualization from './MapVisualization';
 import PlotProfileTool from './PlotProfile';
 import CompareProfilesTool from './CompareProfilesTool';
 import MapTrajectories from './MapTrajectories';
-import profiles from '../profiles_jan.json';
-import trajectories from '../trajectories_jan.json';
+
+const profiles = [];
+const trajectories = [];
 
 const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, showMap = false, onMapClose = () => {}, tableData = null, onOpenTrajectoryOverlay = () => {} }) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -165,129 +166,6 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
               Export as CSV
             </button>
           </div>
-          <div className="view-more" style={{ marginTop: '0.5rem' }}>
-            <button
-              className="view-more-btn"
-              onClick={() => setShowProfilePreview(!showProfilePreview)}
-            >
-              {showProfilePreview ? 'Hide Profile Preview' : 'Show Profile Preview'}
-            </button>
-          </div>
-          {showProfilePreview && (
-            <div className="profile-section" style={{ marginTop: '0.5rem' }}>
-              <h4>PlotProfile Preview</h4>
-              <div className="profile-controls">
-                <label>
-                  Float ID:
-                  <select
-                    value={selectedFloatId}
-                    onChange={(e) => {
-                      const fid = e.target.value;
-                      setSelectedFloatId(fid);
-                      setSelectedProfileId(null);
-                      setCompareProfileId1(null);
-                      setCompareProfileId2(null);
-                    }}
-                  >
-                    <option value="">Select float</option>
-                    {floatOptions.map((fid) => (
-                      <option key={fid} value={fid}>{fid}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Profile ID:
-                  <select
-                    value={selectedProfileId ?? ''}
-                    onChange={(e) =>
-                      setSelectedProfileId(
-                        e.target.value === '' ? null : Number(e.target.value)
-                      )
-                    }
-                    disabled={!selectedFloatId}
-                  >
-                    <option value="">Select profile</option>
-                    {profileOptionsForSelectedFloat.map((p) => (
-                      <option key={p.profileId} value={p.profileId}>
-                        {p.profileId}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Variable:
-                  <select
-                    value={variable}
-                    onChange={(e) => setVariable(e.target.value)}
-                  >
-                    <option value="TEMP">Temperature</option>
-                    <option value="SAL">Salinity</option>
-                  </select>
-                </label>
-              </div>
-
-              <PlotProfileTool
-                profiles={profiles}
-                profileId={selectedProfileId}
-                variable={variable}
-              />
-
-              <h4 style={{ marginTop: '1rem' }}>Compare Profiles (same float)</h4>
-              <div className="profile-controls">
-                <label>
-                  Profile A:
-                  <select
-                    value={compareProfileId1 ?? ''}
-                    onChange={(e) =>
-                      setCompareProfileId1(
-                        e.target.value === '' ? null : Number(e.target.value)
-                      )
-                    }
-                    disabled={!selectedFloatId}
-                  >
-                    <option value="">Select profile</option>
-                    {profileOptionsForSelectedFloat.map((p) => (
-                      <option key={p.profileId} value={p.profileId}>
-                        {p.profileId}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Profile B:
-                  <select
-                    value={compareProfileId2 ?? ''}
-                    onChange={(e) =>
-                      setCompareProfileId2(
-                        e.target.value === '' ? null : Number(e.target.value)
-                      )
-                    }
-                    disabled={!selectedFloatId}
-                  >
-                    <option value="">Select profile</option>
-                    {profileOptionsForSelectedFloat.map((p) => (
-                      <option key={p.profileId} value={p.profileId}>
-                        {p.profileId}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <CompareProfilesTool
-                profiles={profiles}
-                profileIds={
-                  [compareProfileId1, compareProfileId2].filter(
-                    (id) => id !== null && id !== undefined
-                  )
-                }
-                variable={variable}
-              />
-            </div>
-          )}
         </div>
       )}
 

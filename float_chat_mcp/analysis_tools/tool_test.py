@@ -16,7 +16,7 @@ argo_comparison_tool = server.argo_comparison_tool.fn
 
 print("imported")
 # Replace these with your credentials
-engine = create_engine("postgresql://postgres:hardik123@localhost:5432/argo_db")
+engine = create_engine("postgresql://postgres:pubgcodgerena123@@localhost:5432/argo_db")
 print("one")
 
 # Example: select ONE SINGLE profile worth of data
