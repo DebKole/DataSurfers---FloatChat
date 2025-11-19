@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
-
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import Dashboard from './components/Dashboard';
 import Sidebar from './components/Sidebar';
 import ChatContainer from './components/ChatContainer';
 import DataSidebar from './components/DataSidebar';
+import MapPage from './components/MapPage';
 import MapTrajectories from './components/MapTrajectories';
 import PlotProfileTool from './components/PlotProfile';
 import CompareProfilesTool from './components/CompareProfilesTool';
 import './index.css';
 
-function App() {
-
+//Main chat interface
+function ChatInterface() {
   const [dataSidebarView, setDataSidebarView] = useState('table');
-  // Keep BOTH: table data (your changes) AND map/trajectory (pulled changes)
+  const navigate = useNavigate();
+  // Keep BOTH: table data AND map/trajectory/demo features
   const [tableData, setTableData] = useState(null);
   const [mapData, setMapData] = useState(null);
   const [showMap, setShowMap] = useState(false);
@@ -33,7 +36,8 @@ function App() {
   const [compareTsError, setCompareTsError] = useState(null);
 
   const handleMapRequest = () => {
-    setDataSidebarView('map');
+    // Open the full-page Map view directly when chat requests the map
+    navigate('/map', { state: { source: 'chat' } });
   };
 
   const handleMapData = (data, shouldShow) => {
@@ -44,7 +48,6 @@ function App() {
   const handleMapClose = () => {
     setShowMap(false);
   };
-
   const handleTestTsCurve = async () => {
     setTsLoading(true);
     setTsError(null);
@@ -67,7 +70,6 @@ function App() {
   };
 
   const handleTestTdCurve = async () => {
-
     setTdLoading(true);
     setTdError(null);
     try {
@@ -133,7 +135,6 @@ function App() {
   return (
     <div className="container">
       <Sidebar />
-
       <ChatContainer onMapRequest={handleMapRequest} onMapData={handleMapData} onTableData={handleTableData} />
       <DataSidebar
         selectedView={dataSidebarView}
@@ -330,6 +331,21 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+function App() {
+  const [showFAQ, setShowFAQ] = useState(false); //Add state
+  return (
+    
+    <Router>
+      <Routes>
+        <Route path="/" element={<ChatInterface />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/map" element={<MapPage />} />
+
+      </Routes>
+    </Router>
+    
   );
 }
 

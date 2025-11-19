@@ -2,13 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import './MapComponent.css';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-const MapComponent = () => {
+
+const MapComponent = ({ fullPage = false, data = null }) => { 
   const [isLoading, setIsLoading] = useState(true);
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const markersLayerRef = useRef(null);
 
   const [floatData, setFloatData] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const sampleData = [];
 
   // Fetch real float data from database
   useEffect(() => {
@@ -43,11 +46,8 @@ const MapComponent = () => {
     fetchFloatData();
   }, []);
 
-  // No separate initializeMap function to keep hooks simple and avoid lint warnings.
-
   const initializeLeafletMap = async () => {
     try {
-      // Using static CSS import and static L from top-level import.
 
       // Wait until container has a measurable size (avoid offsetWidth null/0)
       const waitForSize = () => new Promise((resolve) => {
@@ -117,51 +117,53 @@ const MapComponent = () => {
 
       // Add tile layer
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
+        attribution: ' OpenStreetMap contributors'
       }).addTo(map);
 
-      // Add data points as styled dots (circle markers) - use real float data
-      const dataToDisplay = floatData.length > 0 ? floatData : [];
-      const markers = dataToDisplay.map(point => {
-        const color = '#1e90ff';
-        const dot = L.circleMarker([point.lat, point.lng], {
-          radius: 6,
-          color,
-          weight: 2,
-          fillColor: color,
-          fillOpacity: 0.85
-        }).addTo(map);
+      // Layer for markers and a unified renderer that supports both incoming data and real float data
+      markersLayerRef.current = L.layerGroup().addTo(map);
+      const renderMarkers = (points) => {
+        if (!markersLayerRef.current) return;
+        markersLayerRef.current.clearLayers();
+        const created = [];
+        (points || []).forEach(point => {
+          if (typeof point.lat !== 'number' || typeof point.lng !== 'number') return;
+          const color = '#1e90ff';
+          const dot = L.circleMarker([point.lat, point.lng], {
+            radius: 6,
+            color,
+            weight: 2,
+            fillColor: color,
+            fillOpacity: 0.85
+          });
+          const id = point.id || point.float_id || point.profile_id || '—';
+          const dateStr = point.datetime ? new Date(point.datetime).toLocaleDateString() : '';
+          dot.bindTooltip(`Float ${id}`, { direction: 'top', offset: [0, -6] });
+          dot.bindPopup(`
+            <div class="map-popup">
+              <h4>Float ${id}</h4>
+              <p><strong>Location:</strong> ${Number(point.lat).toFixed(2)}°, ${Number(point.lng).toFixed(2)}°</p>
+              ${dateStr ? `<p><strong>Date:</strong> ${dateStr}</p>` : ''}
+              ${point.cycle ? `<p><strong>Cycle:</strong> ${point.cycle}</p>` : ''}
+              ${point.measurements ? `<p><strong>Measurements:</strong> ${point.measurements}</p>` : ''}
+            </div>
+          `);
+          dot.on('mouseover', () => dot.setStyle({ radius: 9, fillOpacity: 1 }));
+          dot.on('mouseout', () => dot.setStyle({ radius: 6, fillOpacity: 0.85 }));
+          dot.addTo(markersLayerRef.current);
+          created.push(dot);
+        });
+        try {
+          if (created.length > 0) {
+            const group = L.featureGroup(created);
+            const bounds = group.getBounds();
+            if (bounds.isValid()) map.fitBounds(bounds.pad(0.2));
+          }
+        } catch (_) {}
+      };
 
-        dot.bindTooltip(`Float ${point.id}`, { direction: 'top', offset: [0, -6] });
-        
-        // Format datetime
-        const dateStr = point.datetime ? new Date(point.datetime).toLocaleDateString() : 'N/A';
-        
-        dot.bindPopup(`
-          <div class="map-popup">
-            <h4>Float ${point.id}</h4>
-            <p><strong>Location:</strong> ${point.lat.toFixed(2)}°, ${point.lng.toFixed(2)}°</p>
-            <p><strong>Date:</strong> ${dateStr}</p>
-            <p><strong>Cycle:</strong> ${point.cycle || 'N/A'}</p>
-            <p><strong>Measurements:</strong> ${point.measurements || 0}</p>
-            <p style="font-size: 0.85em; color: #666; margin-top: 8px;">
-              <em>January 2025 Data</em>
-            </p>
-          </div>
-        `);
-
-        // Hover highlight
-        dot.on('mouseover', () => dot.setStyle({ radius: 9, fillOpacity: 1 }));
-        dot.on('mouseout', () => dot.setStyle({ radius: 6, fillOpacity: 0.85 }));
-        return dot;
-      });
-
-      // Fit map to markers (with small padding), ignore if bounds invalid
-      try {
-        const group = L.featureGroup(markers);
-        const bounds = group.getBounds();
-        if (bounds.isValid()) map.fitBounds(bounds.pad(0.2));
-      } catch (_) {}
+      const initialPoints = floatData.length > 0 ? floatData : (Array.isArray(data) && data.length ? data : sampleData);
+      renderMarkers(initialPoints);
 
       // Invalidate size after a tick and on container resize to avoid layout issues
       setTimeout(() => {
@@ -175,11 +177,13 @@ const MapComponent = () => {
       // Save for cleanup
       mapInstanceRef.current = {
         map,
+        renderMarkers,
         cleanup: () => {
           try { resizeObs.disconnect(); } catch (_) {}
           try { map.remove(); } catch (_) {}
         }
       };
+
     } catch (error) {
       // Gracefully ignore benign duplicate init errors in dev StrictMode
       const msg = (error && (error.message || String(error))) || '';
@@ -191,8 +195,6 @@ const MapComponent = () => {
       initializeFallbackMap();
     }
   };
-
-  // Removed Plotly and Cesium implementations to keep a single, lightweight Leaflet map.
 
   const initializeFallbackMap = () => {
     // Fallback static map representation
@@ -223,8 +225,6 @@ const MapComponent = () => {
     `;
   };
 
-  // Initialize Leaflet once data is loaded
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!dataLoaded) return;  // Wait for data to load first
     
@@ -239,7 +239,6 @@ const MapComponent = () => {
         setIsLoading(false);
       }
     })();
-
     return () => {
       // Cleanup on unmount
       if (mapInstanceRef.current) {
@@ -255,8 +254,19 @@ const MapComponent = () => {
     };
   }, [dataLoaded, floatData]);
 
+  // Update markers whenever incoming data changes
+  useEffect(() => {
+    const points = Array.isArray(data) && data.length ? data : sampleData;
+    if (mapInstanceRef.current && mapInstanceRef.current.renderMarkers) {
+      try { mapInstanceRef.current.renderMarkers(points); } catch (_) {}
+    }
+  }, [data]);
+
+  // Compute summary values from current points
+  const currentPoints = Array.isArray(data) && data.length ? data : sampleData;
+
   return (
-    <div className="map-component">
+    <div className={`map-component ${fullPage ? 'full-page' : ''}`}> {/* Add conditional class */}
       <div className="map-container">
         {isLoading && (
           <div className="map-loading">
@@ -273,7 +283,7 @@ const MapComponent = () => {
       
       <div className="map-info">
         <div className="data-summary">
-          <span><i className="fas fa-map-marker-alt"></i> {floatData.length} Active Floats</span>
+          <span><i className="fas fa-map-marker-alt"></i> {(floatData.length || currentPoints.length)} Active Floats</span>
           <span><i className="fas fa-calendar"></i> January 2025 Data</span>
           <span><i className="fas fa-globe"></i> Indian Ocean Region</span>
         </div>

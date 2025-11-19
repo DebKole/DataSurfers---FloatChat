@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './DataSidebar.css';
 import MapVisualization from './MapVisualization';
 import PlotProfileTool from './PlotProfile';
@@ -12,6 +13,8 @@ const trajectories = [];
 const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, showMap = false, onMapClose = () => { }, tableData = null, onOpenTrajectoryOverlay = () => { } }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [isMapVisible, setIsMapVisible] = useState(false);
+  const navigate = useNavigate();
+  // Advanced preview and selection states
   const [showProfilePreview, setShowProfilePreview] = useState(false);
   const [selectedFloatId, setSelectedFloatId] = useState('');
   const [selectedProfileId, setSelectedProfileId] = useState(null);
@@ -57,8 +60,14 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
     }
   };
 
+  // Updated function to navigate to full-page map
   const handleOpenMap = () => {
-    setIsMapVisible(true);
+    navigate('/map', { 
+      state: { 
+        mapData: mapData,
+        source: 'sidebar'
+      } 
+    });
   };
 
   const handleCloseMap = () => {
@@ -266,7 +275,7 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
         </div>
       )}
 
-      {/* Map Visualization Component */}
+      {/* Map Visualization Component - Keep this for any popup functionality you still want */}
       <MapVisualization
         mapData={mapData?.map_data}
         isVisible={isMapVisible}

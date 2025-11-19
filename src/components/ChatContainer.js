@@ -1,19 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './ChatContainer.css';
 import axios from 'axios';
+import FAQ from './FAQ';
 
 const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTableData = () => { } }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
+  const [showFAQ, setShowFAQ] = useState(false);
+  const [highlightFAQ, setHighlightFAQ] = useState(true);
   const messagesEndRef = useRef(null);
+  const navigate = useNavigate();
 
   const actionOptions = [
-    {
-      title: "Retrieve Argo Data",
-      description: "Access oceanographic data from ARGO floats worldwide",
-      icon: "fa-download",
-      prompt: "Help me retrieve ARGO float data"
-    },
+    // {
+    //   title: "Retrieve Argo Data",
+    //   description: "Access oceanographic data from ARGO floats worldwide",
+    //   icon: "fa-download",
+    //   prompt: "Help me retrieve ARGO float data"
+    // },
     {
       title: "Analyse Data",
       description: "Perform analysis on oceanographic datasets",
@@ -36,13 +41,23 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
     scrollToBottom();
   }, [messages]);
 
+  // Subtle FAQ highlight on initial load for ~6 seconds
+  useEffect(() => {
+    const t = setTimeout(() => setHighlightFAQ(false), 6000);
+    return () => clearTimeout(t);
+  }, []);
+
   const handleOptionClick = async (option) => {
     const newMessages = [...messages, { type: 'user', content: option.prompt }];
     setMessages(newMessages);
 
-    // Trigger map view if this is the "Use Map" action
-    if (option.title === "Use Map" && onMapRequest) {
-      onMapRequest();
+    // Open map immediately and continue backend call
+    if (option.title === "Use Map") {
+      setMessages(prev => [
+        ...prev,
+        { type: 'bot', content: 'Fetching details...' }
+      ]);
+      if (onMapRequest) onMapRequest();
     }
 
     try {
@@ -59,20 +74,18 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
       if (response.data.show_map && response.data.map_data) {
         onMapData(response.data.map_data, true);
       }
-
       // Handle table data if present
       if (response.data.table_data) {
         onTableData(response.data.table_data);
       }
     } catch (error) {
-      console.error("Error fetching response from server:", error);
+      console.error("Error fetching response:", error);
       setMessages(prev => [
         ...prev,
         { type: 'bot', content: "⚠️ Sorry, could not fetch response from server." }
       ]);
     }
   };
-
 
   const handleSend = async () => {
     if (inputValue.trim()) {
@@ -111,12 +124,10 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
         if (response.data.show_map && response.data.map_data) {
           onMapData(response.data.map_data, true);
         }
-
         // Handle table data if present
         if (response.data.table_data) {
           onTableData(response.data.table_data);
         }
-
       } catch (error) {
         console.log("Error fetching response:", error);
         setMessages(prev => [
@@ -135,6 +146,25 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
 
   return (
     <main className="chat-container" id="chat">
+      {/* Dashboard Button (top-left) */}
+      <button 
+        className="dashboard-top-btn"
+        onClick={() => navigate('/dashboard')}
+        aria-label="Open Dashboard"
+      >
+        <i className="fas fa-chart-line"></i>
+        Dashboard
+      </button>
+      {/* FAQ Button */}
+      <button 
+        className={`faq-button ${highlightFAQ ? 'highlight' : ''}`}
+        onClick={() => setShowFAQ(true)}
+        aria-label="Open Frequently Asked Questions"
+      >
+        <i className="fas fa-question-circle"></i>
+        FAQ
+      </button>
+
       <div className="chat-header">
         <h1>FloatChat</h1>
         <p>Your friendly marine scientist</p>
@@ -197,6 +227,9 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
           Send
         </button>
       </div>
+
+      {/* FAQ Modal */}
+      <FAQ isOpen={showFAQ} onClose={() => setShowFAQ(false)} />
     </main>
   );
 };
