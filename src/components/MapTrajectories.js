@@ -8,6 +8,7 @@ function MapTrajectories({
   limit = 100,
   selectedFloatIds,
   onProfileClick,
+  fullScreen = false,
 }) {
   const [points, setPoints] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -103,7 +104,7 @@ function MapTrajectories({
     <div style={{ width: '100%', height: '400px' }}>
       <div style={{ marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label style={{ color: '#003366' }}>
+          <label style={{ color: fullScreen ? '#003366' : '#ffffff' }}>
             Float ID:
             <select
               value={localFloatId}
@@ -124,7 +125,7 @@ function MapTrajectories({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <label style={{ fontSize: '0.85rem', color: '#003366' }}>Radius (km):</label>
+            <label style={{ fontSize: '0.85rem', color: fullScreen ? '#003366' : '#ffffff' }}>Radius (km):</label>
             <input
               type="number"
               min={10}
@@ -140,43 +141,47 @@ function MapTrajectories({
               }}
               style={{ width: '80px' }}
             />
-            <input
-              type="range"
-              min={10}
-              max={2000}
-              step={10}
-              value={radius}
-              onChange={(e) => setRadius(Number(e.target.value))}
-              style={{ flexGrow: 1 }}
-            />
+            {fullScreen && (
+              <input
+                type="range"
+                min={10}
+                max={2000}
+                step={10}
+                value={radius}
+                onChange={(e) => setRadius(Number(e.target.value))}
+                style={{ flexGrow: 1 }}
+              />
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <label style={{ fontSize: '0.85rem', color: '#003366' }}>Days (history):</label>
-            <input
-              type="number"
-              min={1}
-              max={30}
-              step={1}
-              value={daysWindow}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                if (!Number.isNaN(val)) {
-                  const clamped = Math.min(30, Math.max(1, val));
-                  setDaysWindow(clamped);
-                }
-              }}
-              style={{ width: '80px' }}
-            />
-            <input
-              type="range"
-              min={1}
-              max={30}
-              step={1}
-              value={daysWindow}
-              onChange={(e) => setDaysWindow(Number(e.target.value))}
-              style={{ flexGrow: 1 }}
-            />
-          </div>
+          {fullScreen && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.85rem', color: fullScreen ? '#003366' : '#ffffff' }}>Days (history):</label>
+              <input
+                type="number"
+                min={1}
+                max={30}
+                step={1}
+                value={daysWindow}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (!Number.isNaN(val)) {
+                    const clamped = Math.min(30, Math.max(1, val));
+                    setDaysWindow(clamped);
+                  }
+                }}
+                style={{ width: '80px' }}
+              />
+              <input
+                type="range"
+                min={1}
+                max={30}
+                step={1}
+                value={daysWindow}
+                onChange={(e) => setDaysWindow(Number(e.target.value))}
+                style={{ flexGrow: 1 }}
+              />
+            </div>
+          )}
         </div>
       </div>
       <MapContainer center={centerPoint} zoom={2} scrollWheelZoom={true} style={{ width: '100%', height: '100%' }}>
