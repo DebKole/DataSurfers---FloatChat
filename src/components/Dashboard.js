@@ -306,42 +306,30 @@ const Dashboard = ({ onClose }) => {
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
               <label>
                 Float ID:
-                <select
+                <input
+                  type="text"
                   value={demoFloatId}
                   onChange={(e) => setDemoFloatId(e.target.value)}
                   style={{ marginLeft: '0.25rem' }}
-                >
-                  <option value="5906527">5906527</option>
-                  <option value="1901744">1901744</option>
-                  <option value="4902916">4902916</option>
-                  <option value="4902917">4902917</option>
-                </select>
+                />
               </label>
               <label>
                 Compare A:
-                <select
+                <input
+                  type="text"
                   value={compareFloatIdA}
                   onChange={(e) => setCompareFloatIdA(e.target.value)}
                   style={{ marginLeft: '0.25rem' }}
-                >
-                  <option value="5906527">5906527</option>
-                  <option value="1901744">1901744</option>
-                  <option value="4902916">4902916</option>
-                  <option value="4902917">4902917</option>
-                </select>
+                />
               </label>
               <label>
                 Compare B:
-                <select
+                <input
+                  type="text"
                   value={compareFloatIdB}
                   onChange={(e) => setCompareFloatIdB(e.target.value)}
                   style={{ marginLeft: '0.25rem' }}
-                >
-                  <option value="1901744">1901744</option>
-                  <option value="5906527">5906527</option>
-                  <option value="4902916">4902916</option>
-                  <option value="4902917">4902917</option>
-                </select>
+                />
               </label>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Response
 from fastapi.params import Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -12,6 +12,8 @@ import warnings
 import os
 import pandas as pd
 from sqlalchemy import create_engine
+import matplotlib.pyplot as plt
+from io import BytesIO
 
 warnings.filterwarnings("ignore")
 load_dotenv()
@@ -272,6 +274,217 @@ def ts_curve(float_id: str, limit: int = 200):
 
         result = argo_ts_curve(df.to_dict("records"), show_plot=False)
         return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/compare_ts_png")
+def compare_ts_png(float_id_a: str, float_id_b: str, limit: int = 200):
+    """Return a PNG image comparing TS profiles for two floats."""
+    try:
+        df_a = load_profile_data(float_id_a, limit)
+        df_b = load_profile_data(float_id_b, limit)
+
+        if df_a.empty:
+            raise HTTPException(status_code=404, detail=f"No data for float_id_a={float_id_a}")
+        if df_b.empty:
+            raise HTTPException(status_code=404, detail=f"No data for float_id_b={float_id_b}")
+
+        result = argo_comparison_tool(
+            datasets=[df_a.to_dict("records"), df_b.to_dict("records")],
+            labels=[float_id_a, float_id_b],
+            variable="temperature",
+            axis_var="salinity",
+        )
+
+        profiles = result.get("profiles", [])
+        if len(profiles) < 2:
+            raise HTTPException(status_code=404, detail="Insufficient comparison data")
+
+        # measurements[0] is stats; subsequent have curve data
+        def extract_curve(profile):
+            curve = []
+            for m in profile.get("measurements", [])[1:]:
+                s = m.get("salinity")
+                t = m.get("temperature")
+                if s is not None and t is not None:
+                    curve.append((float(s), float(t)))
+            return curve
+
+        curve_a = extract_curve(profiles[0])
+        curve_b = extract_curve(profiles[1])
+
+        if not curve_a or not curve_b:
+            raise HTTPException(status_code=404, detail="No curve data to plot")
+
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot([p[0] for p in curve_a], [p[1] for p in curve_a], "b-", linewidth=2.0, label=float_id_a)
+        ax.plot([p[0] for p in curve_b], [p[1] for p in curve_b], "r-", linewidth=2.0, label=float_id_b)
+        ax.set_xlabel("Salinity (PSU)")
+        ax.set_ylabel("Temperature (°C)")
+        ax.set_title("TS Comparison")
+        ax.grid(True, alpha=0.3, linestyle="--")
+        ax.legend()
+
+        buf = BytesIO()
+        fig.tight_layout()
+        fig.savefig(buf, format="png")
+        plt.close(fig)
+        buf.seek(0)
+
+        return Response(content=buf.getvalue(), media_type="image/png")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/compare_td_png")
+def compare_td_png(float_id_a: str, float_id_b: str, limit: int = 200):
+    """Return a PNG image comparing TD profiles for two floats (temperature vs pressure)."""
+    try:
+        df_a = load_profile_data(float_id_a, limit)
+        df_b = load_profile_data(float_id_b, limit)
+
+        if df_a.empty:
+            raise HTTPException(status_code=404, detail=f"No data for float_id_a={float_id_a}")
+        if df_b.empty:
+            raise HTTPException(status_code=404, detail=f"No data for float_id_b={float_id_b}")
+
+        result = argo_comparison_tool(
+            datasets=[df_a.to_dict("records"), df_b.to_dict("records")],
+            labels=[float_id_a, float_id_b],
+            variable="temperature",
+            axis_var="pressure",
+        )
+
+        profiles = result.get("profiles", [])
+        if len(profiles) < 2:
+            raise HTTPException(status_code=404, detail="Insufficient comparison data")
+
+        def extract_curve(profile):
+            curve = []
+            for m in profile.get("measurements", [])[1:]:
+                p = m.get("pressure")
+                t = m.get("temperature")
+                if p is not None and t is not None:
+                    curve.append((float(p), float(t)))
+            return curve
+
+        curve_a = extract_curve(profiles[0])
+        curve_b = extract_curve(profiles[1])
+
+        if not curve_a or not curve_b:
+            raise HTTPException(status_code=404, detail="No curve data to plot")
+
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot([p[0] for p in curve_a], [p[1] for p in curve_a], "b-", linewidth=2.0, label=float_id_a)
+        ax.plot([p[0] for p in curve_b], [p[1] for p in curve_b], "r-", linewidth=2.0, label=float_id_b)
+        ax.set_xlabel("Pressure (dbar)")
+        ax.set_ylabel("Temperature (°C)")
+        ax.set_title("TD Comparison")
+        ax.grid(True, alpha=0.3, linestyle="--")
+        ax.legend()
+
+        buf = BytesIO()
+        fig.tight_layout()
+        fig.savefig(buf, format="png")
+        plt.close(fig)
+        buf.seek(0)
+
+        return Response(content=buf.getvalue(), media_type="image/png")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ts_curve_png")
+def ts_curve_png(float_id: str, limit: int = 200):
+    """Return a PNG image of the temperature–salinity (TS) profile for a float."""
+    try:
+        df = load_profile_data(float_id, limit)
+        if df.empty:
+            raise HTTPException(status_code=404, detail="No data for this float_id")
+
+        # Reuse TS curve computation to get salinity and temperature arrays
+        result = argo_ts_curve(df.to_dict("records"), show_plot=False)
+        profiles = result.get("profiles", [])
+        if not profiles:
+            raise HTTPException(status_code=404, detail="No TS data for this float_id")
+
+        measurements = profiles[0].get("measurements", [])
+        if not measurements:
+            raise HTTPException(status_code=404, detail="No TS measurements for this float_id")
+
+        sal = [m.get("salinity") for m in measurements if m.get("salinity") is not None]
+        temps = [m.get("temperature") for m in measurements if m.get("temperature") is not None]
+
+        if not sal or not temps or len(sal) != len(temps):
+            raise HTTPException(status_code=404, detail="Insufficient TS data to plot")
+
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(sal, temps, "b-", linewidth=2.0)
+        ax.set_xlabel("Salinity (PSU)")
+        ax.set_ylabel("Temperature (°C)")
+        ax.set_title(f"Temperature–Salinity Profile for {float_id}")
+        ax.grid(True, alpha=0.3, linestyle="--")
+
+        buf = BytesIO()
+        fig.tight_layout()
+        fig.savefig(buf, format="png")
+        plt.close(fig)
+        buf.seek(0)
+
+        return Response(content=buf.getvalue(), media_type="image/png")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/td_curve_png")
+def td_curve_png(float_id: str, limit: int = 200):
+    """Return a PNG image of the temperature–depth profile for a float."""
+    try:
+      df = load_profile_data(float_id, limit)
+      if df.empty:
+          raise HTTPException(status_code=404, detail="No data for this float_id")
+
+      # Reuse TD curve computation to get depth and temperature arrays
+      result = argo_td_curve(df.to_dict("records"), show_plot=False)
+      profiles = result.get("profiles", [])
+      if not profiles:
+          raise HTTPException(status_code=404, detail="No TD data for this float_id")
+
+      measurements = profiles[0].get("measurements", [])
+      if not measurements:
+          raise HTTPException(status_code=404, detail="No TD measurements for this float_id")
+
+      depths = [m.get("depth") for m in measurements if m.get("depth") is not None]
+      temps = [m.get("temperature") for m in measurements if m.get("temperature") is not None]
+
+      if not depths or not temps or len(depths) != len(temps):
+          raise HTTPException(status_code=404, detail="Insufficient TD data to plot")
+
+      # Create matplotlib figure
+      fig, ax = plt.subplots(figsize=(6, 4))
+      ax.plot(temps, depths, "r-", linewidth=2.0)
+      ax.set_xlabel("Temperature (°C)")
+      ax.set_ylabel("Depth (m)")
+      ax.set_title(f"Temperature–Depth Profile for {float_id}")
+      ax.grid(True, alpha=0.3, linestyle="--")
+      ax.invert_yaxis()  # depth increases downward
+
+      buf = BytesIO()
+      fig.tight_layout()
+      fig.savefig(buf, format="png")
+      plt.close(fig)
+      buf.seek(0)
+
+      return Response(content=buf.getvalue(), media_type="image/png")
     except HTTPException:
         raise
     except Exception as e:
