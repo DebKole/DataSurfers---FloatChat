@@ -231,3 +231,6 @@ stats_*.json
 # Development testing
 test_output/
 debug_*.txt
+
+__pycache__/
+*.pyc
