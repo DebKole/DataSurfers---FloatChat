@@ -22,11 +22,7 @@ app=FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # React app
-        "http://localhost:8081",  # Expo web app
-        "http://127.0.0.1:8081",  # Expo web app (alternative)
-    ],
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
