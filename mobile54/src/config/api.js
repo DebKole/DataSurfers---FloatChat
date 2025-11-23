@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://192.168.29.129:8000";
+const API_BASE_URL = "http://192.168.1.10:8000";
 
 export async function pingBackend() {
   const url = `${API_BASE_URL}/`;
@@ -71,4 +71,11 @@ export function getCompareTdPngUrl(floatIdA, floatIdB, limit = 200) {
 
 export function getFloatsPngUrl(limit = 50) {
   return `${API_BASE_URL}/floats/indian-ocean-png?limit=${limit}`;
+}
+
+export async function fetchTrajectoriesInRadius(lat, lon, radius = 2000, limit = 100) {
+  const url = `${API_BASE_URL}/floats/trajectories/radius?lat=${lat}&lon=${lon}&radius=${radius}&limit=${limit}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
