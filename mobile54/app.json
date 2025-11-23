@@ -19,7 +19,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png",
         "config": {
           "googleMaps": {
-            "apiKey": "AIzaSyDGdnqqU0gdesHgpofagk5eupHHxFxBv-A"
+            "apiKey": ""
           }
         }
       },
