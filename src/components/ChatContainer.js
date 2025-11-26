@@ -1,16 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import './ChatContainer.css';
-import axios from 'axios';
-import FAQ from './FAQ';
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import "./ChatContainer.css";
+import axios from "axios";
+import FAQ from "./FAQ";
 
-const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTableData = () => { } }) => {
+const ChatContainer = ({
+  onMapRequest = () => {},
+  onMapData = () => {},
+  onTableData = () => {},
+}) => {
   const [messages, setMessages] = useState([]);
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
   const [showFAQ, setShowFAQ] = useState(false);
   const [highlightFAQ, setHighlightFAQ] = useState(true);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
+  const userRequestedMapRef = useRef(false);
 
   const actionOptions = [
     // {
@@ -23,14 +28,14 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
       title: "Analyse Data",
       description: "Perform analysis on oceanographic datasets",
       icon: "fa-chart-line",
-      prompt: "I want to analyse oceanographic data"
+      prompt: "I want to analyse oceanographic data",
     },
     {
       title: "Use Map",
       description: "Visualize data on interactive ocean maps",
       icon: "fa-map",
-      prompt: "Show me data on the map"
-    }
+      prompt: "Show me data on the map",
+    },
   ];
 
   const scrollToBottom = () => {
@@ -47,17 +52,44 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
     return () => clearTimeout(t);
   }, []);
 
+  // Load persisted chat state on mount
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("floatchat_messages");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setMessages(parsed);
+      }
+      const savedInput = sessionStorage.getItem("floatchat_input");
+      if (savedInput) setInputValue(savedInput);
+    } catch (_) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist chat state on change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("floatchat_messages", JSON.stringify(messages));
+    } catch (_) {}
+  }, [messages]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("floatchat_input", inputValue);
+    } catch (_) {}
+  }, [inputValue]);
+
   const handleOptionClick = async (option) => {
-    const newMessages = [...messages, { type: 'user', content: option.prompt }];
+    const newMessages = [...messages, { type: "user", content: option.prompt }];
     setMessages(newMessages);
 
-    // Open map immediately and continue backend call
+    // For 'Use Map', we still show fetching message, but open map only after backend returns show_map
     if (option.title === "Use Map") {
-      setMessages(prev => [
+      userRequestedMapRef.current = true;
+      setMessages((prev) => [
         ...prev,
-        { type: 'bot', content: 'Fetching details...' }
+        { type: "bot", content: "Fetching details..." },
       ]);
-      if (onMapRequest) onMapRequest();
     }
 
     try {
@@ -65,13 +97,18 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
         query: option.prompt,
       });
 
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
-        { type: 'bot', content: response.data.message }
+        { type: "bot", content: response.data.message },
       ]);
 
-      // Handle map data if present
-      if (response.data.show_map && response.data.map_data) {
+      // Open map overlay only if backend explicitly indicates AND there's no table view requested
+      if (
+        userRequestedMapRef.current &&
+        response.data.show_map &&
+        response.data.map_data &&
+        !response.data.table_data
+      ) {
         onMapData(response.data.map_data, true);
       }
       // Handle table data if present
@@ -80,9 +117,12 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
       }
     } catch (error) {
       console.error("Error fetching response:", error);
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
-        { type: 'bot', content: "⚠️ Sorry, could not fetch response from server." }
+        {
+          type: "bot",
+          content: "⚠️ Sorry, could not fetch response from server.",
+        },
       ]);
     }
   };
@@ -91,22 +131,17 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
     if (inputValue.trim()) {
       // Add user message
       console.log("handle send");
-      const newMessages = [...messages, { type: 'user', content: inputValue }];
+      const newMessages = [...messages, { type: "user", content: inputValue }];
       setMessages(newMessages);
 
       // Store the current query before clearing
       const query = inputValue;
-      setInputValue('');
-
-      // Check if user is asking for map-related functionality
-      const mapKeywords = ['map', 'visualize', 'show location', 'geographic', 'coordinates', 'latitude', 'longitude', 'plot', 'chart'];
-      const isMapRequest = mapKeywords.some(keyword =>
-        query.toLowerCase().includes(keyword.toLowerCase())
+      setInputValue("");
+      // Determine if the user explicitly asked for a map
+      const lower = query.toLowerCase();
+      userRequestedMapRef.current = /\b(map|visualize|plot|show on map)\b/.test(
+        lower
       );
-
-      if (isMapRequest && onMapRequest) {
-        onMapRequest();
-      }
 
       try {
         // Call FastAPI backend
@@ -115,13 +150,17 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
         });
 
         // Add bot message with response
-        setMessages(prev => [
+        setMessages((prev) => [
           ...prev,
-          { type: 'bot', content: response.data.message }
+          { type: "bot", content: response.data.message },
         ]);
 
-        // Handle map data if present
-        if (response.data.show_map && response.data.map_data) {
+        // Open map overlay only if backend explicitly indicates AND there's no table view requested
+        if (
+          response.data.show_map &&
+          response.data.map_data &&
+          !response.data.table_data
+        ) {
           onMapData(response.data.map_data, true);
         }
         // Handle table data if present
@@ -130,16 +169,19 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
         }
       } catch (error) {
         console.log("Error fetching response:", error);
-        setMessages(prev => [
+        setMessages((prev) => [
           ...prev,
-          { type: 'bot', content: "⚠️ Sorry, something went wrong connecting to the server." }
+          {
+            type: "bot",
+            content: "⚠️ Sorry, something went wrong connecting to the server.",
+          },
         ]);
       }
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handleSend();
     }
   };
@@ -147,17 +189,17 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
   return (
     <main className="chat-container" id="chat">
       {/* Dashboard Button (top-left) */}
-      <button 
+      <button
         className="dashboard-top-btn"
-        onClick={() => navigate('/dashboard')}
+        onClick={() => navigate("/dashboard")}
         aria-label="Open Dashboard"
       >
         <i className="fas fa-chart-line"></i>
         Dashboard
       </button>
       {/* FAQ Button */}
-      <button 
-        className={`faq-button ${highlightFAQ ? 'highlight' : ''}`}
+      <button
+        className={`faq-button ${highlightFAQ ? "highlight" : ""}`}
         onClick={() => setShowFAQ(true)}
         aria-label="Open Frequently Asked Questions"
       >
@@ -178,7 +220,10 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
                 <i className="fas fa-robot"></i>
               </div>
               <h2>How can I help you today?</h2>
-              <p>I'm your oceanographic data assistant. Choose an option below to get started:</p>
+              <p>
+                I'm your oceanographic data assistant. Choose an option below to
+                get started:
+              </p>
 
               <div className="action-options">
                 {actionOptions.map((option, index) => (
@@ -203,8 +248,13 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
           messages.map((message, index) => (
             <div key={index} className={`message ${message.type}-message`}>
               <div className={`message-header ${message.type}-header`}>
-                <i className={`fas ${message.type === 'user' ? 'fa-user' : 'fa-robot'}`} aria-hidden="true"></i>
-                {message.type === 'user' ? 'You' : 'FloatChat'}
+                <i
+                  className={`fas ${
+                    message.type === "user" ? "fa-user" : "fa-robot"
+                  }`}
+                  aria-hidden="true"
+                ></i>
+                {message.type === "user" ? "You" : "FloatChat"}
               </div>
               {message.content}
             </div>
