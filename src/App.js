@@ -193,14 +193,14 @@ function App() {
   const [showFAQ, setShowFAQ] = useState(false); //Add state
   return (
     
-    <Router>
+    
       <Routes>
         <Route path="/" element={<ChatInterface />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/map" element={<MapPage />} />
 
       </Routes>
-    </Router>
+
     
   );
 }
