@@ -136,6 +136,8 @@ class QueryBuilderTool:
             return self._build_vector_plan(entities, intent)
         elif strategy == "hybrid":
             return self._build_hybrid_plan(entities, intent)
+        elif strategy == "analysis":  # NEW
+            return self._build_analysis_plan(entities, intent)
         else:
             return self._build_fallback_plan(intent)
     
@@ -240,6 +242,18 @@ class QueryBuilderTool:
     def _classify_query_type(self, entities: Dict[str, Any], query_lower: str) -> str:
         """Classify the type of query based on entities"""
         
+        # NEW: Check for analysis keywords first
+        analysis_keywords = {
+            'trend': ['trend', 'trending', 'time series', 'over time'],
+            'curve': ['curve', 't-s', 'ts', 't-d', 'td', 'temperature-salinity', 'temperature-depth', 'vertical profile'],
+            'comparison': ['compare', 'comparison', 'versus', 'vs', 'difference between'],
+            'statistics': ['statistics', 'stats', 'summary', 'summarize', 'average', 'mean']
+        }
+        
+        for category, keywords in analysis_keywords.items():
+            if any(keyword in query_lower for keyword in keywords):
+                return "analysis_query"
+        
         # Specific float lookup
         if entities["float_ids"]:
             return "float_lookup"
@@ -263,13 +277,17 @@ class QueryBuilderTool:
             return "institution_analysis"
         
         # Semantic/complex queries
-        if any(word in query_lower for word in ["compare", "analyze", "pattern", "trend", "anomaly"]):
+        if any(word in query_lower for word in ["analyze", "pattern", "anomaly"]):
             return "semantic_analysis"
         
         return "general_search"
     
     def _choose_strategy(self, query_type: str, entities: Dict[str, Any], query_lower: str) -> str:
         """Choose execution strategy based on query type and complexity"""
+        
+        # NEW: Route analysis queries to analysis strategy
+        if query_type == "analysis_query":
+            return "analysis"
         
         # Direct SQL for simple lookups
         if query_type == "float_lookup":
@@ -450,6 +468,98 @@ class QueryBuilderTool:
             "query": intent["query_text"],
             "suggestion": "Please be more specific about region, time period, or parameters"
         }
+    
+    def _build_analysis_plan(self, entities: Dict[str, Any], intent: Dict[str, Any]) -> Dict[str, Any]:
+        """Build analysis execution plan"""
+        
+        query_lower = intent["query_text"].lower()
+        
+        # Determine specific analysis type
+        analysis_type = self._determine_analysis_type(query_lower, entities)
+        
+        # Extract analysis parameters
+        parameters = self._extract_analysis_parameters(query_lower)
+        
+        # Determine data requirements
+        data_requirements = {
+            "float_ids": entities["float_ids"],
+            "regions": entities["regions"],
+            "parameters": entities["parameters"],
+            "temporal": entities["temporal"]
+        }
+        
+        # Determine database (main for historical, live for recent)
+        database = "live" if entities["temporal"].get("relative_time") == "recent" else "main"
+        
+        return {
+            "strategy": "analysis",
+            "analysis_type": analysis_type,
+            "data_requirements": data_requirements,
+            "analysis_parameters": parameters,
+            "database": database
+        }
+    
+    def _determine_analysis_type(self, query_lower: str, entities: Dict[str, Any]) -> str:
+        """Determine specific analysis type from query"""
+        
+        # Temperature trend
+        if any(word in query_lower for word in ['temperature trend', 'temp trend', 'temperature over time']):
+            return "temp_trend"
+        
+        # Salinity trend
+        if any(word in query_lower for word in ['salinity trend', 'sal trend', 'salinity over time']):
+            return "sal_trend"
+        
+        # Pressure trend
+        if any(word in query_lower for word in ['pressure trend', 'depth trend']):
+            return "pressure_trend"
+        
+        # T-S curve
+        if any(word in query_lower for word in ['t-s', 'ts curve', 'temperature-salinity', 'temperature salinity']):
+            return "ts_curve"
+        
+        # T-D curve
+        if any(word in query_lower for word in ['t-d', 'td curve', 'temperature-depth', 'vertical profile']):
+            return "td_curve"
+        
+        # Comparison
+        if any(word in query_lower for word in ['compare', 'comparison', 'versus', 'vs']):
+            return "comparison"
+        
+        # Statistics
+        if any(word in query_lower for word in ['statistics', 'stats', 'summary', 'summarize']):
+            return "statistics"
+        
+        # Default: if "trend" is mentioned, assume temperature trend
+        if 'trend' in query_lower:
+            return "temp_trend"
+        
+        # Default to statistics if unclear
+        return "statistics"
+    
+    def _extract_analysis_parameters(self, query_lower: str) -> Dict[str, Any]:
+        """Extract analysis-specific parameters from query"""
+        
+        parameters = {}
+        
+        # Extract window size for trends
+        window_match = re.search(r'window[=\s]+(\d+)', query_lower)
+        if window_match:
+            parameters['window'] = int(window_match.group(1))
+        else:
+            parameters['window'] = 20  # default
+        
+        # Extract axis variable for comparisons
+        if 'by depth' in query_lower or 'vs depth' in query_lower:
+            parameters['axis_var'] = 'depth'
+        elif 'by time' in query_lower or 'over time' in query_lower:
+            parameters['axis_var'] = 'datetime'
+        elif 'by salinity' in query_lower:
+            parameters['axis_var'] = 'salinity'
+        elif 'by pressure' in query_lower:
+            parameters['axis_var'] = 'pressure'
+        
+        return parameters
     
     def _build_vector_filters(self, entities: Dict[str, Any]) -> Dict[str, Any]:
         """Build filters for vector search"""

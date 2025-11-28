@@ -27,7 +27,8 @@ class MCPQueryAgent:
             'profile', 'thermocline', 'ocean', 'water', 'argo', 'float', 
             'pressure', 'statistics', 'summary', 'conditions', 'compare', 
             'analysis', 'gradient', 'arabian sea', 'bay of bengal', 
-            'indian ocean', 'show me', 'find', 'get', 'data', 'measurement'
+            'indian ocean', 'show me', 'find', 'get', 'data', 'measurement',
+            'trend', 'curve', 't-s', 't-d', 'ts', 'td', 'vertical profile'
         ]
     
     def is_data_query(self, query: str) -> bool:
@@ -107,6 +108,7 @@ class MCPQueryAgent:
                     'query_type': result.get('strategy', 'unknown'),
                     'has_data': True,
                     'table_data': table_data,  # Add structured table data
+                    'chart_data': self._extract_chart_data(result),  # Add chart data
                     'show_map': self._should_show_map(result),
                     'map_data': self._extract_map_data(result),
                     'raw_result': result,
@@ -131,6 +133,10 @@ class MCPQueryAgent:
     
     def _format_response(self, result: dict, query: str) -> str:
         """Format MCP result into user-friendly response"""
+        
+        # Check if this is an analysis result
+        if result.get('strategy') == 'analysis':
+            return self._format_analysis_response(result, query)
         
         # Check if we have Gemini analysis from the SQL generator
         for res in result.get('results', []):
@@ -196,6 +202,56 @@ For general information about Argo floats or the system, try asking "What are Ar
         
         return response
     
+    def _format_analysis_response(self, result: dict, query: str) -> str:
+        """Format analysis results into user-friendly response"""
+        
+        analysis_type = result.get('analysis_type', 'unknown')
+        analysis_result = result.get('analysis_result', {})
+        
+        # Check if analysis failed
+        if result.get('status') == 'error':
+            return f"Analysis failed: {result.get('error', 'Unknown error')}"
+        
+        # Format based on analysis type
+        if analysis_type == 'temp_trend':
+            profiles = analysis_result.get('profiles', [])
+            if profiles and profiles[0].get('measurements'):
+                count = len(profiles[0]['measurements'])
+                return f"I generated a temperature trend analysis with {count} smoothed data points. The trend shows temperature variations over time for your query."
+        
+        elif analysis_type == 'sal_trend':
+            profiles = analysis_result.get('profiles', [])
+            if profiles and profiles[0].get('measurements'):
+                count = len(profiles[0]['measurements'])
+                return f"I generated a salinity trend analysis with {count} smoothed data points. The trend shows salinity variations over time for your query."
+        
+        elif analysis_type == 'ts_curve':
+            profiles = analysis_result.get('profiles', [])
+            if profiles and profiles[0].get('measurements'):
+                count = len(profiles[0]['measurements'])
+                return f"I generated a Temperature-Salinity (T-S) curve with {count} data points. This curve shows the relationship between temperature and salinity in the water column."
+        
+        elif analysis_type == 'td_curve':
+            profiles = analysis_result.get('profiles', [])
+            if profiles and profiles[0].get('measurements'):
+                count = len(profiles[0]['measurements'])
+                return f"I generated a Temperature-Depth (T-D) profile with {count} data points. This profile shows how temperature varies with depth."
+        
+        elif analysis_type == 'comparison':
+            profiles = analysis_result.get('profiles', [])
+            if profiles:
+                labels = [p.get('label', 'Unknown') for p in profiles]
+                return f"I compared {len(profiles)} datasets: {', '.join(labels)}. The comparison includes statistical summaries and curve data for each dataset."
+        
+        elif analysis_type == 'statistics':
+            profiles = analysis_result.get('profiles', [])
+            if profiles and profiles[0].get('measurements'):
+                variables = [m.get('variable') for m in profiles[0]['measurements']]
+                return f"I computed statistical summaries for {', '.join(variables)}. The analysis includes count, mean, median, standard deviation, min, and max values."
+        
+        # Default response
+        return f"I completed the {analysis_type} analysis. Check the results in the table on the right."
+    
     def _should_show_map(self, result: dict) -> bool:
         """Determine if results should be shown on map"""
         # Show map if we have geographic data
@@ -217,6 +273,20 @@ For general information about Argo floats or the system, try asking "What are Ar
             'total_rows': 0
         }
         
+        # Handle analysis results
+        if result.get('strategy') == 'analysis':
+            analysis_result = result.get('analysis_result', {})
+            profiles = analysis_result.get('profiles', [])
+            
+            if profiles and profiles[0].get('measurements'):
+                measurements = profiles[0]['measurements']
+                if measurements and len(measurements) > 0:
+                    table_data['columns'] = list(measurements[0].keys())
+                    table_data['rows'] = measurements
+                    table_data['total_rows'] = len(measurements)
+                    return table_data
+        
+        # Handle regular data results
         for res in result.get('results', []):
             if isinstance(res, dict) and 'result' in res:
                 inner = res['result']
@@ -231,6 +301,66 @@ For general information about Argo floats or the system, try asking "What are Ar
                         break  # Use first result with data
         
         return table_data
+    
+    def _extract_chart_data(self, result: dict) -> dict:
+        """Extract data for chart visualization in frontend"""
+        chart_data = None
+        
+        # Handle analysis results
+        if result.get('strategy') == 'analysis':
+            analysis_type = result.get('analysis_type', 'unknown')
+            analysis_result = result.get('analysis_result', {})
+            profiles = analysis_result.get('profiles', [])
+            
+            if profiles and profiles[0].get('measurements'):
+                measurements = profiles[0]['measurements']
+                
+                # Map analysis type to chart type
+                chart_data = {
+                    'type': analysis_type,
+                    'data': measurements,
+                    'title': self._get_chart_title(analysis_type),
+                    'xLabel': self._get_x_label(analysis_type),
+                    'yLabel': self._get_y_label(analysis_type)
+                }
+        
+        return chart_data
+    
+    def _get_chart_title(self, analysis_type: str) -> str:
+        """Get chart title based on analysis type"""
+        titles = {
+            'temp_trend': 'Temperature Trend Over Time',
+            'sal_trend': 'Salinity Trend Over Time',
+            'ts_curve': 'Temperature-Salinity Curve',
+            'td_curve': 'Temperature-Depth Profile',
+            'comparison': 'Data Comparison',
+            'statistics': 'Statistical Summary'
+        }
+        return titles.get(analysis_type, 'Data Visualization')
+    
+    def _get_x_label(self, analysis_type: str) -> str:
+        """Get X-axis label based on analysis type"""
+        labels = {
+            'temp_trend': 'Date',
+            'sal_trend': 'Date',
+            'ts_curve': 'Temperature (°C)',
+            'td_curve': 'Temperature (°C)',
+            'comparison': 'Variable',
+            'statistics': 'Variable'
+        }
+        return labels.get(analysis_type, 'X')
+    
+    def _get_y_label(self, analysis_type: str) -> str:
+        """Get Y-axis label based on analysis type"""
+        labels = {
+            'temp_trend': 'Temperature (°C)',
+            'sal_trend': 'Salinity (PSU)',
+            'ts_curve': 'Salinity (PSU)',
+            'td_curve': 'Depth (m)',
+            'comparison': 'Value',
+            'statistics': 'Value'
+        }
+        return labels.get(analysis_type, 'Y')
     
     def _extract_map_data(self, result: dict) -> dict:
         """Extract data for map visualization"""

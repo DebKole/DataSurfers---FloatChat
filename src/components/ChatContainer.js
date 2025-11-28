@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './ChatContainer.css';
 import axios from 'axios';
 import FAQ from './FAQ';
+import ChartRenderer from './ChartRenderer';
 
 const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTableData = () => { } }) => {
   const [messages, setMessages] = useState([]);
@@ -67,7 +68,13 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
 
       setMessages(prev => [
         ...prev,
-        { type: 'bot', content: response.data.message }
+        { 
+          type: 'bot', 
+          content: response.data.message,
+          chartData: response.data.chart_data,
+          tableData: response.data.table_data,
+          hasData: response.data.has_data
+        }
       ]);
 
       // Handle map data if present
@@ -117,7 +124,13 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
         // Add bot message with response
         setMessages(prev => [
           ...prev,
-          { type: 'bot', content: response.data.message }
+          { 
+            type: 'bot', 
+            content: response.data.message,
+            chartData: response.data.chart_data,
+            tableData: response.data.table_data,
+            hasData: response.data.has_data
+          }
         ]);
 
         // Handle map data if present
@@ -201,12 +214,19 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
           </div>
         ) : (
           messages.map((message, index) => (
-            <div key={index} className={`message ${message.type}-message`}>
-              <div className={`message-header ${message.type}-header`}>
-                <i className={`fas ${message.type === 'user' ? 'fa-user' : 'fa-robot'}`} aria-hidden="true"></i>
-                {message.type === 'user' ? 'You' : 'FloatChat'}
+            <div key={index}>
+              <div className={`message ${message.type}-message`}>
+                <div className={`message-header ${message.type}-header`}>
+                  <i className={`fas ${message.type === 'user' ? 'fa-user' : 'fa-robot'}`} aria-hidden="true"></i>
+                  {message.type === 'user' ? 'You' : 'FloatChat'}
+                </div>
+                {message.content}
               </div>
-              {message.content}
+              
+              {/* Render chart if available */}
+              {message.chartData && message.type === 'bot' && (
+                <ChartRenderer chartData={message.chartData} />
+              )}
             </div>
           ))
         )}

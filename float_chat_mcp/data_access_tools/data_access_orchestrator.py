@@ -16,6 +16,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from float_chat_mcp.data_access_tools.query_builder_tool import QueryBuilderTool
 from float_chat_mcp.data_access_tools.vector_retrieval_tool import VectorRetrievalTool
 from float_chat_mcp.data_access_tools.db_executor_tool import DatabaseExecutorTool
+from float_chat_mcp.data_access_tools.analysis_tools_wrapper import AnalysisToolsWrapper
 
 class DataAccessOrchestrator:
     """Orchestrates all data access tools for intelligent query execution"""
@@ -31,6 +32,7 @@ class DataAccessOrchestrator:
         self.query_builder = QueryBuilderTool(use_gemini=use_gemini)
         self.vector_tool = VectorRetrievalTool()
         self.db_tool = DatabaseExecutorTool(enable_cache=enable_cache)
+        self.analysis_wrapper = AnalysisToolsWrapper()
     
     def execute_query(self, user_query: str) -> Dict[str, Any]:
         """
@@ -59,6 +61,8 @@ class DataAccessOrchestrator:
                 results = self._execute_vector_strategy(plan, intent)
             elif plan["strategy"] == "hybrid":
                 results = self._execute_hybrid_strategy(plan, intent)
+            elif plan["strategy"] == "analysis":
+                results = self._execute_analysis_strategy(plan, intent)
             else:
                 results = self._execute_fallback_strategy(plan, intent)
             
@@ -282,6 +286,225 @@ class DataAccessOrchestrator:
             "suggestion": plan.get("suggestion", "Please provide more specific query terms"),
             "message": "Query was unclear, showing general search results"
         }
+    
+    def _execute_analysis_strategy(self, plan: Dict[str, Any], intent: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute analysis strategy (data fetch + analysis)"""
+        print("📊 Executing analysis strategy...")
+        
+        results = {
+            "status": "success",
+            "strategy": "analysis",
+            "analysis_type": plan["analysis_type"],
+            "data_sources": [],
+            "fetched_data": None,
+            "analysis_result": None
+        }
+        
+        try:
+            # Step 1: Fetch data
+            print(f"   Step 1: Fetching data for analysis...")
+            data_result = self._fetch_data_for_analysis(plan, intent)
+            
+            if data_result["status"] != "success":
+                return {
+                    "status": "error",
+                    "error": "Data fetch failed",
+                    "details": data_result,
+                    "step": "data_fetch"
+                }
+            
+            results["fetched_data"] = data_result
+            results["data_sources"] = data_result.get("data_sources", [])
+            
+            # Extract actual data from result
+            data_list = self._extract_data_list(data_result)
+            
+            if not data_list:
+                return {
+                    "status": "error",
+                    "error": "No data found for analysis",
+                    "step": "data_fetch"
+                }
+            
+            print(f"   ✅ Fetched {len(data_list)} data points")
+            
+            # Step 2: Handle comparison (multiple datasets)
+            if plan["analysis_type"] == "comparison":
+                results = self._execute_comparison_analysis(plan, intent, results)
+            else:
+                # Step 2: Run analysis on single dataset
+                print(f"   Step 2: Running {plan['analysis_type']} analysis...")
+                analysis_result = self.analysis_wrapper.execute_analysis(
+                    analysis_type=plan["analysis_type"],
+                    data=data_list,
+                    parameters=plan.get("analysis_parameters", {})
+                )
+                
+                if analysis_result.get("status") == "error":
+                    return {
+                        "status": "error",
+                        "error": analysis_result.get("error", "Analysis failed"),
+                        "step": "analysis"
+                    }
+                
+                results["analysis_result"] = analysis_result
+                print(f"   ✅ Analysis complete")
+            
+            return results
+            
+        except Exception as e:
+            print(f"   ❌ Analysis strategy failed: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "strategy": "analysis",
+                "step": "unknown"
+            }
+    
+    def _fetch_data_for_analysis(self, plan: Dict[str, Any], intent: Dict[str, Any]) -> Dict[str, Any]:
+        """Fetch data required for analysis using existing tools"""
+        data_req = plan["data_requirements"]
+        database = plan.get("database", "main")
+        
+        # Build a temporary SQL plan for data fetching
+        temp_plan = {
+            "strategy": "sql_only",
+            "database": database,
+            "queries": []
+        }
+        
+        # Determine what data to fetch based on requirements
+        if data_req["float_ids"]:
+            # Fetch by float ID
+            for float_id in data_req["float_ids"]:
+                temp_plan["queries"].append({
+                    "type": "float_lookup",
+                    "method": "get_profiles_by_float_id",
+                    "params": {
+                        "float_id": float_id,
+                        "include_measurements": True,
+                        "limit": 500
+                    }
+                })
+        elif data_req["regions"]:
+            # Fetch by region
+            for region in data_req["regions"]:
+                temp_plan["queries"].append({
+                    "type": "regional_search",
+                    "method": "get_profiles_by_region",
+                    "params": {
+                        "region": region,
+                        "limit": 200
+                    }
+                })
+        else:
+            # Fallback: general database query
+            temp_plan["queries"].append({
+                "type": "general_stats",
+                "method": "get_database_stats",
+                "params": {}
+            })
+        
+        # Execute the data fetch
+        return self._execute_sql_strategy(temp_plan, intent)
+    
+    def _extract_data_list(self, data_result: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract flat list of measurements from orchestrator result"""
+        data_list = []
+        
+        for result in data_result.get("results", []):
+            if isinstance(result, dict) and "result" in result:
+                inner = result["result"]
+                if isinstance(inner, dict) and "data" in inner:
+                    data_list.extend(inner["data"])
+        
+        return data_list
+    
+    def _execute_comparison_analysis(self, plan: Dict[str, Any], intent: Dict[str, Any], results: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute comparison analysis for multiple datasets"""
+        print(f"   Step 2: Running comparison analysis...")
+        
+        data_req = plan["data_requirements"]
+        
+        # Need multiple entities for comparison
+        entities_to_compare = data_req["float_ids"] or data_req["regions"]
+        
+        if len(entities_to_compare) < 2:
+            return {
+                "status": "error",
+                "error": "Comparison requires at least 2 floats or regions",
+                "step": "analysis"
+            }
+        
+        # Fetch data for each entity separately
+        datasets = []
+        labels = []
+        
+        for entity in entities_to_compare[:5]:  # Limit to 5 comparisons
+            # Create temp plan for this entity
+            temp_plan = {
+                "strategy": "sql_only",
+                "database": plan.get("database", "main"),
+                "queries": []
+            }
+            
+            if entity in data_req["float_ids"]:
+                temp_plan["queries"].append({
+                    "type": "float_lookup",
+                    "method": "get_profiles_by_float_id",
+                    "params": {"float_id": entity, "include_measurements": True, "limit": 200}
+                })
+                labels.append(f"Float {entity}")
+            else:
+                temp_plan["queries"].append({
+                    "type": "regional_search",
+                    "method": "get_profiles_by_region",
+                    "params": {"region": entity, "limit": 200}
+                })
+                labels.append(entity)
+            
+            # Fetch data
+            entity_result = self._execute_sql_strategy(temp_plan, intent)
+            entity_data = self._extract_data_list(entity_result)
+            
+            if entity_data:
+                datasets.append(entity_data)
+        
+        if len(datasets) < 2:
+            return {
+                "status": "error",
+                "error": "Insufficient data for comparison (need at least 2 datasets with data)",
+                "step": "analysis"
+            }
+        
+        # Determine comparison variable
+        variable = "temperature"  # default
+        if data_req["parameters"]:
+            variable = data_req["parameters"][0]
+        
+        # Run comparison
+        analysis_result = self.analysis_wrapper.execute_analysis(
+            analysis_type="comparison",
+            data=[],  # Not used for comparison
+            parameters={
+                "datasets": datasets,
+                "labels": labels,
+                "variable": variable,
+                "axis_var": plan.get("analysis_parameters", {}).get("axis_var")
+            }
+        )
+        
+        if analysis_result.get("status") == "error":
+            return {
+                "status": "error",
+                "error": analysis_result.get("error", "Comparison failed"),
+                "step": "analysis"
+            }
+        
+        results["analysis_result"] = analysis_result
+        print(f"   ✅ Comparison complete")
+        
+        return results
     
     def get_system_status(self) -> Dict[str, Any]:
         """Get status of all data access components"""

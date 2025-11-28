@@ -1,0 +1,67 @@
+.chart-container {
+  margin: 16px 0;
+  padding: 16px;
+  background: linear-gradient(135deg, #1a2332 0%, #2a3f5f 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(78, 205, 196, 0.2);
+  transition: all 0.3s ease;
+}
+
+.chart-container:hover {
+  box-shadow: 0 6px 16px rgba(78, 205, 196, 0.2);
+  border-color: rgba(78, 205, 196, 0.4);
+}
+
+/* Ensure Plotly chart is responsive */
+.chart-container .js-plotly-plot {
+  width: 100% !important;
+}
+
+/* Loading state */
+.chart-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400px;
+  color: #4ECDC4;
+  font-size: 18px;
+}
+
+.chart-loading i {
+  margin-right: 10px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Error state */
+.chart-error {
+  padding: 20px;
+  text-align: center;
+  color: #FF6B6B;
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+/* Chart title styling */
+.chart-container .gtitle {
+  fill: #e0e0e0 !important;
+  font-weight: 600 !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .chart-container {
+    padding: 12px;
+    margin: 12px 0;
+  }
+  
+  .chart-container .js-plotly-plot {
+    height: 300px !important;
+  }
+}
