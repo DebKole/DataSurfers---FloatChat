@@ -1,0 +1,258 @@
+# Main Configuration for Argo Anomaly Detection System
+
+# Database Configuration
+database:
+  type: "postgresql"  # or "parquet"
+  host: "localhost"
+  port: 5432
+  database: "floatchat_argo_prev"
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+  
+  # Parquet alternative
+  parquet_path: "../processed_data_historical/"
+  
+# Data Processing
+data:
+  # Date range for training
+  start_date: "2022-01-01"
+  end_date: "2024-12-31"
+  
+  # Sampling
+  max_profiles_per_day: null  # null = no limit
+  spatial_subsample_km: null  # null = no spatial subsampling
+
+# Feature Engineering
+features:
+  # Depth levels for interpolation
+  standard_depths: [0, 10, 20, 30, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1750, 2000]
+  
+  # Oceanographic features
+  compute_density: true
+  compute_spice: true
+  compute_mld: true  # Mixed layer depth
+  compute_thermocline: true
+  compute_gradients: true
+  compute_buoyancy_freq: true
+  
+  # Temporal features
+  seasonal_encoding: true  # sin/cos of day of year
+  year_trend: true
+  
+  # Spatial features
+  scale_lat_lon: 40.0  # Scaling factor for lat/lon in clustering
+
+# Clustering Configuration
+clustering:
+  method: "gmm"  # "gmm", "hdbscan", or "both"
+  
+  # GMM parameters
+  gmm:
+    n_clusters_range: [6, 12]
+    covariance_type: "full"
+    n_init: 10
+    selection_criterion: "bic"  # "bic" or "aic"
+    
+  # HDBSCAN parameters (for outlier detection)
+  hdbscan:
+    min_cluster_size: 500
+    min_samples: 50
+    cluster_selection_epsilon: 0.5
+    
+  # Dimensionality reduction
+  pca:
+    n_components: 6
+    whiten: true
+    
+  # Feature selection for clustering
+  features_for_clustering:
+    - "temp_surface"
+    - "temp_200m"
+    - "salinity_surface"
+    - "salinity_200m"
+    - "thermocline_depth"
+    - "mld"
+    - "density_surface"
+    - "latitude_scaled"
+    - "longitude_scaled"
+    
+  # Polygon generation
+  polygons:
+    alpha: 0.0  # Auto-select alpha for concave hull
+    buffer_km: 50  # Buffer around points before hull
+    simplify_tolerance: 0.01  # Simplify polygon
+    min_area_km2: 10000  # Minimum region area
+    ocean_mask: true  # Clip to ocean boundaries
+
+# Geospatial Operations
+geo:
+  # Point-in-polygon assignment
+  pip:
+    use_rtree: true
+    fallback_to_nearest: true
+    max_distance_km: 500  # Max distance for nearest centroid fallback
+    
+  # Distance weighting
+  distance_weights:
+    method: "gaussian"  # "gaussian", "power", "inverse", "exponential"
+    gaussian_sigma_factor: 0.5  # sigma = max_dist * factor
+    power_alpha: 2.0
+    exponential_lambda_factor: 0.3  # lambda = max_dist * factor
+    min_weight: 0.05
+    normalize_per_region: true
+    
+    # Vertical weighting (optional)
+    use_vertical_weight: true
+    vertical_method: "mahalanobis"  # "euclidean" or "mahalanobis"
+
+# Model Training
+models:
+  # Model type per region
+  model_type: "sklearn"  # "lightgbm", "xgboost", "catboost", "sklearn" - sklearn works without OpenMP
+  
+  # Minimum samples per region
+  min_samples_per_region: 1000
+  merge_small_regions: true
+  
+  # Cross-validation
+  cv:
+    method: "spatial_temporal"  # "spatial", "temporal", "spatial_temporal"
+    n_splits: 5
+    spatial_grid_size: 5  # degrees
+    temporal_gap_days: 30  # Gap between train/test
+    
+  # LightGBM parameters
+  lightgbm:
+    objective: "regression"
+    metric: "rmse"
+    boosting_type: "gbdt"
+    num_leaves: 31
+    learning_rate: 0.05
+    n_estimators: 500
+    max_depth: -1
+    min_child_samples: 20
+    subsample: 0.8
+    colsample_bytree: 0.8
+    reg_alpha: 0.1
+    reg_lambda: 0.1
+    early_stopping_rounds: 50
+    verbose: -1
+    
+  # Uncertainty quantification
+  uncertainty:
+    method: "quantile"  # "quantile", "ensemble", "conformal"
+    quantiles: [0.05, 0.95]  # For 90% prediction interval
+    n_ensemble: 5  # For ensemble method
+    
+  # Depth stratification
+  depth_bins:
+    - [0, 200]
+    - [200, 500]
+    - [500, 1000]
+    - [1000, 2000]
+  train_per_depth_bin: false  # If true, train separate model per depth bin
+
+# Anomaly Detection
+anomaly:
+  # Detectors to use
+  detectors:
+    model_residual:
+      enabled: true
+      weight: 0.6
+      threshold_method: "quantile"  # "zscore" or "quantile"
+      quantile: 0.99
+      zscore_threshold: 3.0
+      
+    autoencoder:
+      enabled: true
+      weight: 0.3
+      architecture: "1dcnn"  # "1dcnn", "lstm", "vae"
+      latent_dim: 16
+      reconstruction_threshold_quantile: 0.95
+      
+    isolation_forest:
+      enabled: true
+      weight: 0.1
+      contamination: 0.01
+      n_estimators: 100
+      
+    lof:
+      enabled: false
+      weight: 0.0
+      n_neighbors: 20
+      contamination: 0.01
+      
+  # Fusion strategy
+  fusion:
+    method: "weighted_sum"  # "weighted_sum", "rank_aggregation", "voting"
+    normalize_scores: true
+    
+  # Distance-based threshold adjustment
+  distance_adjustment:
+    enabled: true
+    adjustment_factor: 0.5  # k in: threshold *= (1 + k*(1-weight))
+    min_weight_threshold: 0.3  # Adjust if weight < threshold
+    
+  # Alert levels
+  alert_levels:
+    info: 0.7
+    warning: 0.85
+    critical: 0.95
+    
+  # Temporal persistence
+  temporal_check:
+    enabled: true
+    min_consecutive_anomalies: 2
+    time_window_hours: 48
+
+# Validation
+validation:
+  # External datasets
+  woa:
+    enabled: true
+    data_path: "data/external/woa/"
+    
+  # Metrics
+  metrics:
+    - "rmse"
+    - "mae"
+    - "bias"
+    - "skill_score"
+    - "correlation"
+    
+  # Anomaly detection metrics
+  anomaly_metrics:
+    - "precision"
+    - "recall"
+    - "f1"
+    - "roc_auc"
+    - "pr_auc"
+    
+  # Synthetic anomaly injection
+  synthetic_anomalies:
+    enabled: true
+    types:
+      - "temperature_spike"  # +/- N degrees
+      - "salinity_spike"
+      - "depth_shift"
+      - "gradient_anomaly"
+    magnitudes: [1.0, 2.0, 3.0, 5.0]
+
+# MLflow Tracking
+mlflow:
+  tracking_uri: "file:./mlruns"
+  experiment_name: "argo_anomaly_detection"
+  
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/anomaly_detection.log"
+
+# Artifacts
+artifacts:
+  base_path: "artifacts/"
+  models_path: "artifacts/models/"
+  polygons_path: "artifacts/polygons/"
+  scalers_path: "artifacts/scalers/"
+  results_path: "artifacts/results/"
