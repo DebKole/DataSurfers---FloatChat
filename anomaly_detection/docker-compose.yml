@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database with PostGIS
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: argo_postgres
+    environment:
+      POSTGRES_DB: argo_db
+      POSTGRES_USER: argo_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U argo_user -d argo_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Anomaly detection application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: argo_anomaly_detection
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: argo_db
+      DB_USER: argo_user
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - ./config:/app/config
+      - ./artifacts:/app/artifacts
+      - ./logs:/app/logs
+      - ../processed_data_historical:/app/data/processed_data_historical:ro
+    ports:
+      - "8000:8000"
+    command: uvicorn api.app:app --host 0.0.0.0 --port 8000
+
+  # MLflow tracking server
+  mlflow:
+    image: python:3.9-slim
+    container_name: argo_mlflow
+    working_dir: /mlflow
+    command: >
+      sh -c "pip install mlflow psycopg2-binary &&
+             mlflow server
+             --backend-store-uri postgresql://argo_user:${DB_PASSWORD:-changeme}@postgres:5432/mlflow
+             --default-artifact-root /mlflow/artifacts
+             --host 0.0.0.0
+             --port 5000"
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Jupyter notebook for exploration
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: argo_jupyter
+    command: >
+      jupyter lab
+      --ip=0.0.0.0
+      --port=8888
+      --no-browser
+      --allow-root
+      --NotebookApp.token=''
+      --NotebookApp.password=''
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/app/notebooks
+      - ./config:/app/config
+      - ./artifacts:/app/artifacts
+      - ../processed_data_historical:/app/data/processed_data_historical:ro
+    environment:
+      JUPYTER_ENABLE_LAB: "yes"
+
+volumes:
+  postgres_data:
+  mlflow_data:
+
+networks:
+  default:
+    name: argo_network
