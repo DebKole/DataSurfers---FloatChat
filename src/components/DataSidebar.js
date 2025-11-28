@@ -98,8 +98,9 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
 
       <div className={`view-selector ${collapsed ? 'hidden' : ''}`}>
         <select value={selectedView} onChange={handleViewChange} className="view-dropdown">
-          <option value="table">Table</option>
+          
           <option value="map">Map</option>
+          <option value="table">Table</option>
           <option value="updates">Latest Updates</option>
         </select>
       </div>
@@ -223,7 +224,7 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
               className="view-more-btn"
               onClick={onOpenTrajectoryOverlay}
             >
-              Open Trajectory Map (Full Screen)
+              Open Trajectory Map
             </button>
           </div>
 
@@ -275,7 +276,7 @@ const DataSidebar = ({ selectedView = 'table', onViewChange, mapData = null, sho
         </div>
       )}
 
-      {/* Map Visualization Component - Keep this for any popup functionality you still want */}
+      {/* Map Visualization Component */}
       <MapVisualization
         mapData={mapData?.map_data}
         isVisible={isMapVisible}

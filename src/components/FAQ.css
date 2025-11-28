@@ -9,18 +9,20 @@
   justify-content: center;
   align-items: center;
   z-index: 1000;
-  backdrop-filter: blur(5px);
+  backdrop-filter: blur(10px);
 }
 
 .faq-modal-content {
-  background: white;
-  border-radius: 15px;
+  background: rgba(26,54,93,0.95);
+  border-radius: 16px;
   width: 90%;
   max-width: 700px;
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(49,130,206,0.3);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
   animation: modalSlideIn 0.3s ease-out;
+  backdrop-filter: blur(10px);
 }
 
 @keyframes modalSlideIn {
@@ -39,10 +41,10 @@
   justify-content: space-between;
   align-items: center;
   padding: 25px 30px 20px;
-  border-bottom: 2px solid #e0f7ff;
-  background: linear-gradient(135deg, #0077b6 0%, #0096c7 100%);
-  color: white;
-  border-radius: 15px 15px 0 0;
+  border-bottom: 1px solid rgba(49,130,206,0.3);
+  background: rgba(44,82,130,0.8);
+  color: #ffffff;
+  border-radius: 16px 16px 0 0;
 }
 
 .faq-header h2 {
@@ -52,9 +54,9 @@
 }
 
 .faq-close-btn {
-  background: none;
-  border: none;
-  color: white;
+  background: rgba(49,130,206,0.3);
+  border: 1px solid rgba(49,130,206,0.3);
+  color: #ffffff;
   font-size: 2rem;
   cursor: pointer;
   padding: 0;
@@ -63,12 +65,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  transition: background-color 0.3s ease;
+  border-radius: 8px;
+  transition: all 200ms ease;
 }
 
 .faq-close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(49,130,206,0.8);
+  transform: translateY(-2px);
 }
 
 .faq-list {
@@ -78,7 +81,7 @@
 .faq-item {
   margin-bottom: 25px;
   padding-bottom: 20px;
-  border-bottom: 1px solid #e8f4f8;
+  border-bottom: 1px solid rgba(49,130,206,0.2);
 }
 
 .faq-item:last-child {
@@ -88,20 +91,22 @@
 
 .faq-question {
   font-weight: 600;
-  color: #0077b6;
+  color: #ffffff;
   margin-bottom: 12px;
   font-size: 1.1rem;
   line-height: 1.4;
 }
 
 .faq-answer {
-  color: #555;
+  color: #ffffff;
+  opacity: 0.9;
   line-height: 1.6;
   font-size: 0.95rem;
-  background: #f8fdff;
+  background: rgba(44,82,130,0.6);
   padding: 15px;
   border-radius: 8px;
-  border-left: 4px solid #0077b6;
+  border-left: 4px solid rgba(49,130,206,0.8);
+  border: 1px solid rgba(49,130,206,0.2);
 }
 
 /* FAQ Button Styles */
@@ -109,30 +114,49 @@
   position: absolute;
   top: 15px;
   right: 15px;
-  background: #0077b6;
+  background: #3182ce;
   color: white;
-  border: none;
+  border: 1px solid rgba(49,130,206,0.3);
   padding: 10px 20px;
-  border-radius: 25px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 0.9rem;
-  font-weight: 500;
-  transition: all 0.3s ease;
+  font-weight: 600;
+  transition: all 200ms ease;
   z-index: 100;
-  box-shadow: 0 2px 8px rgba(0, 119, 182, 0.3);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .faq-button:hover {
-  background: #0056a3;
+  background: rgba(49,130,206,1);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 119, 182, 0.4);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
 .faq-button:active {
   transform: translateY(0);
+}
+
+/* Custom scrollbar for FAQ modal */
+.faq-modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.faq-modal-content::-webkit-scrollbar-track {
+  background: rgba(26,54,93,0.3);
+  border-radius: 3px;
+}
+
+.faq-modal-content::-webkit-scrollbar-thumb {
+  background: rgba(49,130,206,0.6);
+  border-radius: 3px;
+}
+
+.faq-modal-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(49,130,206,0.8);
 }
 
 /* Responsive Design */

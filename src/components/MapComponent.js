@@ -112,7 +112,29 @@ const MapComponent = ({ fullPage = false, data = null }) => {
         scrollWheelZoom: true,
         doubleClickZoom: true,
         boxZoom: true,
-        tap: false // improves interaction on touch devices
+        tap: false, // improves interaction on touch devices
+        fadeAnimation: false, // Disable fade to prevent timing issues
+        zoomAnimation: false // Disable zoom animation initially
+      });
+
+      // Wait for map to fully initialize - ensure panes are created
+      // This prevents the _leaflet_pos error
+      await new Promise(resolve => {
+        // Use a simple delay to ensure map panes are initialized
+        setTimeout(() => {
+          try {
+            // Verify map panes exist before proceeding
+            if (map && map._panes && map._panes.mapPane) {
+              resolve();
+            } else {
+              // If panes aren't ready, wait a bit more
+              setTimeout(resolve, 100);
+            }
+          } catch (e) {
+            // If there's an error, proceed anyway after delay
+            setTimeout(resolve, 100);
+          }
+        }, 100);
       });
 
       // Add tile layer
@@ -154,10 +176,21 @@ const MapComponent = ({ fullPage = false, data = null }) => {
           created.push(dot);
         });
         try {
-          if (created.length > 0) {
+          if (created.length > 0 && map && map._loaded) {
             const group = L.featureGroup(created);
             const bounds = group.getBounds();
-            if (bounds.isValid()) map.fitBounds(bounds.pad(0.2));
+            if (bounds.isValid()) {
+              // Use setTimeout to ensure map is ready for fitBounds
+              setTimeout(() => {
+                try {
+                  if (map && map._loaded) {
+                    map.fitBounds(bounds.pad(0.2));
+                  }
+                } catch (e) {
+                  // Silently ignore fitBounds errors
+                }
+              }, 150);
+            }
           }
         } catch (_) {}
       };
@@ -166,13 +199,39 @@ const MapComponent = ({ fullPage = false, data = null }) => {
       renderMarkers(initialPoints);
 
       // Invalidate size after a tick and on container resize to avoid layout issues
+      // Use a safer approach that checks if map is still valid
       setTimeout(() => {
-        try { map.invalidateSize(false); } catch (_) {}
-      }, 0);
+        try {
+          if (map && mapContainerRef.current && map._loaded) {
+            map.invalidateSize(false);
+          }
+        } catch (e) {
+          // Silently ignore - map may not be fully ready
+        }
+      }, 100);
+      
       const resizeObs = new ResizeObserver(() => {
-        try { map.invalidateSize(false); } catch (_) {}
+        try {
+          if (map && mapContainerRef.current && map._loaded) {
+            // Use requestAnimationFrame to ensure DOM is stable
+            requestAnimationFrame(() => {
+              try {
+                if (map && map._loaded) {
+                  map.invalidateSize(false);
+                }
+              } catch (e) {
+                // Ignore resize errors
+              }
+            });
+          }
+        } catch (e) {
+          // Ignore resize observer errors
+        }
       });
-      resizeObs.observe(mapContainerRef.current);
+      
+      if (mapContainerRef.current) {
+        resizeObs.observe(mapContainerRef.current);
+      }
 
       // Save for cleanup
       mapInstanceRef.current = {
@@ -228,26 +287,66 @@ const MapComponent = ({ fullPage = false, data = null }) => {
   useEffect(() => {
     if (!dataLoaded) return;  // Wait for data to load first
     
-    (async () => {
-      if (!mapContainerRef.current) return;
-      try {
-        await initializeLeafletMap();
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error initializing map:', error);
-        initializeFallbackMap();
-        setIsLoading(false);
-      }
-    })();
+    // Use requestAnimationFrame to ensure DOM is fully ready
+    const initTimeout = setTimeout(() => {
+      (async () => {
+        if (!mapContainerRef.current) return;
+        
+        // Double-check container is in DOM and has size
+        if (!document.body.contains(mapContainerRef.current)) {
+          return;
+        }
+        
+        // Wait for next frame to ensure all DOM updates are complete
+        requestAnimationFrame(() => {
+          requestAnimationFrame(async () => {
+            try {
+              await initializeLeafletMap();
+              setIsLoading(false);
+            } catch (error) {
+              // Silently handle the _leaflet_pos error - it's a timing issue
+              const errorMsg = error?.message || String(error);
+              if (errorMsg.includes('_leaflet_pos') || errorMsg.includes('undefined')) {
+                // Retry once after a short delay
+                setTimeout(async () => {
+                  try {
+                    if (mapContainerRef.current && !mapInstanceRef.current) {
+                      await initializeLeafletMap();
+                      setIsLoading(false);
+                    }
+                  } catch (retryError) {
+                    console.warn('Map initialization retry failed, using fallback');
+                    initializeFallbackMap();
+                    setIsLoading(false);
+                  }
+                }, 100);
+              } else {
+                console.error('Error initializing map:', error);
+                initializeFallbackMap();
+                setIsLoading(false);
+              }
+            }
+          });
+        });
+      })();
+    }, 50); // Small delay to ensure component is fully mounted
+    
     return () => {
+      clearTimeout(initTimeout);
       // Cleanup on unmount
       if (mapInstanceRef.current) {
         if (mapInstanceRef.current.cleanup) {
-          mapInstanceRef.current.cleanup();
-        } else if (mapInstanceRef.current.remove) {
-          mapInstanceRef.current.remove();
-        } else if (mapInstanceRef.current.destroy) {
-          mapInstanceRef.current.destroy();
+          try {
+            mapInstanceRef.current.cleanup();
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+        } else if (mapInstanceRef.current.map) {
+          try {
+            mapInstanceRef.current.map.remove();
+          } catch (e) {
+            // Ignore cleanup errors
+          }
         }
         mapInstanceRef.current = null;
       }

@@ -1,12 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import './ChatContainer.css';
-import axios from 'axios';
-import FAQ from './FAQ';
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import "./ChatContainer.css";
+import axios from "axios";
+import FAQ from "./FAQ";
+import logo from "../assets/Logo (3).png";
 
-const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTableData = () => { } }) => {
+const ChatContainer = ({
+  onMapRequest = () => {},
+  onMapData = () => {},
+  onTableData = () => {},
+}) => {
   const [messages, setMessages] = useState([]);
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
   const [showFAQ, setShowFAQ] = useState(false);
   const [highlightFAQ, setHighlightFAQ] = useState(true);
   const messagesEndRef = useRef(null);
@@ -23,14 +28,14 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
       title: "Analyse Data",
       description: "Perform analysis on oceanographic datasets",
       icon: "fa-chart-line",
-      prompt: "I want to analyse oceanographic data"
+      prompt: "I want to analyse oceanographic data",
     },
     {
       title: "Use Map",
       description: "Visualize data on interactive ocean maps",
       icon: "fa-map",
-      prompt: "Show me data on the map"
-    }
+      prompt: "Show me data on the map",
+    },
   ];
 
   const scrollToBottom = () => {
@@ -48,14 +53,14 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
   }, []);
 
   const handleOptionClick = async (option) => {
-    const newMessages = [...messages, { type: 'user', content: option.prompt }];
+    const newMessages = [...messages, { type: "user", content: option.prompt }];
     setMessages(newMessages);
 
     // Open map immediately and continue backend call
     if (option.title === "Use Map") {
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
-        { type: 'bot', content: 'Fetching details...' }
+        { type: "bot", content: "Fetching details..." },
       ]);
       if (onMapRequest) onMapRequest();
     }
@@ -65,9 +70,9 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
         query: option.prompt,
       });
 
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
-        { type: 'bot', content: response.data.message }
+        { type: "bot", content: response.data.message },
       ]);
 
       // Handle map data if present
@@ -80,9 +85,12 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
       }
     } catch (error) {
       console.error("Error fetching response:", error);
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
-        { type: 'bot', content: "⚠️ Sorry, could not fetch response from server." }
+        {
+          type: "bot",
+          content: "⚠️ Sorry, could not fetch response from server.",
+        },
       ]);
     }
   };
@@ -91,16 +99,26 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
     if (inputValue.trim()) {
       // Add user message
       console.log("handle send");
-      const newMessages = [...messages, { type: 'user', content: inputValue }];
+      const newMessages = [...messages, { type: "user", content: inputValue }];
       setMessages(newMessages);
 
       // Store the current query before clearing
       const query = inputValue;
-      setInputValue('');
+      setInputValue("");
 
       // Check if user is asking for map-related functionality
-      const mapKeywords = ['map', 'visualize', 'show location', 'geographic', 'coordinates', 'latitude', 'longitude', 'plot', 'chart'];
-      const isMapRequest = mapKeywords.some(keyword =>
+      const mapKeywords = [
+        "map",
+        "visualize",
+        "show location",
+        "geographic",
+        "coordinates",
+        "latitude",
+        "longitude",
+        "plot",
+        "chart",
+      ];
+      const isMapRequest = mapKeywords.some((keyword) =>
         query.toLowerCase().includes(keyword.toLowerCase())
       );
 
@@ -115,9 +133,9 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
         });
 
         // Add bot message with response
-        setMessages(prev => [
+        setMessages((prev) => [
           ...prev,
-          { type: 'bot', content: response.data.message }
+          { type: "bot", content: response.data.message },
         ]);
 
         // Handle map data if present
@@ -130,16 +148,19 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
         }
       } catch (error) {
         console.log("Error fetching response:", error);
-        setMessages(prev => [
+        setMessages((prev) => [
           ...prev,
-          { type: 'bot', content: "⚠️ Sorry, something went wrong connecting to the server." }
+          {
+            type: "bot",
+            content: "⚠️ Sorry, something went wrong connecting to the server.",
+          },
         ]);
       }
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handleSend();
     }
   };
@@ -147,17 +168,17 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
   return (
     <main className="chat-container" id="chat">
       {/* Dashboard Button (top-left) */}
-      <button 
+      <button
         className="dashboard-top-btn"
-        onClick={() => navigate('/dashboard')}
+        onClick={() => navigate("/dashboard")}
         aria-label="Open Dashboard"
       >
         <i className="fas fa-chart-line"></i>
         Dashboard
       </button>
       {/* FAQ Button */}
-      <button 
-        className={`faq-button ${highlightFAQ ? 'highlight' : ''}`}
+      <button
+        className={`faq-button ${highlightFAQ ? "highlight" : ""}`}
         onClick={() => setShowFAQ(true)}
         aria-label="Open Frequently Asked Questions"
       >
@@ -176,9 +197,13 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
             <div className="welcome-content">
               <div className="welcome-icon">
                 <i className="fas fa-robot"></i>
+                {/* <img src={logo} alt="FloatChat logo" className="chat-logo" /> */}
               </div>
               <h2>How can I help you today?</h2>
-              <p>I'm your oceanographic data assistant. Choose an option below to get started:</p>
+              <p>
+                I'm your oceanographic data assistant. Choose an option below to
+                get started:
+              </p>
 
               <div className="action-options">
                 {actionOptions.map((option, index) => (
@@ -203,8 +228,13 @@ const ChatContainer = ({ onMapRequest = () => { }, onMapData = () => { }, onTabl
           messages.map((message, index) => (
             <div key={index} className={`message ${message.type}-message`}>
               <div className={`message-header ${message.type}-header`}>
-                <i className={`fas ${message.type === 'user' ? 'fa-user' : 'fa-robot'}`} aria-hidden="true"></i>
-                {message.type === 'user' ? 'You' : 'FloatChat'}
+                <i
+                  className={`fas ${
+                    message.type === "user" ? "fa-user" : "fa-robot"
+                  }`}
+                  aria-hidden="true"
+                ></i>
+                {message.type === "user" ? "You" : "FloatChat"}
               </div>
               {message.content}
             </div>
