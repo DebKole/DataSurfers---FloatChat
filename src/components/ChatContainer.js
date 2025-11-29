@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import "./ChatContainer.css";
-import axios from "axios";
-import FAQ from "./FAQ";
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import './ChatContainer.css';
+import axios from 'axios';
+import FAQ from './FAQ';
+import ChartRenderer from './ChartRenderer';
 
 const ChatContainer = ({
   onMapRequest = () => {},
@@ -99,7 +100,13 @@ const ChatContainer = ({
 
       setMessages((prev) => [
         ...prev,
-        { type: "bot", content: response.data.message },
+        { 
+          type: 'bot', 
+          content: response.data.message,
+          chartData: response.data.chart_data,
+          tableData: response.data.table_data,
+          hasData: response.data.has_data
+        }
       ]);
 
       // Open map overlay only if backend explicitly indicates AND there's no table view requested
@@ -152,7 +159,13 @@ const ChatContainer = ({
         // Add bot message with response
         setMessages((prev) => [
           ...prev,
-          { type: "bot", content: response.data.message },
+          { 
+            type: 'bot', 
+            content: response.data.message,
+            chartData: response.data.chart_data,
+            tableData: response.data.table_data,
+            hasData: response.data.has_data
+          }
         ]);
 
         // Open map overlay only if backend explicitly indicates AND there's no table view requested
@@ -246,17 +259,19 @@ const ChatContainer = ({
           </div>
         ) : (
           messages.map((message, index) => (
-            <div key={index} className={`message ${message.type}-message`}>
-              <div className={`message-header ${message.type}-header`}>
-                <i
-                  className={`fas ${
-                    message.type === "user" ? "fa-user" : "fa-robot"
-                  }`}
-                  aria-hidden="true"
-                ></i>
-                {message.type === "user" ? "You" : "FloatChat"}
+            <div key={index}>
+              <div className={`message ${message.type}-message`}>
+                <div className={`message-header ${message.type}-header`}>
+                  <i className={`fas ${message.type === 'user' ? 'fa-user' : 'fa-robot'}`} aria-hidden="true"></i>
+                  {message.type === 'user' ? 'You' : 'FloatChat'}
+                </div>
+                {message.content}
               </div>
-              {message.content}
+              
+              {/* Render chart if available */}
+              {message.chartData && message.type === 'bot' && (
+                <ChartRenderer chartData={message.chartData} />
+              )}
             </div>
           ))
         )}

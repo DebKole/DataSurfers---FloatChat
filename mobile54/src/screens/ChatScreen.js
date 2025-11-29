@@ -17,6 +17,7 @@ import {
 import { sendChatMessage } from "../config/api";
 import { oceanTheme } from "../../constants/oceanTheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ChartRenderer from "../../components/charts/ChartRenderer";
 
 export default function ChatScreen({
   onFirstUserMessage,
@@ -48,6 +49,9 @@ export default function ChatScreen({
       const aiMessage = {
         role: "assistant",
         content: data?.message ?? JSON.stringify(data),
+        tableData: data?.table_data,
+        chartData: data?.chart_data,
+        hasData: data?.has_data,
       };
       setMessages((prev) => [...prev, aiMessage]);
     } catch (e) {
@@ -164,18 +168,26 @@ export default function ChatScreen({
           )}
 
           {messages.map((msg, idx) => (
-            <View
-              key={idx}
-              style={[
-                styles.messageBubble,
-                msg.role === "user" ? styles.userBubble : styles.aiBubble,
-              ]}
-            >
-              <Text
-                style={[styles.messageText, msg.isError && styles.errorText]}
+            <View key={idx}>
+              <View
+                style={[
+                  styles.messageBubble,
+                  msg.role === "user" ? styles.userBubble : styles.aiBubble,
+                ]}
               >
-                {msg.content}
-              </Text>
+                <Text
+                  style={[styles.messageText, msg.isError && styles.errorText]}
+                >
+                  {msg.content}
+                </Text>
+              </View>
+              
+              {/* Render chart if available */}
+              {msg.chartData && msg.role === "assistant" && (
+                <View style={styles.chartContainer}>
+                  <ChartRenderer chartData={msg.chartData} />
+                </View>
+              )}
             </View>
           ))}
 
@@ -349,5 +361,9 @@ const styles = StyleSheet.create({
     color: oceanTheme.colors.foam,
     fontSize: 24,
     fontWeight: "700",
+  },
+  chartContainer: {
+    marginTop: 8,
+    marginBottom: 12,
   },
 });

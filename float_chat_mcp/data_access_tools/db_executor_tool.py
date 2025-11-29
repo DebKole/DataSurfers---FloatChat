@@ -29,7 +29,7 @@ class DatabaseExecutorTool:
             'port': int(os.getenv('DB_PORT', 5432)),
             'user': os.getenv('DB_USERNAME', 'postgres'),
             'password': os.getenv('DB_PASSWORD'),
-            'database': 'floatchat_argo'  # January data
+            'database': 'argo_db'  # January data
         }
         
         self.live_db_config = {
