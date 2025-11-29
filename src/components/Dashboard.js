@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import './Dashboard.css';
-import PlotProfileTool from './PlotProfile';
-import CompareProfilesTool from './CompareProfilesTool';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import "./Dashboard.css";
+import PlotProfileTool from "./PlotProfile";
+import CompareProfilesTool from "./CompareProfilesTool";
 
 const Dashboard = ({ onClose }) => {
   const navigate = useNavigate();
@@ -12,12 +12,11 @@ const Dashboard = ({ onClose }) => {
     avgTemperature: 0,
     avgSalinity: 0,
     dataQuality: 0,
-    globalCoverage: 0
+    globalCoverage: 0,
   });
-  const [temperatureData, setTemperatureData] = useState([]);
-  const [demoFloatId, setDemoFloatId] = useState('5906527');
-  const [compareFloatIdA, setCompareFloatIdA] = useState('5906527');
-  const [compareFloatIdB, setCompareFloatIdB] = useState('1901744');
+  const [demoFloatId, setDemoFloatId] = useState("5906527");
+  const [compareFloatIdA, setCompareFloatIdA] = useState("5906527");
+  const [compareFloatIdB, setCompareFloatIdB] = useState("1901744");
   const [tsProfiles, setTsProfiles] = useState([]);
   const [tdProfiles, setTdProfiles] = useState([]);
   const [compareTdProfiles, setCompareTdProfiles] = useState([]);
@@ -36,38 +35,54 @@ const Dashboard = ({ onClose }) => {
     loadCSVData();
   }, []);
 
+  // Auto-load graphs with default values when dashboard loads
+  useEffect(() => {
+    if (!loading) {
+      // Fetch TS and TD curves for the default Float ID
+      if (demoFloatId) {
+        handleFetchTsCurve();
+        handleFetchTdCurve();
+      }
+      // Fetch comparison graphs for default Compare A and B
+      if (compareFloatIdA && compareFloatIdB) {
+        handleCompareTd();
+        handleCompareTs();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   const loadCSVData = async () => {
     try {
-      const response = await fetch('/argo_demo.csv');
+      const response = await fetch("/argo_demo.csv");
       const csvText = await response.text();
       const parsedData = parseCSV(csvText);
       calculateStats(parsedData);
-      prepareLineChartData(parsedData);
       setLoading(false);
     } catch (error) {
-      console.error('Error loading CSV data:', error);
+      console.error("Error loading CSV data:", error);
       setLoading(false);
     }
   };
 
   const parseCSV = (csvText) => {
-    const lines = csvText.split('\n');
-    const headers = lines[0].split(',').map(header => header.trim());
-    
+    const lines = csvText.split("\n");
+    const headers = lines[0].split(",").map((header) => header.trim());
+
     const data = [];
     for (let i = 1; i < lines.length; i++) {
       if (!lines[i].trim()) continue;
-      
-      const values = lines[i].split(',');
+
+      const values = lines[i].split(",");
       const row = {};
-      
+
       headers.forEach((header, index) => {
-        row[header] = values[index] ? values[index].trim() : '';
+        row[header] = values[index] ? values[index].trim() : "";
       });
-      
+
       data.push(row);
     }
-    
+
     return data;
   };
 
@@ -75,128 +90,40 @@ const Dashboard = ({ onClose }) => {
     if (data.length === 0) return;
 
     const temperatures = data
-      .filter(row => row.TEMPERATURE && !isNaN(parseFloat(row.TEMPERATURE)))
-      .map(row => parseFloat(row.TEMPERATURE));
-    
-    const avgTemp = temperatures.length > 0 
-      ? temperatures.reduce((sum, temp) => sum + temp, 0) / temperatures.length 
-      : 0;
+      .filter((row) => row.TEMPERATURE && !isNaN(parseFloat(row.TEMPERATURE)))
+      .map((row) => parseFloat(row.TEMPERATURE));
+
+    const avgTemp =
+      temperatures.length > 0
+        ? temperatures.reduce((sum, temp) => sum + temp, 0) /
+          temperatures.length
+        : 0;
 
     const salinities = data
-      .filter(row => row.SALINITY && !isNaN(parseFloat(row.SALINITY)))
-      .map(row => parseFloat(row.SALINITY));
-    
-    const avgSalinity = salinities.length > 0 
-      ? salinities.reduce((sum, sal) => sum + sal, 0) / salinities.length 
-      : 0;
+      .filter((row) => row.SALINITY && !isNaN(parseFloat(row.SALINITY)))
+      .map((row) => parseFloat(row.SALINITY));
+
+    const avgSalinity =
+      salinities.length > 0
+        ? salinities.reduce((sum, sal) => sum + sal, 0) / salinities.length
+        : 0;
 
     setStats({
       totalProfiles: data.length,
       avgTemperature: avgTemp.toFixed(2),
       avgSalinity: avgSalinity.toFixed(2),
       dataQuality: 98.7,
-      globalCoverage: 96.2
+      globalCoverage: 96.2,
     });
-  };
-
-  const prepareLineChartData = (data) => {
-    // Simulate temperature trends over months for the line graph
-    const monthlyData = [
-      { month: 'Jan', temperature: 4.1 },
-      { month: 'Feb', temperature: 4.0 },
-      { month: 'Mar', temperature: 4.2 },
-      { month: 'Apr', temperature: 4.3 },
-      { month: 'May', temperature: 4.5 },
-      { month: 'Jun', temperature: 4.8 },
-      { month: 'Jul', temperature: 5.1 },
-      { month: 'Aug', temperature: 5.3 },
-      { month: 'Sep', temperature: 5.0 },
-      { month: 'Oct', temperature: 4.7 },
-      { month: 'Nov', temperature: 4.4 },
-      { month: 'Dec', temperature: 4.2 }
-    ];
-
-    setTemperatureData(monthlyData);
-  };
-
-  const renderLineGraph = () => {
-    if (temperatureData.length === 0) return null;
-
-    const maxTemp = Math.max(...temperatureData.map(d => d.temperature));
-    const minTemp = Math.min(...temperatureData.map(d => d.temperature));
-    const graphHeight = 200;
-
-    return (
-      <div className="line-graph">
-        <div className="graph-title">Global Temperature Trends</div>
-        <div className="graph-subtitle">Average ocean temperature at different depths over the past year</div>
-        
-        <div className="graph-container">
-          {/* Y-axis labels */}
-          <div className="y-axis">
-            <span>32°C</span>
-            <span>24°C</span>
-            <span>16°C</span>
-            <span>8°C</span>
-          </div>
-          
-          {/* Graph area */}
-          <div className="graph-area">
-            <svg width="100%" height={graphHeight} className="line-chart">
-              {/* Grid lines */}
-              <line x1="0" y1="0" x2="100%" y2="0" stroke="#e0e0e0" strokeWidth="1" />
-              <line x1="0" y1={graphHeight/3} x2="100%" y2={graphHeight/3} stroke="#e0e0e0" strokeWidth="1" />
-              <line x1="0" y1={2*graphHeight/3} x2="100%" y2={2*graphHeight/3} stroke="#e0e0e0" strokeWidth="1" />
-              <line x1="0" y1={graphHeight} x2="100%" y2={graphHeight} stroke="#e0e0e0" strokeWidth="1" />
-
-              {/* Line path */}
-              <path
-                d={temperatureData.map((point, index) => {
-                  const x = (index / (temperatureData.length - 1)) * 100;
-                  const y = ((maxTemp - point.temperature) / (maxTemp - minTemp)) * graphHeight;
-                  return `${index === 0 ? 'M' : 'L'} ${x}% ${y}`;
-                }).join(' ')}
-                fill="none"
-                stroke="#3498db"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
-
-              {/* Data points */}
-              {temperatureData.map((point, index) => {
-                const x = (index / (temperatureData.length - 1)) * 100;
-                const y = ((maxTemp - point.temperature) / (maxTemp - minTemp)) * graphHeight;
-                return (
-                  <circle
-                    key={index}
-                    cx={`${x}%`}
-                    cy={y}
-                    r="4"
-                    fill="#3498db"
-                    stroke="#fff"
-                    strokeWidth="2"
-                  />
-                );
-              })}
-            </svg>
-            
-            {/* X-axis labels */}
-            <div className="x-axis">
-              {temperatureData.map((point, index) => (
-                <span key={index} className="x-label">{point.month}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   const handleFetchTsCurve = async () => {
     setTsLoading(true);
     setTsError(null);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/ts_curve?float_id=${demoFloatId}`);
+      const res = await fetch(
+        `http://127.0.0.1:8000/api/ts_curve?float_id=${demoFloatId}`
+      );
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -214,7 +141,9 @@ const Dashboard = ({ onClose }) => {
     setTdLoading(true);
     setTdError(null);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/td_curve?float_id=${demoFloatId}`);
+      const res = await fetch(
+        `http://127.0.0.1:8000/api/td_curve?float_id=${demoFloatId}`
+      );
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -269,7 +198,7 @@ const Dashboard = ({ onClose }) => {
   };
 
   const handleClose = () => {
-    if (typeof onClose === 'function') {
+    if (typeof onClose === "function") {
       onClose();
     } else {
       navigate(-1);
@@ -289,7 +218,13 @@ const Dashboard = ({ onClose }) => {
   return (
     <div className="dashboard-overlay">
       <div className="dashboard-modal">
-        <button className="dashboard-close" onClick={handleClose} aria-label="Close dashboard">×</button>
+        <button
+          className="dashboard-close"
+          onClick={handleClose}
+          aria-label="Close dashboard"
+        >
+          ×
+        </button>
         <section className="dashboard-section">
           <h2>Dashboard</h2>
           <p>Overview of global oceanographic data</p>
@@ -298,12 +233,11 @@ const Dashboard = ({ onClose }) => {
         {/* Charts Section */}
         <div className="charts-section">
           <div className="chart-container full-width">
-            {renderLineGraph()}
-          </div>
-          <div className="chart-container full-width">
             <div className="graph-title">Live TS / TD and Comparison</div>
-            <div className="graph-subtitle">Profiles fetched from backend trend API</div>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+            <div className="graph-subtitle">
+              Profiles fetched from backend trend API
+            </div>
+            {/* <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
               <label>
                 Float ID:
                 <input
@@ -331,19 +265,62 @@ const Dashboard = ({ onClose }) => {
                   style={{ marginLeft: '0.25rem' }}
                 />
               </label>
+            </div> */}
+            <div className="float-input-container">
+              <div className="float-input-group">
+                <label className="float-input-label">Float ID</label>
+                <input
+                  type="text"
+                  className="float-input-field"
+                  value={demoFloatId}
+                  onChange={(e) => setDemoFloatId(e.target.value)}
+                  placeholder="e.g., 5906527"
+                />
+              </div>
+              <div className="float-input-group">
+                <label className="float-input-label">Compare A</label>
+                <input
+                  type="text"
+                  className="float-input-field"
+                  value={compareFloatIdA}
+                  onChange={(e) => setCompareFloatIdA(e.target.value)}
+                  placeholder="e.g., 5906527"
+                />
+              </div>
+              <div className="float-input-group">
+                <label className="float-input-label">Compare B</label>
+                <input
+                  type="text"
+                  className="float-input-field"
+                  value={compareFloatIdB}
+                  onChange={(e) => setCompareFloatIdB(e.target.value)}
+                  placeholder="e.g., 1901744"
+                />
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-              <button className="view-more-btn" onClick={handleFetchTsCurve} disabled={tsLoading}>
-                {tsLoading ? 'Loading TS…' : 'Fetch TS Curve'}
-              </button>
-              <button className="view-more-btn" onClick={handleFetchTdCurve} disabled={tdLoading}>
-                {tdLoading ? 'Loading TD…' : 'Fetch TD Profile'}
-              </button>
-              <button className="view-more-btn" onClick={handleCompareTd} disabled={compareTdLoading}>
-                {compareTdLoading ? 'Comparing TD…' : 'Compare TD Profiles'}
-              </button>
-              <button className="view-more-btn" onClick={handleCompareTs} disabled={compareTsLoading}>
-                {compareTsLoading ? 'Comparing TS…' : 'Compare TS Profiles'}
+            <div
+              style={{
+                display: "flex",
+                gap: "0.5rem",
+                flexWrap: "wrap",
+                marginTop: "1.5rem",
+                marginBottom: "0.5rem",
+              }}
+            >
+              <button
+                className="view-more-btn"
+                onClick={() => {
+                  if (demoFloatId) {
+                    handleFetchTsCurve();
+                    handleFetchTdCurve();
+                  }
+                  if (compareFloatIdA && compareFloatIdB) {
+                    handleCompareTd();
+                    handleCompareTs();
+                  }
+                }}
+              >
+                Show Graphs
               </button>
               <button
                 className="view-more-btn"
@@ -363,16 +340,23 @@ const Dashboard = ({ onClose }) => {
             </div>
 
             {(tsError || tdError || compareTdError || compareTsError) && (
-              <div style={{ color: 'red', marginBottom: '0.5rem' }}>
+              <div style={{ color: "red", marginBottom: "0.5rem" }}>
                 {tsError && <div>TS Error: {tsError}</div>}
                 {tdError && <div>TD Error: {tdError}</div>}
-                {compareTdError && <div>Compare TD Error: {compareTdError}</div>}
-                {compareTsError && <div>Compare TS Error: {compareTsError}</div>}
+                {compareTdError && (
+                  <div>Compare TD Error: {compareTdError}</div>
+                )}
+                {compareTsError && (
+                  <div>Compare TS Error: {compareTsError}</div>
+                )}
               </div>
             )}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
               {tsProfiles.length > 0 && (
-                <div style={{ flex: '1 1 260px', minWidth: '260px' }}>
+                <div style={{ flex: "1 1 300px", minWidth: "300px", maxWidth: "100%" }}>
+                  <div style={{ fontWeight: "bold", marginBottom: "0.25rem" }}>
+                    TS Curve
+                  </div>
                   <PlotProfileTool
                     profiles={tsProfiles}
                     profileId={1}
@@ -384,7 +368,10 @@ const Dashboard = ({ onClose }) => {
                 </div>
               )}
               {tdProfiles.length > 0 && (
-                <div style={{ flex: '1 1 260px', minWidth: '260px' }}>
+                <div style={{ flex: "1 1 300px", minWidth: "300px", maxWidth: "100%" }}>
+                  <div style={{ fontWeight: "bold", marginBottom: "0.25rem" }}>
+                    TD Profile
+                  </div>
                   <PlotProfileTool
                     profiles={tdProfiles}
                     profileId={1}
@@ -398,7 +385,10 @@ const Dashboard = ({ onClose }) => {
               )}
             </div>
             {compareTdProfiles.length > 0 && (
-              <div style={{ marginTop: '0.75rem' }}>
+              <div style={{ marginTop: "0.75rem" }}>
+                <div style={{ fontWeight: "bold", marginBottom: "0.25rem" }}>
+                  TD Comparison
+                </div>
                 <CompareProfilesTool
                   profiles={compareTdProfiles}
                   profileIds={compareTdProfiles.map((p) => p.profileId)}
@@ -407,17 +397,26 @@ const Dashboard = ({ onClose }) => {
               </div>
             )}
             {compareTsProfiles.length >= 1 && (
-              <div style={{ marginTop: '0.75rem' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>TS Comparison</div>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <div style={{ marginTop: "0.75rem" }}>
+                <div style={{ fontWeight: "bold", marginBottom: "0.25rem" }}>
+                  TS Comparison
+                </div>
+                <div
+                  style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
+                >
                   {compareTsProfiles.slice(0, 2).map((profile) => (
-                    <div key={profile.profileId} style={{ flex: '1 1 260px', minWidth: '260px' }}>
+                    <div
+                      key={profile.profileId}
+                      style={{ flex: "1 1 260px", minWidth: "260px" }}
+                    >
                       <PlotProfileTool
                         profiles={[profile]}
                         profileId={profile.profileId}
                         xKey="salinity"
                         yKey="temperature"
-                        xLabel={`Salinity (PSU) – ${profile.label || profile.profileId}`}
+                        xLabel={`Salinity (PSU) – ${
+                          profile.label || profile.profileId
+                        }`}
                         yLabel="Temperature (°C)"
                       />
                     </div>

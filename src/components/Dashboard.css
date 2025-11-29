@@ -211,6 +211,18 @@
 
 .chart-container.full-width {
   grid-column: 1 / -1;
+  width: calc(100% + 24px);
+  margin-left: -12px;
+  margin-right: -12px;
+}
+
+.chart-container {
+  background: rgba(44,82,130,0.75);
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(99,179,237,0.18);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.28);
+  overflow: hidden;
 }
 
 .line-graph {
@@ -380,5 +392,73 @@
     justify-content: space-between;
     min-width: auto;
     order: 2;
+  }
+}
+
+/* Float ID Input Fields Styling */
+.float-input-container {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+  align-items: center;
+}
+
+.float-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 140px;
+  flex: 1 1 auto;
+}
+
+.float-input-label {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9em;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.float-input-field {
+  background: rgba(26, 54, 93, 0.8);
+  border: 1px solid rgba(49, 130, 206, 0.3);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #ffffff;
+  font-size: 0.95em;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  outline: none;
+  width: 100%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.float-input-field::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.float-input-field:hover {
+  border-color: rgba(49, 130, 206, 0.5);
+  background: rgba(26, 54, 93, 0.9);
+  box-shadow: 0 2px 8px rgba(49, 130, 206, 0.2);
+}
+
+.float-input-field:focus {
+  border-color: rgba(49, 130, 206, 0.8);
+  background: rgba(26, 54, 93, 1);
+  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.2), 0 4px 12px rgba(49, 130, 206, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Responsive adjustments for input fields */
+@media (max-width: 768px) {
+  .float-input-container {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .float-input-group {
+    width: 100%;
+    min-width: 100%;
   }
 }

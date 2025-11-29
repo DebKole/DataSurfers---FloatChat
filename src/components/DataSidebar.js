@@ -165,6 +165,7 @@ const DataSidebar = ({
         >
           <option value="table">Table</option>
           <option value="map">Map</option>
+          <option value="table">Table</option>
           <option value="updates">Latest Updates</option>
         </select>
       </div>

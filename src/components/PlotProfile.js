@@ -40,21 +40,47 @@ function PlotProfileTool({
         {
           x,
           y,
-          mode: 'lines+markers',
+          mode: 'lines',
           type: 'scatter',
           name: `${resolvedYLabel} vs ${resolvedXLabel}`,
+          line: {
+            color: '#A0D6B4', // green
+            width: 2.5,
+          },
         },
       ]}
       layout={{
         title: `Profile ${profileId} – ${resolvedYLabel} vs ${resolvedXLabel}`,
-        xaxis: { title: resolvedXLabel },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { color: '#e2e8f0' },
+        xaxis: {
+          title: { text: resolvedXLabel, font: { color: '#e2e8f0', size: 12 }, standoff: 8 },
+          gridcolor: 'rgba(226,232,240,0.12)',
+          zerolinecolor: '#94a3b8',
+          color: '#cbd5e1',
+        },
         yaxis: {
-          title: resolvedYLabel,
+          title: { text: resolvedYLabel, font: { color: '#e2e8f0', size: 12 } },
+          gridcolor: 'rgba(226,232,240,0.12)',
+          zerolinecolor: '#94a3b8',
+          color: '#cbd5e1',
           ...(invertY ? { autorange: 'reversed' } : {}),
         },
-        margin: { l: 60, r: 20, t: 40, b: 50 },
+        legend: { orientation: 'h', bgcolor: 'rgba(0,0,0,0)' },
+        margin: { 
+          l: invertY ? 70 : 60, 
+          r: 30, 
+          t: 40, 
+          b: invertY ? 60 : 50 
+        },
+        autosize: true,
       }}
-      style={{ width: '100%', height: '400px' }}
+      style={{ width: '100%', height: '400px', minHeight: '400px' }}
+      config={{ 
+        displayModeBar: false,
+        responsive: true,
+      }}
     />
   );
 }

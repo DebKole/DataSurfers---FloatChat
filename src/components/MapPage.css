@@ -8,14 +8,14 @@
 .map-header {
   display: flex;
   align-items: center;
-  padding: 15px 20px;
+  padding: 30px 20px;
   background: #f8f9fa;
   border-bottom: 1px solid #dee2e6;
   gap: 15px;
   position: relative;
 }
 
-.back-button {
+/* .back-button {
   background: #6c757d;
   color: white;
   border: none;
@@ -27,7 +27,7 @@
 
 .back-button:hover {
   background: #5a6268;
-}
+} */
 
 .map-header h1 {
   margin: 0;

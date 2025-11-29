@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import './ChatContainer.css';
-import axios from 'axios';
-import FAQ from './FAQ';
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import "./ChatContainer.css";
+import axios from "axios";
+import FAQ from "./FAQ";
+import logo from "../assets/Logo (3).png";
 import ChartRenderer from './ChartRenderer';
 
 const ChatContainer = ({
@@ -144,10 +145,21 @@ const ChatContainer = ({
       // Store the current query before clearing
       const query = inputValue;
       setInputValue("");
-      // Determine if the user explicitly asked for a map
-      const lower = query.toLowerCase();
-      userRequestedMapRef.current = /\b(map|visualize|plot|show on map)\b/.test(
-        lower
+
+      // Check if user is asking for map-related functionality
+      const mapKeywords = [
+        "map",
+        "visualize",
+        "show location",
+        "geographic",
+        "coordinates",
+        "latitude",
+        "longitude",
+        "plot",
+        "chart",
+      ];
+      const isMapRequest = mapKeywords.some((keyword) =>
+        query.toLowerCase().includes(keyword.toLowerCase())
       );
 
       try {
@@ -231,6 +243,7 @@ const ChatContainer = ({
             <div className="welcome-content">
               <div className="welcome-icon">
                 <i className="fas fa-robot"></i>
+                {/* <img src={logo} alt="FloatChat logo" className="chat-logo" /> */}
               </div>
               <h2>How can I help you today?</h2>
               <p>
