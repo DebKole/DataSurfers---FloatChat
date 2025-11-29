@@ -136,6 +136,8 @@ class QueryBuilderTool:
             return self._build_vector_plan(entities, intent)
         elif strategy == "hybrid":
             return self._build_hybrid_plan(entities, intent)
+        elif strategy == "analysis":  # NEW
+            return self._build_analysis_plan(entities, intent)
         else:
             return self._build_fallback_plan(intent)
     
@@ -240,6 +242,18 @@ class QueryBuilderTool:
     def _classify_query_type(self, entities: Dict[str, Any], query_lower: str) -> str:
         """Classify the type of query based on entities"""
         
+        # NEW: Check for analysis keywords first
+        analysis_keywords = {
+            'trend': ['trend', 'trending', 'time series', 'over time'],
+            'curve': ['curve', 't-s', 'ts', 't-d', 'td', 'temperature-salinity', 'temperature-depth', 'vertical profile'],
+            'comparison': ['compare', 'comparison', 'versus', 'vs', 'difference between'],
+            'statistics': ['statistics', 'stats', 'summary', 'summarize', 'average', 'mean']
+        }
+        
+        for category, keywords in analysis_keywords.items():
+            if any(keyword in query_lower for keyword in keywords):
+                return "analysis_query"
+        
         # Specific float lookup
         if entities["float_ids"]:
             return "float_lookup"
@@ -263,13 +277,17 @@ class QueryBuilderTool:
             return "institution_analysis"
         
         # Semantic/complex queries
-        if any(word in query_lower for word in ["compare", "analyze", "pattern", "trend", "anomaly"]):
+        if any(word in query_lower for word in ["analyze", "pattern", "anomaly"]):
             return "semantic_analysis"
         
         return "general_search"
     
     def _choose_strategy(self, query_type: str, entities: Dict[str, Any], query_lower: str) -> str:
         """Choose execution strategy based on query type and complexity"""
+        
+        # NEW: Route analysis queries to analysis strategy
+        if query_type == "analysis_query":
+            return "analysis"
         
         # Direct SQL for simple lookups
         if query_type == "float_lookup":
@@ -318,7 +336,8 @@ class QueryBuilderTool:
             "database": "main",  # Default to January data
             "queries": [],
             "parameters": {},
-            "gemini_powered": False
+            "gemini_powered": False,
+            "fallback_reason": None
         }
         
         # Try Gemini AI first if available
@@ -329,10 +348,18 @@ class QueryBuilderTool:
                 # Use the full query_and_execute method to get SQL + analysis
                 gemini_result = self.gemini_generator.query_and_execute(intent["query_text"])
                 
-                if gemini_result["status"] == "success" and gemini_result["validation"]["is_safe"]:
-                    # Extract execution results
-                    execution = gemini_result.get("execution", {})
-                    
+                # Accept Gemini results if:
+                # 1. Status is success
+                # 2. SQL is safe (validation passed safety checks)
+                # 3. We have either execution results OR analysis
+                validation = gemini_result.get("validation", {})
+                execution = gemini_result.get("execution", {})
+                has_data = execution.get("status") == "success" and execution.get("row_count", 0) >= 0
+                has_analysis = bool(gemini_result.get("analysis"))
+                is_safe = validation.get("is_safe", False)
+                
+                # Use Gemini if it's safe and we have usable results
+                if gemini_result.get("status") == "success" and is_safe and (has_data or has_analysis):
                     plan["queries"].append({
                         "type": "gemini_generated",
                         "method": "execute_query",
@@ -343,22 +370,50 @@ class QueryBuilderTool:
                             "analysis": gemini_result.get("analysis", "")  # Pass Gemini analysis
                         },
                         "gemini_metadata": {
-                            "validation": gemini_result["validation"],
+                            "validation": validation,
                             "ai_model": gemini_result.get("ai_model", "gemini-2.5-flash"),
-                            "has_analysis": bool(gemini_result.get("analysis"))
+                            "has_analysis": has_analysis
                         },
                         "precomputed_result": execution  # Pass the already-executed results
                     })
                     
                     plan["gemini_powered"] = True
                     self.logger.info(f"✅ Gemini generated SQL: {gemini_result['generated_sql'][:100]}...")
-                    if gemini_result.get("analysis"):
+                    if has_analysis:
                         self.logger.info(f"✅ Gemini analysis: {gemini_result['analysis'][:80]}...")
+                    
+                    # Log warnings but don't fail
+                    if validation.get("warnings"):
+                        self.logger.info(f"ℹ️ Validation warnings (non-blocking): {validation['warnings']}")
+                    
                     return plan
                 else:
-                    self.logger.warning(f"⚠️ Gemini SQL validation failed, falling back to hardcoded patterns")
+                    # Log the actual reason for fallback
+                    fallback_reasons = []
+                    if gemini_result.get("status") != "success":
+                        fallback_reasons.append(f"status={gemini_result.get('status')}")
+                    if not is_safe:
+                        fallback_reasons.append("unsafe SQL")
+                    if not has_data and not has_analysis:
+                        fallback_reasons.append("no data or analysis")
+                    
+                    self.logger.warning(
+                        "⚠️ Gemini result not usable, falling back. Reasons: %s. SQL=%s",
+                        ", ".join(fallback_reasons),
+                        gemini_result.get("generated_sql", "<none>")[:100]
+                    )
+                    plan["fallback_reason"] = {
+                        "type": "gemini_unusable",
+                        "reasons": fallback_reasons,
+                        "validation": validation,
+                        "generated_sql": gemini_result.get("generated_sql", "")
+                    }
             except Exception as e:
-                self.logger.error(f"❌ Gemini SQL generation failed: {e}, falling back to hardcoded patterns")
+                self.logger.error("❌ Gemini SQL generation failed: %s. Falling back to hardcoded patterns", e)
+                plan["fallback_reason"] = {
+                    "type": "gemini_exception",
+                    "error": str(e)
+                }
         
         # Fallback to hardcoded patterns
         self.logger.info("📋 Using hardcoded SQL patterns")
@@ -366,29 +421,35 @@ class QueryBuilderTool:
         # Float ID lookup
         if entities["float_ids"]:
             for float_id in entities["float_ids"]:
-                plan["queries"].append({
+                q = {
                     "type": "float_lookup",
                     "method": "get_profiles_by_float_id",
                     "params": {"float_id": float_id, "include_measurements": True}
-                })
+                }
+                plan["queries"].append(q)
+                self.logger.info("➡️ Fallback executing: %s params=%s", q["method"], q["params"])
         
         # Regional queries
         elif entities["regions"]:
             for region in entities["regions"]:
-                plan["queries"].append({
+                q = {
                     "type": "regional_search",
                     "method": "get_profiles_by_region", 
                     "params": {"region": region, "limit": 50}
-                })
+                }
+                plan["queries"].append(q)
+                self.logger.info("➡️ Fallback executing: %s params=%s", q["method"], q["params"])
         
         # Temporal queries
         elif entities["temporal"]["relative_time"] == "recent":
             plan["database"] = "live"  # Use live data for recent queries
-            plan["queries"].append({
+            q = {
                 "type": "recent_data",
                 "method": "get_database_stats",
                 "params": {}
-            })
+            }
+            plan["queries"].append(q)
+            self.logger.info("➡️ Fallback executing: %s", q["method"])
         
         return plan
     
@@ -450,6 +511,98 @@ class QueryBuilderTool:
             "query": intent["query_text"],
             "suggestion": "Please be more specific about region, time period, or parameters"
         }
+    
+    def _build_analysis_plan(self, entities: Dict[str, Any], intent: Dict[str, Any]) -> Dict[str, Any]:
+        """Build analysis execution plan"""
+        
+        query_lower = intent["query_text"].lower()
+        
+        # Determine specific analysis type
+        analysis_type = self._determine_analysis_type(query_lower, entities)
+        
+        # Extract analysis parameters
+        parameters = self._extract_analysis_parameters(query_lower)
+        
+        # Determine data requirements
+        data_requirements = {
+            "float_ids": entities["float_ids"],
+            "regions": entities["regions"],
+            "parameters": entities["parameters"],
+            "temporal": entities["temporal"]
+        }
+        
+        # Determine database (main for historical, live for recent)
+        database = "live" if entities["temporal"].get("relative_time") == "recent" else "main"
+        
+        return {
+            "strategy": "analysis",
+            "analysis_type": analysis_type,
+            "data_requirements": data_requirements,
+            "analysis_parameters": parameters,
+            "database": database
+        }
+    
+    def _determine_analysis_type(self, query_lower: str, entities: Dict[str, Any]) -> str:
+        """Determine specific analysis type from query"""
+        
+        # Temperature trend
+        if any(word in query_lower for word in ['temperature trend', 'temp trend', 'temperature over time']):
+            return "temp_trend"
+        
+        # Salinity trend
+        if any(word in query_lower for word in ['salinity trend', 'sal trend', 'salinity over time']):
+            return "sal_trend"
+        
+        # Pressure trend
+        if any(word in query_lower for word in ['pressure trend', 'depth trend']):
+            return "pressure_trend"
+        
+        # T-S curve
+        if any(word in query_lower for word in ['t-s', 'ts curve', 'temperature-salinity', 'temperature salinity']):
+            return "ts_curve"
+        
+        # T-D curve
+        if any(word in query_lower for word in ['t-d', 'td curve', 'temperature-depth', 'vertical profile']):
+            return "td_curve"
+        
+        # Comparison
+        if any(word in query_lower for word in ['compare', 'comparison', 'versus', 'vs']):
+            return "comparison"
+        
+        # Statistics
+        if any(word in query_lower for word in ['statistics', 'stats', 'summary', 'summarize']):
+            return "statistics"
+        
+        # Default: if "trend" is mentioned, assume temperature trend
+        if 'trend' in query_lower:
+            return "temp_trend"
+        
+        # Default to statistics if unclear
+        return "statistics"
+    
+    def _extract_analysis_parameters(self, query_lower: str) -> Dict[str, Any]:
+        """Extract analysis-specific parameters from query"""
+        
+        parameters = {}
+        
+        # Extract window size for trends
+        window_match = re.search(r'window[=\s]+(\d+)', query_lower)
+        if window_match:
+            parameters['window'] = int(window_match.group(1))
+        else:
+            parameters['window'] = 20  # default
+        
+        # Extract axis variable for comparisons
+        if 'by depth' in query_lower or 'vs depth' in query_lower:
+            parameters['axis_var'] = 'depth'
+        elif 'by time' in query_lower or 'over time' in query_lower:
+            parameters['axis_var'] = 'datetime'
+        elif 'by salinity' in query_lower:
+            parameters['axis_var'] = 'salinity'
+        elif 'by pressure' in query_lower:
+            parameters['axis_var'] = 'pressure'
+        
+        return parameters
     
     def _build_vector_filters(self, entities: Dict[str, Any]) -> Dict[str, Any]:
         """Build filters for vector search"""

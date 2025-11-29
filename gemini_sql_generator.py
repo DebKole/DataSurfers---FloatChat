@@ -20,7 +20,7 @@ class GeminiSQLGenerator:
     def __init__(self):
         """Initialize Gemini AI and database connection"""
         # Configure Gemini
-        genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
         self.model = genai.GenerativeModel('gemini-2.5-flash')  # Latest model
         
         # Database configuration
@@ -125,30 +125,60 @@ RELATIONSHIPS:
 
 IMPORTANT RULES:
 1. Always use proper JOIN syntax when accessing both tables
-2. For queries asking about general patterns/trends, use aggregation (AVG, MIN, MAX, COUNT, GROUP BY) instead of raw data
-3. Only use LIMIT for specific data point requests - prefer aggregated summaries for analytical queries
-4. Always ORDER BY datetime DESC for temporal queries
-5. Use BETWEEN for coordinate ranges
-6. Use ILIKE for case-insensitive text matching
-7. Return only SELECT queries (no INSERT/UPDATE/DELETE)
-8. Handle potential NULL values appropriately
-9. For date queries without year, assume 2025 (current year in the dataset)
-10. Use proper PostgreSQL date format: 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'
-11. For date ranges, use: datetime >= '2025-01-01' AND datetime <= '2025-01-15'
+2. **DEFAULT TO RETURNING RAW DATA** unless user specifically asks for statistics/aggregation
+3. Always ORDER BY datetime DESC for temporal queries
+4. Use BETWEEN for coordinate ranges
+5. Use ILIKE for case-insensitive text matching
+6. Return only SELECT queries (no INSERT/UPDATE/DELETE)
+7. Handle potential NULL values appropriately
+8. For date queries without year, assume 2025 (current year in the dataset)
+9. Use proper PostgreSQL date format: 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'
+10. For date ranges, use: datetime >= '2025-01-01' AND datetime <= '2025-01-15'
 
-QUERY STRATEGY:
-- If user asks "show me temperature in Arabian Sea" → Use GROUP BY depth ranges or locations with AVG/MIN/MAX
-- If user asks "data from float 123456" → Return raw data with LIMIT 100
-- If user asks about "patterns", "trends", "conditions" → Use aggregation, no LIMIT needed
-- If user asks "latest" or "recent" → Use ORDER BY datetime DESC LIMIT 10-50
+QUERY STRATEGY - WHEN TO USE RAW DATA vs AGGREGATION:
+
+**USE RAW DATA (return actual rows):**
+- "show me data" / "get data" / "find data" / "data of profiles" / "available data"
+- "show me profiles" / "get profiles" / "find profiles" / "profiles in region"
+- "show me temperature" / "get temperature" / "temperature data"
+- "data from float 123456"
+- "latest" or "recent" data
+- "what data is available"
+- **DEFAULT**: If unclear, return raw data
+
+**USE AGGREGATION (COUNT, AVG, MIN, MAX, GROUP BY):**
+- "how many" / "count" / "number of"
+- "average" / "mean" / "typical"
+- "maximum" / "minimum" / "range"
+- "statistics" / "summary" / "overview"
+- "patterns" / "trends" / "compare"
+- User explicitly asks for aggregated metrics
+
+**EXAMPLES:**
+- "show me data of profiles in Arabian Sea" → SELECT * FROM argo_profiles WHERE ...
+- "get temperature data from region X" → SELECT * FROM argo_profiles WHERE ...
+- "data available in region 10N-18N" → SELECT * FROM argo_profiles WHERE ...
+- "how many profiles in Arabian Sea" → SELECT COUNT(*) FROM argo_profiles WHERE ...
+- "average temperature in region" → SELECT AVG(temperature) FROM argo_measurements WHERE ...
 
 COMMON QUERY PATTERNS:
-- Float lookup: WHERE float_id = 'XXXXXX' LIMIT 100
-- Regional analysis: WHERE latitude BETWEEN X AND Y AND longitude BETWEEN A AND B GROUP BY depth_range
-- Temporal: WHERE datetime >= '2025-01-01' AND datetime <= '2025-01-15'
+
+**RAW DATA QUERIES (most common):**
+- Regional data: SELECT * FROM argo_profiles WHERE latitude BETWEEN X AND Y AND longitude BETWEEN A AND B ORDER BY datetime DESC
+- Float lookup: SELECT * FROM argo_profiles WHERE float_id = 'XXXXXX' ORDER BY datetime DESC
+- Temporal data: SELECT * FROM argo_profiles WHERE datetime >= '2025-01-01' AND datetime <= '2025-01-15' ORDER BY datetime DESC
+- Temperature data: SELECT * FROM argo_profiles WHERE latitude BETWEEN X AND Y ORDER BY datetime DESC
+- Latest data: SELECT * FROM argo_profiles ORDER BY datetime DESC
+- Institution data: SELECT * FROM argo_profiles WHERE institution ILIKE '%keyword%'
+
+**AGGREGATION QUERIES (only when explicitly requested):**
+- Count profiles: SELECT COUNT(*) as profile_count FROM argo_profiles WHERE ...
+- Average temperature: SELECT AVG(temperature) as avg_temp FROM argo_measurements WHERE ...
+- Statistics: SELECT COUNT(*), MIN(datetime), MAX(datetime) FROM argo_profiles WHERE ...
+- Grouped analysis: SELECT region, COUNT(*) FROM argo_profiles GROUP BY region
+
+**DATE HANDLING:**
 - Date range (assume 2025 if year not specified): "1st january to 15th january" → '2025-01-01' to '2025-01-15'
-- Parameter analysis: SELECT AVG(temperature), MIN(temperature), MAX(temperature), depth_range FROM ... GROUP BY depth_range
-- Institution: WHERE institution ILIKE '%keyword%'
 
 TEMPORAL QUERY EXAMPLES:
 - "salinity from 1st january to 15th january" → WHERE datetime >= '2025-01-01' AND datetime <= '2025-01-15'
@@ -157,7 +187,13 @@ TEMPORAL QUERY EXAMPLES:
 
 USER QUERY: "{user_query}"
 
-Generate a PostgreSQL query that answers this question intelligently. Return ONLY the SQL query, no explanations or markdown formatting.
+Generate a PostgreSQL query that answers this question intelligently. 
+
+IMPORTANT: 
+- Return ONLY the SQL query
+- NO explanations or markdown formatting
+- NO semicolon at the end (we'll add it if needed)
+- Just the raw SQL statement
 """
 
         try:
@@ -170,6 +206,9 @@ Generate a PostgreSQL query that answers this question intelligently. Return ONL
                 generated_sql = generated_sql.replace('```sql', '').replace('```', '').strip()
             elif generated_sql.startswith('```'):
                 generated_sql = generated_sql.replace('```', '').strip()
+            
+            # Remove trailing semicolon (we'll add LIMIT before it if needed)
+            generated_sql = generated_sql.rstrip().rstrip(';').strip()
             
             # Validate the query
             validation_result = self._validate_sql(generated_sql)
@@ -279,11 +318,20 @@ DATA SUMMARY:
 
 ANALYSIS GUIDELINES:
 1. Start with a direct answer to the user's question
-2. Provide oceanographic context (what do these values mean?)
-3. Mention any notable patterns, ranges, or anomalies
-4. Keep it concise (2-4 sentences)
-5. Use plain text only - NO markdown formatting, NO bold, NO headers
-6. Be conversational and informative
+2. For RAW DATA queries, mention: number of records found, date range, geographic coverage, and key parameters available
+3. For list queries (like float IDs), mention the count and provide examples
+4. For measurement queries, provide oceanographic context (what do these values mean?)
+5. Mention any notable patterns, ranges, or anomalies
+6. Keep it concise (2-4 sentences)
+7. Use plain text only - NO markdown formatting, NO bold, NO headers, NO asterisks
+8. Be conversational and informative
+9. Always mention that the data is available in the table for detailed viewing
+
+EXAMPLES:
+- For "data of profiles in region": "Found 49 Argo profiles in this region (10N-18N, 85E-100E) collected by 16 unique floats from January 2019 to January 2025. The profiles cover depths from surface to 2031 dbar with temperature and salinity measurements. View the complete data in the table."
+- For "get float IDs": "Found 16 unique floats operating in this region. These include floats 2902746, 2902747, and 14 others collecting oceanographic data."
+- For "temperature data": "Retrieved 100 temperature profiles from this region ranging from 15.2°C to 28.5°C across various depths. The data shows typical tropical ocean stratification with warmer surface waters. See the table for detailed measurements."
+- For "how many profiles": "There are 49 Argo profiles in this region collected by 16 unique floats, providing comprehensive coverage from surface to 2031 dbar depth."
 
 Provide your analysis:
 """
@@ -336,33 +384,97 @@ Provide your analysis:
     
     def _generate_basic_summary(self, user_query: str, results: Dict[str, Any]) -> str:
         """Generate a basic summary when Gemini analysis fails"""
-        data = results["data"]
-        row_count = results["row_count"]
+        data = results.get("data", [])
+        row_count = results.get("row_count", 0)
+        
+        if row_count == 0:
+            return "No data found for your query. Try adjusting the region, time period, or parameters."
         
         # Try to extract key metrics
-        summary = f"I found {row_count} data points for your query. "
+        summary_parts = []
         
         if data and len(data) > 0:
             first_row = data[0]
             
+            # Check if this is a simple list query (like float IDs)
+            if len(first_row) == 1:
+                col_name = list(first_row.keys())[0]
+                if 'float' in col_name.lower() or 'id' in col_name.lower():
+                    summary = f"Found {row_count} unique {col_name}(s) in the specified region. "
+                    if row_count <= 20:
+                        values = [str(row[col_name]) for row in data[:10]]
+                        summary += f"Examples: {', '.join(values[:5])}"
+                        if row_count > 5:
+                            summary += f" (and {row_count - 5} more)"
+                    summary += " View the complete list in the table."
+                    return summary
+            
+            # For raw data queries (profiles, measurements, etc.)
+            # Check for date range
+            if 'datetime' in first_row:
+                try:
+                    from datetime import datetime as _dt
+                    def _parse_dt(x):
+                        if isinstance(x, str):
+                            try:
+                                return _dt.fromisoformat(x.replace('Z',''))
+                            except Exception:
+                                return None
+                        return x
+                    dts = [_parse_dt(d.get('datetime')) for d in data]
+                    dts = [dt for dt in dts if dt is not None]
+                    if dts:
+                        summary_parts.append(f"from {min(dts).date()} to {max(dts).date()}")
+                except Exception:
+                    pass
+            
+            # Check for geographic coverage
+            if 'latitude' in first_row and 'longitude' in first_row:
+                try:
+                    lats = [float(d['latitude']) for d in data if d.get('latitude') is not None]
+                    lngs = [float(d['longitude']) for d in data if d.get('longitude') is not None]
+                    if lats and lngs:
+                        summary_parts.append(f"covering {min(lats):.1f}°N-{max(lats):.1f}°N, {min(lngs):.1f}°E-{max(lngs):.1f}°E")
+                except Exception:
+                    pass
+            
+            # Check for floats
+            if 'float_id' in first_row:
+                unique_floats = len(set(str(row.get('float_id')) for row in data if row.get('float_id')))
+                summary_parts.append(f"from {unique_floats} unique floats")
+            
+            # Check for profiles
+            if 'global_profile_id' in first_row:
+                unique_profiles = len(set(str(row.get('global_profile_id')) for row in data if row.get('global_profile_id')))
+                if unique_profiles != row_count:
+                    summary_parts.append(f"{unique_profiles} unique profiles")
+            
             # Check for temperature
             if 'temperature' in first_row:
-                temps = [row['temperature'] for row in data if row.get('temperature') is not None]
+                temps = [row['temperature'] for row in data if row.get('temperature') is not None and isinstance(row.get('temperature'), (int, float))]
                 if temps:
-                    summary += f"Temperature ranges from {min(temps):.1f}°C to {max(temps):.1f}°C. "
+                    summary_parts.append(f"temperature {min(temps):.1f}°C to {max(temps):.1f}°C")
             
             # Check for salinity
             if 'salinity' in first_row:
-                sals = [row['salinity'] for row in data if row.get('salinity') is not None]
+                sals = [row['salinity'] for row in data if row.get('salinity') is not None and isinstance(row.get('salinity'), (int, float))]
                 if sals:
-                    summary += f"Salinity ranges from {min(sals):.1f} to {max(sals):.1f} PSU. "
+                    summary_parts.append(f"salinity {min(sals):.1f}-{max(sals):.1f} PSU")
             
             # Check for depth/pressure
-            if 'depth' in first_row or 'pressure' in first_row:
-                depth_col = 'depth' if 'depth' in first_row else 'pressure'
-                depths = [row[depth_col] for row in data if row.get(depth_col) is not None]
-                if depths:
-                    summary += f"Depth range: {min(depths):.0f}m to {max(depths):.0f}m."
+            if 'max_pressure' in first_row or 'min_pressure' in first_row:
+                try:
+                    max_pressures = [row.get('max_pressure') for row in data if row.get('max_pressure') is not None]
+                    if max_pressures:
+                        summary_parts.append(f"depths to {max(max_pressures):.0f} dbar")
+                except Exception:
+                    pass
+        
+        # Build final summary
+        if summary_parts:
+            summary = f"Found {row_count} profile records " + ", ".join(summary_parts) + ". View the complete data in the table."
+        else:
+            summary = f"Found {row_count} records for your query. View the complete data in the table."
         
         return summary
     
@@ -383,7 +495,7 @@ Provide your analysis:
         print(f"✅ Validation: Safe={validation['is_safe']}, SELECT={validation['is_select']}")
         
         if validation["warnings"]:
-            print(f"⚠️ Warnings: {', '.join(validation['warnings'])}")
+            print(f"ℹ️ Warnings (non-blocking): {', '.join(validation['warnings'])}")
         
         # Step 2: Execute if safe
         if not validation["is_safe"]:
@@ -391,29 +503,47 @@ Provide your analysis:
                 "status": "error",
                 "error": "Generated SQL failed safety validation",
                 "sql": generated_sql,
-                "validation": validation
+                "validation": validation,
+                "execution": {"status": "error", "row_count": 0},
+                "analysis": ""
             }
         
-        # Smart LIMIT handling - only add if query doesn't have aggregation or LIMIT
+        # Previously: auto-appended LIMIT 100 for safety on non-aggregated queries.
+        # Requirement: return complete datasets for CSV export; UI will handle preview slicing.
+        # Therefore, do NOT append a LIMIT here.
         sql_lower = generated_sql.lower()
         has_aggregation = any(keyword in sql_lower for keyword in ['group by', 'avg(', 'sum(', 'count(', 'min(', 'max('])
-        
-        if not validation["has_limit"] and not has_aggregation:
-            # Only add LIMIT for non-aggregated queries
-            generated_sql += " LIMIT 100"
-            print("🔧 Added LIMIT 100 for safety (non-aggregated query)")
-        elif has_aggregation:
-            print("✅ Aggregated query - no LIMIT needed")
+        if has_aggregation:
+            print("✅ Aggregated query - no LIMIT added")
+        else:
+            print("ℹ️ No LIMIT appended; returning full result set by request")
         
         # Step 3: Execute query
         execution_result = self.execute_generated_query(generated_sql)
         
-        # Step 4: Analyze results with Gemini
+        # Step 4: Analyze results with Gemini (always attempt, even if no data)
         analysis = ""
         if execution_result["status"] == "success":
             print("🧠 Analyzing results with Gemini AI...")
             analysis = self.analyze_results(user_query, generated_sql, execution_result)
-            print(f"✅ Analysis: {analysis[:100]}...")
+            if analysis:
+                print(f"✅ Analysis: {analysis[:100]}...")
+            else:
+                print("⚠️ No analysis generated, using fallback")
+                analysis = self._generate_basic_summary(user_query, execution_result)
+        else:
+            print(f"❌ Query execution failed: {execution_result.get('error', 'Unknown error')}")
+        
+        # Combine results - ensure execution has proper structure
+        if "row_count" not in execution_result:
+            execution_result["row_count"] = 0
+        if "data" not in execution_result:
+            execution_result["data"] = []
+        if "columns" not in execution_result:
+            execution_result["columns"] = []
+        
+        # Add analysis to execution result for easier access
+        execution_result["analysis"] = analysis
         
         # Combine results
         return {
@@ -422,7 +552,7 @@ Provide your analysis:
             "generated_sql": generated_sql,
             "validation": validation,
             "execution": execution_result,
-            "analysis": analysis,  # Add Gemini analysis
+            "analysis": analysis,  # Top-level analysis
             "ai_model": "gemini-2.5-flash"
         }
 
