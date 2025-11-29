@@ -336,7 +336,8 @@ class QueryBuilderTool:
             "database": "main",  # Default to January data
             "queries": [],
             "parameters": {},
-            "gemini_powered": False
+            "gemini_powered": False,
+            "fallback_reason": None
         }
         
         # Try Gemini AI first if available
@@ -347,10 +348,18 @@ class QueryBuilderTool:
                 # Use the full query_and_execute method to get SQL + analysis
                 gemini_result = self.gemini_generator.query_and_execute(intent["query_text"])
                 
-                if gemini_result["status"] == "success" and gemini_result["validation"]["is_safe"]:
-                    # Extract execution results
-                    execution = gemini_result.get("execution", {})
-                    
+                # Accept Gemini results if:
+                # 1. Status is success
+                # 2. SQL is safe (validation passed safety checks)
+                # 3. We have either execution results OR analysis
+                validation = gemini_result.get("validation", {})
+                execution = gemini_result.get("execution", {})
+                has_data = execution.get("status") == "success" and execution.get("row_count", 0) >= 0
+                has_analysis = bool(gemini_result.get("analysis"))
+                is_safe = validation.get("is_safe", False)
+                
+                # Use Gemini if it's safe and we have usable results
+                if gemini_result.get("status") == "success" and is_safe and (has_data or has_analysis):
                     plan["queries"].append({
                         "type": "gemini_generated",
                         "method": "execute_query",
@@ -361,22 +370,50 @@ class QueryBuilderTool:
                             "analysis": gemini_result.get("analysis", "")  # Pass Gemini analysis
                         },
                         "gemini_metadata": {
-                            "validation": gemini_result["validation"],
+                            "validation": validation,
                             "ai_model": gemini_result.get("ai_model", "gemini-2.5-flash"),
-                            "has_analysis": bool(gemini_result.get("analysis"))
+                            "has_analysis": has_analysis
                         },
                         "precomputed_result": execution  # Pass the already-executed results
                     })
                     
                     plan["gemini_powered"] = True
                     self.logger.info(f"✅ Gemini generated SQL: {gemini_result['generated_sql'][:100]}...")
-                    if gemini_result.get("analysis"):
+                    if has_analysis:
                         self.logger.info(f"✅ Gemini analysis: {gemini_result['analysis'][:80]}...")
+                    
+                    # Log warnings but don't fail
+                    if validation.get("warnings"):
+                        self.logger.info(f"ℹ️ Validation warnings (non-blocking): {validation['warnings']}")
+                    
                     return plan
                 else:
-                    self.logger.warning(f"⚠️ Gemini SQL validation failed, falling back to hardcoded patterns")
+                    # Log the actual reason for fallback
+                    fallback_reasons = []
+                    if gemini_result.get("status") != "success":
+                        fallback_reasons.append(f"status={gemini_result.get('status')}")
+                    if not is_safe:
+                        fallback_reasons.append("unsafe SQL")
+                    if not has_data and not has_analysis:
+                        fallback_reasons.append("no data or analysis")
+                    
+                    self.logger.warning(
+                        "⚠️ Gemini result not usable, falling back. Reasons: %s. SQL=%s",
+                        ", ".join(fallback_reasons),
+                        gemini_result.get("generated_sql", "<none>")[:100]
+                    )
+                    plan["fallback_reason"] = {
+                        "type": "gemini_unusable",
+                        "reasons": fallback_reasons,
+                        "validation": validation,
+                        "generated_sql": gemini_result.get("generated_sql", "")
+                    }
             except Exception as e:
-                self.logger.error(f"❌ Gemini SQL generation failed: {e}, falling back to hardcoded patterns")
+                self.logger.error("❌ Gemini SQL generation failed: %s. Falling back to hardcoded patterns", e)
+                plan["fallback_reason"] = {
+                    "type": "gemini_exception",
+                    "error": str(e)
+                }
         
         # Fallback to hardcoded patterns
         self.logger.info("📋 Using hardcoded SQL patterns")
@@ -384,29 +421,35 @@ class QueryBuilderTool:
         # Float ID lookup
         if entities["float_ids"]:
             for float_id in entities["float_ids"]:
-                plan["queries"].append({
+                q = {
                     "type": "float_lookup",
                     "method": "get_profiles_by_float_id",
                     "params": {"float_id": float_id, "include_measurements": True}
-                })
+                }
+                plan["queries"].append(q)
+                self.logger.info("➡️ Fallback executing: %s params=%s", q["method"], q["params"])
         
         # Regional queries
         elif entities["regions"]:
             for region in entities["regions"]:
-                plan["queries"].append({
+                q = {
                     "type": "regional_search",
                     "method": "get_profiles_by_region", 
                     "params": {"region": region, "limit": 50}
-                })
+                }
+                plan["queries"].append(q)
+                self.logger.info("➡️ Fallback executing: %s params=%s", q["method"], q["params"])
         
         # Temporal queries
         elif entities["temporal"]["relative_time"] == "recent":
             plan["database"] = "live"  # Use live data for recent queries
-            plan["queries"].append({
+            q = {
                 "type": "recent_data",
                 "method": "get_database_stats",
                 "params": {}
-            })
+            }
+            plan["queries"].append(q)
+            self.logger.info("➡️ Fallback executing: %s", q["method"])
         
         return plan
     

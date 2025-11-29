@@ -116,18 +116,31 @@ class DataAccessOrchestrator:
                 # Use precomputed results (already executed by Gemini generator)
                 result = query_spec["precomputed_result"]
                 
-                # Add analysis from params if available
-                if params.get("analysis"):
-                    result["analysis"] = params["analysis"]
-                    print(f"   🧠 Gemini Analysis: {result['analysis'][:80]}...")
+                # Ensure analysis is in the result (check multiple locations)
+                analysis = None
+                if result.get("analysis"):
+                    analysis = result["analysis"]
+                elif params.get("analysis"):
+                    analysis = params["analysis"]
+                    result["analysis"] = analysis
+                
+                if analysis:
+                    print(f"   🧠 Gemini Analysis: {analysis[:80]}...")
+                else:
+                    print(f"   ⚠️ No Gemini analysis found in result")
                 
                 if "gemini_metadata" in query_spec:
-                    print(f"   ✅ Validation: {query_spec['gemini_metadata']['validation']}")
+                    validation = query_spec['gemini_metadata']['validation']
+                    print(f"   ✅ Validation: Safe={validation.get('is_safe')}, Warnings={len(validation.get('warnings', []))}")
+                
+                # Log result structure for debugging
+                print(f"   📊 Result: {result.get('row_count', 0)} rows, status={result.get('status')}")
                 
                 results["results"].append({
                     "query_type": query_type,
                     "result": result,
-                    "gemini_powered": True
+                    "gemini_powered": True,
+                    "params": params  # Include params for analysis extraction
                 })
                 results["data_sources"].append(f"PostgreSQL ({database}) + Gemini AI")
                 
@@ -186,11 +199,38 @@ class DataAccessOrchestrator:
                 })
                 results["data_sources"].append(f"PostgreSQL ({database})")
             
-            else:
-                print("   ⚠️ No specific entities found, performing general database stats")
-                result = self.db_tool.get_database_stats(database)
+            elif entities["coordinates"]["lat_bounds"] or entities["coordinates"]["lng_bounds"]:
+                # Handle coordinate-based queries (like "get float ids in region X to Y")
+                print(f"   📋 Fallback: Coordinate-based search")
+                lat_bounds = entities["coordinates"]["lat_bounds"]
+                lng_bounds = entities["coordinates"]["lng_bounds"]
+                
+                # This is a spatial query - return empty result with helpful message
+                result = {
+                    "status": "success",
+                    "message": f"Coordinate query detected but not handled by fallback. Try using more specific terms.",
+                    "row_count": 0,
+                    "data": [],
+                    "columns": []
+                }
                 results["results"].append({
-                    "query_type": "general_stats",
+                    "query_type": "coordinate_search",
+                    "result": result
+                })
+                results["data_sources"].append(f"PostgreSQL ({database})")
+            
+            else:
+                print("   ⚠️ No specific entities found, returning empty result with helpful message")
+                # Instead of database stats, return an empty result with a helpful message
+                result = {
+                    "status": "success",
+                    "message": "No specific data found. Try being more specific about region, float ID, or time period.",
+                    "row_count": 0,
+                    "data": [],
+                    "columns": []
+                }
+                results["results"].append({
+                    "query_type": "no_results",
                     "result": result
                 })
                 results["data_sources"].append(f"PostgreSQL ({database})")

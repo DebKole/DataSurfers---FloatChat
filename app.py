@@ -14,6 +14,13 @@ import pandas as pd
 from sqlalchemy import create_engine
 import matplotlib.pyplot as plt
 from io import BytesIO
+from datetime import datetime, date
+import math
+
+try:
+    import numpy as np  # optional, if available we’ll use for type checks
+except Exception:
+    np = None
 
 warnings.filterwarnings("ignore")
 load_dotenv()
@@ -80,6 +87,47 @@ def load_profile_data(float_id: str, limit: int = 200) -> pd.DataFrame:
     return pd.read_sql(query, engine)
 
 
+# Ensure responses are JSON-serializable by converting common non-JSON types
+def _to_jsonable(obj):
+    # primitives
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        # Handle NaN/Inf which json.dumps cannot encode when allow_nan=False
+        if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+            return None
+        return obj
+
+    # dates
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+
+    # pandas
+    if isinstance(obj, pd.Timestamp):
+        return obj.isoformat()
+    if isinstance(obj, pd.Series):
+        return _to_jsonable(obj.to_dict())
+    if isinstance(obj, pd.DataFrame):
+        return [_to_jsonable(r) for r in obj.to_dict(orient="records")]
+
+    # numpy
+    if np is not None:
+        if isinstance(obj, np.generic):
+            return obj.item()
+        if isinstance(obj, np.ndarray):
+            return [_to_jsonable(x) for x in obj.tolist()]
+
+    # mappings and iterables
+    if isinstance(obj, dict):
+        return {str(k): _to_jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [_to_jsonable(x) for x in list(obj)]
+
+    # fallback to string representation
+    try:
+        return str(obj)
+    except Exception:
+        return None
+
+
 @app.get("/")
 async def root():
     return {"message": "FloatChat server is running", "version": "1.0.0"}
@@ -111,11 +159,26 @@ async def query_answer(req: QueryRequest):
     if result.get("table_data") and result["table_data"].get("rows"):
         response_data["table_data"] = result["table_data"]
     
-    # Add map data if available
+    # Add map data if available AND non-empty; otherwise, do not trigger map
     if result.get("show_map", False):
-        response_data["map_data"] = result.get("map_data", {})
+        raw_map = result.get("map_data", {})
+        has_points = False
+        try:
+            if isinstance(raw_map, dict) and isinstance(raw_map.get("points"), list):
+                has_points = len(raw_map.get("points", [])) > 0
+            elif isinstance(raw_map, list):
+                has_points = len(raw_map) > 0
+        except Exception:
+            has_points = False
+
+        if has_points:
+            response_data["show_map"] = True
+            response_data["map_data"] = raw_map
+        else:
+            response_data["show_map"] = False
     
-    return response_data
+    # Ensure JSON serializable
+    return _to_jsonable(response_data)
 
 
 @app.get("/floats/indian-ocean")
