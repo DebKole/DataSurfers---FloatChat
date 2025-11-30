@@ -83,133 +83,36 @@ const MapComponent = ({ fullPage = false, data = null }) => {
     const map = mapRef.current;
     if (!map || !markersLayerRef.current) return;
 
-      // Create Leaflet map with explicit dragging and zoom behaviors enabled
-      const map = L.map(mapContainerRef.current, {
-        center: mapCenter,
-        zoom: mapZoom,
-        zoomControl: true,
-        dragging: true,
-        scrollWheelZoom: true,
-        doubleClickZoom: true,
-        boxZoom: true,
-        tap: false, // improves interaction on touch devices
-        fadeAnimation: false, // Disable fade to prevent timing issues
-        zoomAnimation: false // Disable zoom animation initially
-      });
-
-      // Wait for map to fully initialize - ensure panes are created
-      // This prevents the _leaflet_pos error
-      await new Promise(resolve => {
-        // Use a simple delay to ensure map panes are initialized
-        setTimeout(() => {
-          try {
-            // Verify map panes exist before proceeding
-            if (map && map._panes && map._panes.mapPane) {
-              resolve();
-            } else {
-              // If panes aren't ready, wait a bit more
-              setTimeout(resolve, 100);
-            }
-          } catch (e) {
-            // If there's an error, proceed anyway after delay
-            setTimeout(resolve, 100);
-          }
-        }, 100);
-      });
+    markersLayerRef.current.clearLayers();
+    const created = [];
 
     points.forEach((p) => {
       if (isNaN(p.lat) || isNaN(p.lng)) return;
 
-      // Layer for markers and a unified renderer that supports both incoming data and real float data
-      markersLayerRef.current = L.layerGroup().addTo(map);
-      const renderMarkers = (points) => {
-        if (!markersLayerRef.current) return;
-        markersLayerRef.current.clearLayers();
-        const created = [];
-        (points || []).forEach(point => {
-          if (typeof point.lat !== 'number' || typeof point.lng !== 'number') return;
-          const color = '#1e90ff';
-          const dot = L.circleMarker([point.lat, point.lng], {
-            radius: 6,
-            color,
-            weight: 2,
-            fillColor: color,
-            fillOpacity: 0.85
-          });
-          const id = point.id || point.float_id || point.profile_id || '—';
-          const dateStr = point.datetime ? new Date(point.datetime).toLocaleDateString() : '';
-          dot.bindTooltip(`Float ${id}`, { direction: 'top', offset: [0, -6] });
-          dot.bindPopup(`
-            <div class="map-popup">
-              <h4>Float ${id}</h4>
-              <p><strong>Location:</strong> ${Number(point.lat).toFixed(2)}°, ${Number(point.lng).toFixed(2)}°</p>
-              ${dateStr ? `<p><strong>Date:</strong> ${dateStr}</p>` : ''}
-              ${point.cycle ? `<p><strong>Cycle:</strong> ${point.cycle}</p>` : ''}
-              ${point.measurements ? `<p><strong>Measurements:</strong> ${point.measurements}</p>` : ''}
-            </div>
-          `);
-          dot.on('mouseover', () => dot.setStyle({ radius: 9, fillOpacity: 1 }));
-          dot.on('mouseout', () => dot.setStyle({ radius: 6, fillOpacity: 0.85 }));
-          dot.addTo(markersLayerRef.current);
-          created.push(dot);
-        });
-        try {
-          if (created.length > 0 && map && map._loaded) {
-            const group = L.featureGroup(created);
-            const bounds = group.getBounds();
-            if (bounds.isValid()) {
-              // Use setTimeout to ensure map is ready for fitBounds
-              setTimeout(() => {
-                try {
-                  if (map && map._loaded) {
-                    map.fitBounds(bounds.pad(0.2));
-                  }
-                } catch (e) {
-                  // Silently ignore fitBounds errors
-                }
-              }, 150);
-            }
-          }
-        } catch (_) {}
-      };
-
-      marker.bindTooltip(`Float ${p.id}`);
-
-      // Invalidate size after a tick and on container resize to avoid layout issues
-      // Use a safer approach that checks if map is still valid
-      setTimeout(() => {
-        try {
-          if (map && mapContainerRef.current && map._loaded) {
-            map.invalidateSize(false);
-          }
-        } catch (e) {
-          // Silently ignore - map may not be fully ready
-        }
-      }, 100);
-      
-      const resizeObs = new ResizeObserver(() => {
-        try {
-          if (map && mapContainerRef.current && map._loaded) {
-            // Use requestAnimationFrame to ensure DOM is stable
-            requestAnimationFrame(() => {
-              try {
-                if (map && map._loaded) {
-                  map.invalidateSize(false);
-                }
-              } catch (e) {
-                // Ignore resize errors
-              }
-            });
-          }
-        } catch (e) {
-          // Ignore resize observer errors
-        }
+      const marker = L.circleMarker([p.lat, p.lng], {
+        radius: 6,
+        color: '#1e90ff',
+        weight: 2,
+        fillColor: '#1e90ff',
+        fillOpacity: 0.85
       });
-      
-      if (mapContainerRef.current) {
-        resizeObs.observe(mapContainerRef.current);
-      }
 
+      const id = p.id || p.float_id || p.profile_id || '—';
+      const dateStr = p.datetime ? new Date(p.datetime).toLocaleDateString() : '';
+
+      marker.bindTooltip(`Float ${id}`, { direction: 'top', offset: [0, -6] });
+      marker.bindPopup(`
+        <div class="map-popup">
+          <h4>Float ${id}</h4>
+          <p><strong>Location:</strong> ${Number(p.lat).toFixed(2)}°, ${Number(p.lng).toFixed(2)}°</p>
+          ${dateStr ? `<p><strong>Date:</strong> ${dateStr}</p>` : ''}
+          ${p.cycle ? `<p><strong>Cycle:</strong> ${p.cycle}</p>` : ''}
+          ${p.measurements ? `<p><strong>Measurements:</strong> ${p.measurements}</p>` : ''}
+        </div>
+      `);
+
+      marker.on('mouseover', () => marker.setStyle({ radius: 9, fillOpacity: 1 }));
+      marker.on('mouseout', () => marker.setStyle({ radius: 6, fillOpacity: 0.85 }));
       marker.addTo(markersLayerRef.current);
       created.push(marker);
     });
@@ -227,73 +130,10 @@ const MapComponent = ({ fullPage = false, data = null }) => {
   // 4. Update markers when floatData loads
   // -------------------------------------------------------
   useEffect(() => {
-    if (!dataLoaded) return;  // Wait for data to load first
-    
-    // Use requestAnimationFrame to ensure DOM is fully ready
-    const initTimeout = setTimeout(() => {
-      (async () => {
-        if (!mapContainerRef.current) return;
-        
-        // Double-check container is in DOM and has size
-        if (!document.body.contains(mapContainerRef.current)) {
-          return;
-        }
-        
-        // Wait for next frame to ensure all DOM updates are complete
-        requestAnimationFrame(() => {
-          requestAnimationFrame(async () => {
-            try {
-              await initializeLeafletMap();
-              setIsLoading(false);
-            } catch (error) {
-              // Silently handle the _leaflet_pos error - it's a timing issue
-              const errorMsg = error?.message || String(error);
-              if (errorMsg.includes('_leaflet_pos') || errorMsg.includes('undefined')) {
-                // Retry once after a short delay
-                setTimeout(async () => {
-                  try {
-                    if (mapContainerRef.current && !mapInstanceRef.current) {
-                      await initializeLeafletMap();
-                      setIsLoading(false);
-                    }
-                  } catch (retryError) {
-                    console.warn('Map initialization retry failed, using fallback');
-                    initializeFallbackMap();
-                    setIsLoading(false);
-                  }
-                }, 100);
-              } else {
-                console.error('Error initializing map:', error);
-                initializeFallbackMap();
-                setIsLoading(false);
-              }
-            }
-          });
-        });
-      })();
-    }, 50); // Small delay to ensure component is fully mounted
-    
-    return () => {
-      clearTimeout(initTimeout);
-      // Cleanup on unmount
-      if (mapInstanceRef.current) {
-        if (mapInstanceRef.current.cleanup) {
-          try {
-            mapInstanceRef.current.cleanup();
-          } catch (e) {
-            // Ignore cleanup errors
-          }
-        } else if (mapInstanceRef.current.map) {
-          try {
-            mapInstanceRef.current.map.remove();
-          } catch (e) {
-            // Ignore cleanup errors
-          }
-        }
-        mapInstanceRef.current = null;
-      }
-    };
-  }, [dataLoaded, floatData]);
+    if (!loading && floatData.length > 0) {
+      renderMarkers(floatData);
+    }
+  }, [loading, floatData]);
 
   // -------------------------------------------------------
   // 5. Apply incoming external data
