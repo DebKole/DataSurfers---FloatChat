@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import "./ChatContainer.css";
 import axios from "axios";
 import FAQ from "./FAQ";
-import logo from "../assets/Logo(4).png";
+
+import logo from "../assets/Logo (3).png";
+import ChartRenderer from './ChartRenderer';
+
 
 const ChatContainer = ({
   onMapRequest = () => {},
@@ -16,6 +19,7 @@ const ChatContainer = ({
   const [highlightFAQ, setHighlightFAQ] = useState(true);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
+  const userRequestedMapRef = useRef(false);
 
   const actionOptions = [
     // {
@@ -52,17 +56,44 @@ const ChatContainer = ({
     return () => clearTimeout(t);
   }, []);
 
+  // Load persisted chat state on mount
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("floatchat_messages");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setMessages(parsed);
+      }
+      const savedInput = sessionStorage.getItem("floatchat_input");
+      if (savedInput) setInputValue(savedInput);
+    } catch (_) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist chat state on change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("floatchat_messages", JSON.stringify(messages));
+    } catch (_) {}
+  }, [messages]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("floatchat_input", inputValue);
+    } catch (_) {}
+  }, [inputValue]);
+
   const handleOptionClick = async (option) => {
     const newMessages = [...messages, { type: "user", content: option.prompt }];
     setMessages(newMessages);
 
-    // Open map immediately and continue backend call
+    // For 'Use Map', we still show fetching message, but open map only after backend returns show_map
     if (option.title === "Use Map") {
+      userRequestedMapRef.current = true;
       setMessages((prev) => [
         ...prev,
         { type: "bot", content: "Fetching details..." },
       ]);
-      if (onMapRequest) onMapRequest();
     }
 
     try {
@@ -72,11 +103,22 @@ const ChatContainer = ({
 
       setMessages((prev) => [
         ...prev,
-        { type: "bot", content: response.data.message },
+        { 
+          type: 'bot', 
+          content: response.data.message,
+          chartData: response.data.chart_data,
+          tableData: response.data.table_data,
+          hasData: response.data.has_data
+        }
       ]);
 
-      // Handle map data if present
-      if (response.data.show_map && response.data.map_data) {
+      // Open map overlay only if backend explicitly indicates AND there's no table view requested
+      if (
+        userRequestedMapRef.current &&
+        response.data.show_map &&
+        response.data.map_data &&
+        !response.data.table_data
+      ) {
         onMapData(response.data.map_data, true);
       }
       // Handle table data if present
@@ -122,10 +164,6 @@ const ChatContainer = ({
         query.toLowerCase().includes(keyword.toLowerCase())
       );
 
-      if (isMapRequest && onMapRequest) {
-        onMapRequest();
-      }
-
       try {
         // Call FastAPI backend
         const response = await axios.post("http://127.0.0.1:8000", {
@@ -135,11 +173,21 @@ const ChatContainer = ({
         // Add bot message with response
         setMessages((prev) => [
           ...prev,
-          { type: "bot", content: response.data.message },
+          { 
+            type: 'bot', 
+            content: response.data.message,
+            chartData: response.data.chart_data,
+            tableData: response.data.table_data,
+            hasData: response.data.has_data
+          }
         ]);
 
-        // Handle map data if present
-        if (response.data.show_map && response.data.map_data) {
+        // Open map overlay only if backend explicitly indicates AND there's no table view requested
+        if (
+          response.data.show_map &&
+          response.data.map_data &&
+          !response.data.table_data
+        ) {
           onMapData(response.data.map_data, true);
         }
         // Handle table data if present
@@ -226,17 +274,19 @@ const ChatContainer = ({
           </div>
         ) : (
           messages.map((message, index) => (
-            <div key={index} className={`message ${message.type}-message`}>
-              <div className={`message-header ${message.type}-header`}>
-                <i
-                  className={`fas ${
-                    message.type === "user" ? "fa-user" : "fa-robot"
-                  }`}
-                  aria-hidden="true"
-                ></i>
-                {message.type === "user" ? "You" : "FloatChat"}
+            <div key={index}>
+              <div className={`message ${message.type}-message`}>
+                <div className={`message-header ${message.type}-header`}>
+                  <i className={`fas ${message.type === 'user' ? 'fa-user' : 'fa-robot'}`} aria-hidden="true"></i>
+                  {message.type === 'user' ? 'You' : 'FloatChat'}
+                </div>
+                {message.content}
               </div>
-              {message.content}
+              
+              {/* Render chart if available */}
+              {message.chartData && message.type === 'bot' && (
+                <ChartRenderer chartData={message.chartData} />
+              )}
             </div>
           ))
         )}

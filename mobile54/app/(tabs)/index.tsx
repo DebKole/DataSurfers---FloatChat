@@ -1,74 +1,143 @@
-import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, Text, StyleSheet, Button, ActivityIndicator } from 'react-native';
-
-import { pingBackend } from '@/src/config/api';
+import React, { useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  StatusBar,
+  Animated,
+} from "react-native";
+import { oceanTheme } from "@/theme/oceanTheme";
+import { Ionicons } from "@expo/vector-icons";
+import ChatScreen from "@/src/screens/ChatScreen";
 
 export default function HomeScreen() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-
-  const handlePing = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await pingBackend();
-      setMessage(JSON.stringify(data));
-    } catch (e: any) {
-      setError(e?.message || String(e));
-      setMessage(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    handlePing();
-  }, []);
+  const [hideCards, setHideCards] = useState(false);
+  const [firstMessage, setFirstMessage] = useState<string | undefined>(
+    undefined
+  );
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const quickActions = [
+    {
+      title: "View Active Floats",
+      icon: "map-outline" as const,
+      color: oceanTheme.colors.accent.teal,
+    },
+    {
+      title: "Explore Ocean Data",
+      icon: "bar-chart-outline" as const,
+      color: oceanTheme.colors.accent.blue,
+    },
+    {
+      title: "Chat with OceanBot",
+      icon: "chatbubbles-outline" as const,
+      color: oceanTheme.colors.accent.purple,
+    },
+    {
+      title: "Nearby Sensors",
+      icon: "radio-outline" as const,
+      color: oceanTheme.colors.accent.coral,
+    },
+  ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>FloatChat Mobile</Text>
-        <Text style={styles.subtitle}>Connected to your FastAPI backend</Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
 
-        <Button title="Refresh" onPress={handlePing} />
-
-        {loading && <ActivityIndicator style={styles.status} />}
-        {error && <Text style={[styles.status, styles.error]}>Error: {error}</Text>}
-        {message && <Text style={styles.status}>{message}</Text>}
-      </View>
-    </SafeAreaView>
+      {hideCards ? (
+        <ChatScreen
+          initialMessage={firstMessage}
+          onFirstUserMessage={() => {}}
+        />
+      ) : (
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+        >
+          <Animated.View style={{ opacity: fadeAnim }}>
+            <Text style={styles.mainTitle}>
+              Where do you want to dive today?
+            </Text>
+            <View style={styles.actionsContainer}>
+              {quickActions.map((action, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[styles.actionButton, { borderColor: action.color }]}
+                >
+                  <Ionicons
+                    name={action.icon}
+                    size={28}
+                    color={action.color}
+                    style={{ marginBottom: 8 }}
+                  />
+                  <Text style={styles.actionTitle}>{action.title}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {/* Render chat input panel after cards, so user can start chatting immediately */}
+            <View style={{ marginTop: 16 }}>
+              <ChatScreen
+                variant="embedded"
+                initialMessage={undefined}
+                onFirstUserMessage={(msg: string) => {
+                  Animated.timing(fadeAnim, {
+                    toValue: 0,
+                    duration: 250,
+                    useNativeDriver: true,
+                  }).start(() => {
+                    setFirstMessage(msg);
+                    setHideCards(true);
+                  });
+                }}
+              />
+            </View>
+          </Animated.View>
+        </ScrollView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0b1020' },
+  container: {
+    flex: 1,
+    backgroundColor: oceanTheme.colors.background,
+  },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: "stretch",
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 8,
-    textAlign: 'center',
+  mainTitle: {
+    fontSize: 32,
+    fontWeight: "600",
+    color: oceanTheme.colors.text.primary,
+    marginBottom: 32,
+    textAlign: "center",
   },
-  subtitle: {
+  actionsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+    justifyContent: "center",
+  },
+  actionButton: {
+    width: 160,
+    height: 110,
+    backgroundColor: oceanTheme.colors.surface,
+    borderRadius: 16,
+    borderWidth: 2,
+    padding: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionTitle: {
+    color: oceanTheme.colors.text.primary,
     fontSize: 14,
-    color: '#a0aec0',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  status: {
-    marginTop: 16,
-    color: '#e2e8f0',
-    textAlign: 'center',
-  },
-  error: {
-    color: '#f56565',
+    fontWeight: "500",
+    textAlign: "center",
   },
 });
