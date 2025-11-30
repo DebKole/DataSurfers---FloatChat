@@ -219,8 +219,8 @@
 }
 
 .chat-logo {
-  width: 168px; 
-  height: 80px;
+  width: 180px; 
+  height: 180px;
   object-fit: contain;
 }
   */
@@ -239,6 +239,11 @@
   
   .welcome-icon {
     font-size: 40px;
+  }
+  
+  .chat-logo {
+    width: 120px;
+    height: 120px;
   }
 }
 

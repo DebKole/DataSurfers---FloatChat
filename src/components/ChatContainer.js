@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./ChatContainer.css";
 import axios from "axios";
 import FAQ from "./FAQ";
-import logo from "../assets/Logo (3).png";
+import logo from "../assets/Logo(4).png";
 
 const ChatContainer = ({
   onMapRequest = () => {},
