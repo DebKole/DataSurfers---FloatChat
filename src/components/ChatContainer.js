@@ -4,7 +4,7 @@ import "./ChatContainer.css";
 import axios from "axios";
 import FAQ from "./FAQ";
 import logo from "../assets/Logo (3).png";
-import ChartRenderer from './ChartRenderer';
+import ChartRenderer from "./ChartRenderer";
 
 const ChatContainer = ({
   onMapRequest = () => {},
@@ -101,13 +101,13 @@ const ChatContainer = ({
 
       setMessages((prev) => [
         ...prev,
-        { 
-          type: 'bot', 
+        {
+          type: "bot",
           content: response.data.message,
           chartData: response.data.chart_data,
           tableData: response.data.table_data,
-          hasData: response.data.has_data
-        }
+          hasData: response.data.has_data,
+        },
       ]);
 
       // Open map overlay only if backend explicitly indicates AND there's no table view requested
@@ -171,13 +171,13 @@ const ChatContainer = ({
         // Add bot message with response
         setMessages((prev) => [
           ...prev,
-          { 
-            type: 'bot', 
+          {
+            type: "bot",
             content: response.data.message,
             chartData: response.data.chart_data,
             tableData: response.data.table_data,
-            hasData: response.data.has_data
-          }
+            hasData: response.data.has_data,
+          },
         ]);
 
         // Open map overlay only if backend explicitly indicates AND there's no table view requested
@@ -272,20 +272,24 @@ const ChatContainer = ({
           </div>
         ) : (
           messages.map((message, index) => (
-            <div key={index}>
+            <React.Fragment key={index}>
               <div className={`message ${message.type}-message`}>
                 <div className={`message-header ${message.type}-header`}>
-                  <i className={`fas ${message.type === 'user' ? 'fa-user' : 'fa-robot'}`} aria-hidden="true"></i>
-                  {message.type === 'user' ? 'You' : 'FloatChat'}
+                  <i
+                    className={`fas ${
+                      message.type === "user" ? "fa-user" : "fa-robot"
+                    }`}
+                  ></i>
+                  {message.type === "user" ? "You" : "FloatChat"}
                 </div>
                 {message.content}
               </div>
-              
-              {/* Render chart if available */}
-              {message.chartData && message.type === 'bot' && (
+
+              {/* Chart renderer, if available */}
+              {message.chartData && message.type === "bot" && (
                 <ChartRenderer chartData={message.chartData} />
               )}
-            </div>
+            </React.Fragment>
           ))
         )}
         <div ref={messagesEndRef} />
