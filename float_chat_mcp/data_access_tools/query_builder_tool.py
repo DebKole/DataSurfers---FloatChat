@@ -105,9 +105,12 @@ class QueryBuilderTool:
         
         # Determine query type
         query_type = self._classify_query_type(entities, query_lower)
-        
-        # Choose execution strategy
-        strategy = self._choose_strategy(query_type, entities, query_lower)
+
+        # First try LLM-driven strategy selection (sql vs general/vector)
+        llm_strategy = self._choose_strategy_llm(query_text, entities, query_type)
+
+        # Fallback: rule-based strategy selection
+        strategy = llm_strategy or self._choose_strategy(query_type, entities, query_lower)
         
         return {
             "query_text": query_text,
@@ -311,6 +314,76 @@ class QueryBuilderTool:
         
         # Default to hybrid for general searches
         return "hybrid"
+
+    def _choose_strategy_llm(self, query_text: str, entities: Dict[str, Any], query_type: str) -> Optional[str]:
+        """Use Gemini to classify the query as SQL-based or General (vector).
+
+        Returns one of: 'sql_only', 'vector_only', 'analysis' or None on failure.
+        We keep analysis routing keyword-based to reduce LLM ambiguity; if the
+        query_type already indicates analysis, prefer 'analysis'.
+        """
+        # If Gemini is not available, skip
+        if not self.use_gemini or not self.gemini_generator:
+            return None
+
+        # Respect explicit analysis detection from heuristics
+        if query_type == "analysis_query":
+            return "analysis"
+
+        try:
+            # Reuse the already-configured Gemini model from the SQL generator
+            model = getattr(self.gemini_generator, "model", None)
+            if model is None:
+                return None
+
+            # Minimal, robust JSON classification prompt
+            sys_prompt = (
+                "You are a routing classifier. Decide if a user query should be answered "
+                "by SQL over a relational database or by a general semantic/vector search.\n\n"
+                "Return a compact JSON object with a single key 'route' whose value is one of: "
+                "'sql' or 'general'. Do not add any extra text."
+            )
+
+            # Provide lightweight entity cues (best-effort; safe if missing)
+            entities_hint = {
+                "regions": entities.get("regions", []),
+                "parameters": entities.get("parameters", []),
+                "float_ids": entities.get("float_ids", []),
+                "temporal": entities.get("temporal", {}),
+            }
+
+            prompt = (
+                f"{sys_prompt}\n\n"
+                f"QUERY: {query_text}\n"
+                f"ENTITIES_HINT: {json.dumps(entities_hint)}\n"
+                "Rules:\n"
+                "- Prefer 'sql' when the user asks to show/get/find data, float IDs, profiles, measurements, specific regions or time windows.\n"
+                "- Prefer 'general' when the user asks conceptual/overview questions or free-form discovery where structured SQL is unclear.\n"
+                "- If unsure, choose 'general'.\n"
+            )
+
+            resp = model.generate_content(prompt)
+            text = (resp.text or "").strip()
+
+            # Attempt to parse JSON safely
+            try:
+                parsed = json.loads(text)
+                route = str(parsed.get("route", "")).lower()
+            except Exception:
+                # Handle non-JSON outputs like ```json blocks
+                cleaned = text.replace("```json", "").replace("```", "").strip()
+                parsed = json.loads(cleaned) if cleaned.startswith("{") else {}
+                route = str(parsed.get("route", "")).lower()
+
+            if route == "sql":
+                return "sql_only"
+            if route == "general":
+                return "vector_only"
+        except Exception:
+            # Swallow and fallback to heuristics
+            return None
+
+        return None
     
     def _calculate_confidence(self, entities: Dict[str, Any], query_type: str) -> float:
         """Calculate confidence score for the intent analysis"""

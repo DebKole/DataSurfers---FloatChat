@@ -17,6 +17,7 @@ from float_chat_mcp.data_access_tools.query_builder_tool import QueryBuilderTool
 from float_chat_mcp.data_access_tools.vector_retrieval_tool import VectorRetrievalTool
 from float_chat_mcp.data_access_tools.db_executor_tool import DatabaseExecutorTool
 from float_chat_mcp.data_access_tools.analysis_tools_wrapper import AnalysisToolsWrapper
+from gemini_sql_generator import GeminiSQLGenerator
 
 class DataAccessOrchestrator:
     """Orchestrates all data access tools for intelligent query execution"""
@@ -33,6 +34,9 @@ class DataAccessOrchestrator:
         self.vector_tool = VectorRetrievalTool()
         self.db_tool = DatabaseExecutorTool(enable_cache=enable_cache)
         self.analysis_wrapper = AnalysisToolsWrapper()
+        # Initialize Gemini for summarization (reuse same generator)
+        self.use_gemini = use_gemini
+        self.gemini_generator = GeminiSQLGenerator() if use_gemini else None
     
     def execute_query(self, user_query: str) -> Dict[str, Any]:
         """
@@ -249,13 +253,64 @@ class DataAccessOrchestrator:
             filters=plan.get("filters")
         )
         
+        # Try to produce an LLM summary over vector results
+        llm_summary = None
+        gemini_powered = False
+        try:
+            llm_summary = self._summarize_vector_results(intent["query_text"], vector_result)
+            gemini_powered = llm_summary is not None
+        except Exception as e:
+            print(f"⚠️ LLM summarization failed: {e}")
+            llm_summary = None
+            gemini_powered = False
+        
         return {
             "status": "success",
             "strategy": "vector_only",
             "data_sources": ["ChromaDB Vector Search"],
             "results": [vector_result],
-            "semantic_query": plan["query"]
+            "semantic_query": plan["query"],
+            "llm_summary": llm_summary,
+            "gemini_powered": gemini_powered
         }
+
+    def _summarize_vector_results(self, user_query: str, vector_result: Dict[str, Any]) -> Optional[str]:
+        """Use Gemini to synthesize a concise answer from vector search results."""
+        if not self.use_gemini or not self.gemini_generator:
+            return None
+        model = getattr(self.gemini_generator, "model", None)
+        if model is None:
+            return None
+        # Prepare a compact context from vector hits
+        hits = []
+        try:
+            for item in vector_result.get("results", [])[:20]:
+                # Keep small subset of fields to limit prompt size
+                compact = {
+                    k: item.get(k)
+                    for k in [
+                        "profile_id", "global_profile_id", "float_id", "datetime",
+                        "latitude", "longitude", "temperature", "salinity", "region"
+                    ]
+                    if k in item
+                }
+                hits.append(compact)
+        except Exception:
+            pass
+        context_json = json.dumps({"hits": hits}, default=str)
+        prompt = (
+            "You are an oceanography assistant. Given a user query and top vector search hits, "
+            "write a short, helpful answer (2-4 sentences) summarizing what the data suggests. "
+            "Avoid markdown, be concise, and mention that detailed rows are available in the table.\n\n"
+            f"USER QUERY: {user_query}\n"
+            f"TOP HITS (JSON): {context_json}\n\n"
+            "Answer:"
+        )
+        resp = model.generate_content(prompt)
+        summary = (resp.text or "").strip()
+        # Sanitize stray markdown
+        summary = summary.replace("**", "").replace("*", "").replace("#", "")
+        return summary or None
     
     def _execute_hybrid_strategy(self, plan: Dict[str, Any], intent: Dict[str, Any]) -> Dict[str, Any]:
         """Execute hybrid strategy (vector + SQL)"""
