@@ -106,19 +106,36 @@ class QueryBuilderTool:
         # Determine query type
         query_type = self._classify_query_type(entities, query_lower)
 
+        # Try LLM-based analysis classification first; if it decides analysis, lock it in
+        analysis_llm = self._classify_analysis_llm(query_text, entities)
+        analysis_type = None
+        analysis_decider = "none"
+        if analysis_llm and analysis_llm.get("analysis") is True and analysis_llm.get("type"):
+            query_type = "analysis_query"
+            analysis_type = analysis_llm.get("type")
+            analysis_decider = "llm"
+        elif query_type == "analysis_query":
+            analysis_decider = "heuristic"
+
         # First try LLM-driven strategy selection (sql vs general/vector)
         llm_strategy = self._choose_strategy_llm(query_text, entities, query_type)
 
         # Fallback: rule-based strategy selection
         strategy = llm_strategy or self._choose_strategy(query_type, entities, query_lower)
+        strategy_decider = "llm" if llm_strategy else "heuristic"
         
-        return {
+        result = {
             "query_text": query_text,
             "entities": entities,
             "query_type": query_type,
             "strategy": strategy,
-            "confidence": self._calculate_confidence(entities, query_type)
+            "confidence": self._calculate_confidence(entities, query_type),
+            "strategy_decider": strategy_decider,
+            "analysis_decider": analysis_decider
         }
+        if analysis_type:
+            result["analysis_type"] = analysis_type
+        return result
     
     def build_execution_plan(self, intent: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -314,6 +331,55 @@ class QueryBuilderTool:
         
         # Default to hybrid for general searches
         return "hybrid"
+
+    def _classify_analysis_llm(self, query_text: str, entities: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Use Gemini to classify whether the query requests an analysis/graph and which type.
+
+        Returns a dict like {analysis: bool, type: 'ts_curve'|'td_curve'|'temp_trend'|'sal_trend'|'comparison'|'statistics'}
+        or None on failure/unavailable.
+        """
+        if not self.use_gemini or not self.gemini_generator:
+            return None
+        try:
+            model = getattr(self.gemini_generator, "model", None)
+            if model is None:
+                return None
+            guidance = (
+                "Classify the user request for oceanographic analysis. Return JSON only with keys 'analysis' (true/false) "
+                "and 'type' if analysis is true. Valid 'type' values: 'ts_curve', 'td_curve', 'temp_trend', 'sal_trend', "
+                "'comparison', 'statistics'. Consider synonyms like graph/plot/chart/profile and temperature-salinity (TS), "
+                "temperature-depth (TD), trend, compare."
+            )
+            hint = {
+                "float_ids": entities.get("float_ids", []),
+                "regions": entities.get("regions", []),
+                "parameters": entities.get("parameters", []),
+            }
+            prompt = (
+                f"{guidance}\n\nQUERY: {query_text}\nHINT: {json.dumps(hint)}\n"
+                "Rules:\n- If the user asks for a graph/plot/chart/curve/profile, set analysis=true.\n"
+                "- Map 'temperature salinity' to 'ts_curve', 'temperature depth' or 'vertical profile' to 'td_curve'.\n"
+                "- If 'trend' with temperature/salinity, choose 'temp_trend' or 'sal_trend'. If 'compare', choose 'comparison'.\n"
+                "- If unsure, set analysis=false. Return minimal JSON."
+            )
+            resp = model.generate_content(prompt)
+            text = (resp.text or "").strip()
+            try:
+                parsed = json.loads(text)
+            except Exception:
+                cleaned = text.replace("```json", "").replace("```", "").strip()
+                parsed = json.loads(cleaned) if cleaned.startswith("{") else {}
+            if not isinstance(parsed, dict):
+                return None
+            # Normalize type
+            t = parsed.get("type")
+            if isinstance(t, str):
+                t = t.strip().lower()
+            if parsed.get("analysis") and t in {"ts_curve", "td_curve", "temp_trend", "sal_trend", "comparison", "statistics"}:
+                return {"analysis": True, "type": t}
+            return {"analysis": False}
+        except Exception:
+            return None
 
     def _choose_strategy_llm(self, query_text: str, entities: Dict[str, Any], query_type: str) -> Optional[str]:
         """Use Gemini to classify the query as SQL-based or General (vector).

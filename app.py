@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from main import AgentState,add_query,model
 from float_location_service import FloatLocationService
+from float_chat_mcp.data_access_tools.data_access_orchestrator import DataAccessOrchestrator
+from float_chat_mcp.data_access_tools.db_executor_tool import DatabaseExecutorTool
 import warnings
 import os
 import pandas as pd
@@ -37,6 +39,8 @@ app.add_middleware(
 
 # Initialize float location service
 float_service = FloatLocationService()
+orchestrator = DataAccessOrchestrator(use_gemini=True, enable_cache=True)
+db_executor = DatabaseExecutorTool(enable_cache=True)
 
 # Database setup for trend analysis
 DB_HOST = os.getenv("DB_HOST", "localhost")
@@ -132,13 +136,23 @@ def _to_jsonable(obj):
 async def root():
     return {"message": "FloatChat server is running", "version": "1.0.0"}
 
+@app.get("/api/execute_query")
+async def api_execute_query(q: str = Query(..., description="Natural language query")):
+    """Execute a natural-language query via the orchestrator and return its result."""
+    try:
+        result = orchestrator.execute_query(q)
+        return _to_jsonable(result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/dataset-info")
 async def get_dataset_info():
-    """Get basic information about the loaded dataset."""
-    from data_processor import ArgoDataProcessor
-    processor = ArgoDataProcessor("argo_demo.csv")
-    stats = processor.get_basic_stats()
-    return {"status": 200, "data": stats}
+    """Basic dataset info from database statistics."""
+    try:
+        stats = db_executor.get_database_stats(database="main")
+        return _to_jsonable({"status": 200, "data": stats.get("data", [])})
+    except Exception as e:
+        return {"status": 500, "error": str(e)}
 
 @app.post("/")
 async def query_answer(req: QueryRequest):
@@ -321,296 +335,51 @@ async def get_trajectories_in_radius(
 
 
 
-# Trend Analysis API Endpoints
 
-@app.get("/api/ts_curve", response_model=ProfilesResponse)
-def ts_curve(float_id: str, limit: int = 200):
-    """Get temperature-salinity curve for a float"""
+# Listing endpoints for floats and profiles
+@app.get("/api/floats")
+async def list_floats(limit: int = Query(default=1000, ge=1, le=5000), database: str = Query(default="main")):
     try:
-        df = load_profile_data(float_id, limit)
-        if df.empty:
-            raise HTTPException(status_code=404, detail="No data for this float_id")
-
-        result = argo_ts_curve(df.to_dict("records"), show_plot=False)
-        return result
-    except HTTPException:
-        raise
+        res = db_executor.get_distinct_floats(database=database, limit=limit)
+        rows = res.get("data", [])
+        floats = [r.get("float_id") or r.get("FLOAT_ID") for r in rows]
+        floats = [str(f) for f in floats if f is not None]
+        return {"status": 200, "count": len(floats), "floats": floats}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"status": 500, "error": str(e), "floats": []}
 
 
-@app.get("/api/compare_ts_png")
-def compare_ts_png(float_id_a: str, float_id_b: str, limit: int = 200):
-    """Return a PNG image comparing TS profiles for two floats."""
+@app.get("/api/floats/{float_id}/profiles")
+async def list_profiles(float_id: str, limit: int = Query(default=200, ge=1, le=2000), database: str = Query(default="main")):
     try:
-        df_a = load_profile_data(float_id_a, limit)
-        df_b = load_profile_data(float_id_b, limit)
-
-        if df_a.empty:
-            raise HTTPException(status_code=404, detail=f"No data for float_id_a={float_id_a}")
-        if df_b.empty:
-            raise HTTPException(status_code=404, detail=f"No data for float_id_b={float_id_b}")
-
-        result = argo_comparison_tool(
-            datasets=[df_a.to_dict("records"), df_b.to_dict("records")],
-            labels=[float_id_a, float_id_b],
-            variable="temperature",
-            axis_var="salinity",
-        )
-
-        profiles = result.get("profiles", [])
-        if len(profiles) < 2:
-            raise HTTPException(status_code=404, detail="Insufficient comparison data")
-
-        # measurements[0] is stats; subsequent have curve data
-        def extract_curve(profile):
-            curve = []
-            for m in profile.get("measurements", [])[1:]:
-                s = m.get("salinity")
-                t = m.get("temperature")
-                if s is not None and t is not None:
-                    curve.append((float(s), float(t)))
-            return curve
-
-        curve_a = extract_curve(profiles[0])
-        curve_b = extract_curve(profiles[1])
-
-        if not curve_a or not curve_b:
-            raise HTTPException(status_code=404, detail="No curve data to plot")
-
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.plot([p[0] for p in curve_a], [p[1] for p in curve_a], "b-", linewidth=2.0, label=float_id_a)
-        ax.plot([p[0] for p in curve_b], [p[1] for p in curve_b], "r-", linewidth=2.0, label=float_id_b)
-        ax.set_xlabel("Salinity (PSU)")
-        ax.set_ylabel("Temperature (°C)")
-        ax.set_title("TS Comparison")
-        ax.grid(True, alpha=0.3, linestyle="--")
-        ax.legend()
-
-        buf = BytesIO()
-        fig.tight_layout()
-        fig.savefig(buf, format="png")
-        plt.close(fig)
-        buf.seek(0)
-
-        return Response(content=buf.getvalue(), media_type="image/png")
-    except HTTPException:
-        raise
+        res = db_executor.get_profiles_list_by_float_id(float_id=float_id, database=database, limit=limit)
+        return _to_jsonable({"status": 200, "profiles": res.get("data", [])})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"status": 500, "error": str(e), "profiles": []}
 
 
-@app.get("/api/compare_td_png")
-def compare_td_png(float_id_a: str, float_id_b: str, limit: int = 200):
-    """Return a PNG image comparing TD profiles for two floats (temperature vs pressure)."""
+# Structured analysis endpoint (profile-specific)
+@app.get("/api/analysis")
+async def api_analysis(
+    type: str = Query(..., description="Analysis type: ts_curve|td_curve|temp_trend|sal_trend|comparison|statistics"),
+    float_id: str = Query(...),
+    cycle_number: int | None = Query(default=None),
+    database: str = Query(default="main")
+):
     try:
-        df_a = load_profile_data(float_id_a, limit)
-        df_b = load_profile_data(float_id_b, limit)
-
-        if df_a.empty:
-            raise HTTPException(status_code=404, detail=f"No data for float_id_a={float_id_a}")
-        if df_b.empty:
-            raise HTTPException(status_code=404, detail=f"No data for float_id_b={float_id_b}")
-
-        result = argo_comparison_tool(
-            datasets=[df_a.to_dict("records"), df_b.to_dict("records")],
-            labels=[float_id_a, float_id_b],
-            variable="temperature",
-            axis_var="pressure",
-        )
-
-        profiles = result.get("profiles", [])
-        if len(profiles) < 2:
-            raise HTTPException(status_code=404, detail="Insufficient comparison data")
-
-        def extract_curve(profile):
-            curve = []
-            for m in profile.get("measurements", [])[1:]:
-                p = m.get("pressure")
-                t = m.get("temperature")
-                if p is not None and t is not None:
-                    curve.append((float(p), float(t)))
-            return curve
-
-        curve_a = extract_curve(profiles[0])
-        curve_b = extract_curve(profiles[1])
-
-        if not curve_a or not curve_b:
-            raise HTTPException(status_code=404, detail="No curve data to plot")
-
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.plot([p[0] for p in curve_a], [p[1] for p in curve_a], "b-", linewidth=2.0, label=float_id_a)
-        ax.plot([p[0] for p in curve_b], [p[1] for p in curve_b], "r-", linewidth=2.0, label=float_id_b)
-        ax.set_xlabel("Pressure (dbar)")
-        ax.set_ylabel("Temperature (°C)")
-        ax.set_title("TD Comparison")
-        ax.grid(True, alpha=0.3, linestyle="--")
-        ax.legend()
-
-        buf = BytesIO()
-        fig.tight_layout()
-        fig.savefig(buf, format="png")
-        plt.close(fig)
-        buf.seek(0)
-
-        return Response(content=buf.getvalue(), media_type="image/png")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/ts_curve_png")
-def ts_curve_png(float_id: str, limit: int = 200):
-    """Return a PNG image of the temperature–salinity (TS) profile for a float."""
-    try:
-        df = load_profile_data(float_id, limit)
-        if df.empty:
-            raise HTTPException(status_code=404, detail="No data for this float_id")
-
-        # Reuse TS curve computation to get salinity and temperature arrays
-        result = argo_ts_curve(df.to_dict("records"), show_plot=False)
-        profiles = result.get("profiles", [])
-        if not profiles:
-            raise HTTPException(status_code=404, detail="No TS data for this float_id")
-
-        measurements = profiles[0].get("measurements", [])
-        if not measurements:
-            raise HTTPException(status_code=404, detail="No TS measurements for this float_id")
-
-        sal = [m.get("salinity") for m in measurements if m.get("salinity") is not None]
-        temps = [m.get("temperature") for m in measurements if m.get("temperature") is not None]
-
-        if not sal or not temps or len(sal) != len(temps):
-            raise HTTPException(status_code=404, detail="Insufficient TS data to plot")
-
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.plot(sal, temps, "b-", linewidth=2.0)
-        ax.set_xlabel("Salinity (PSU)")
-        ax.set_ylabel("Temperature (°C)")
-        ax.set_title(f"Temperature–Salinity Profile for {float_id}")
-        ax.grid(True, alpha=0.3, linestyle="--")
-
-        buf = BytesIO()
-        fig.tight_layout()
-        fig.savefig(buf, format="png")
-        plt.close(fig)
-        buf.seek(0)
-
-        return Response(content=buf.getvalue(), media_type="image/png")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/td_curve_png")
-def td_curve_png(float_id: str, limit: int = 200):
-    """Return a PNG image of the temperature–depth profile for a float."""
-    try:
-      df = load_profile_data(float_id, limit)
-      if df.empty:
-          raise HTTPException(status_code=404, detail="No data for this float_id")
-
-      # Reuse TD curve computation to get depth and temperature arrays
-      result = argo_td_curve(df.to_dict("records"), show_plot=False)
-      profiles = result.get("profiles", [])
-      if not profiles:
-          raise HTTPException(status_code=404, detail="No TD data for this float_id")
-
-      measurements = profiles[0].get("measurements", [])
-      if not measurements:
-          raise HTTPException(status_code=404, detail="No TD measurements for this float_id")
-
-      depths = [m.get("depth") for m in measurements if m.get("depth") is not None]
-      temps = [m.get("temperature") for m in measurements if m.get("temperature") is not None]
-
-      if not depths or not temps or len(depths) != len(temps):
-          raise HTTPException(status_code=404, detail="Insufficient TD data to plot")
-
-      # Create matplotlib figure
-      fig, ax = plt.subplots(figsize=(6, 4))
-      ax.plot(temps, depths, "r-", linewidth=2.0)
-      ax.set_xlabel("Temperature (°C)")
-      ax.set_ylabel("Depth (m)")
-      ax.set_title(f"Temperature–Depth Profile for {float_id}")
-      ax.grid(True, alpha=0.3, linestyle="--")
-      ax.invert_yaxis()  # depth increases downward
-
-      buf = BytesIO()
-      fig.tight_layout()
-      fig.savefig(buf, format="png")
-      plt.close(fig)
-      buf.seek(0)
-
-      return Response(content=buf.getvalue(), media_type="image/png")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/td_curve", response_model=ProfilesResponse)
-def td_curve(float_id: str, limit: int = 200):
-    """Get temperature-depth curve for a float"""
-    try:
-        df = load_profile_data(float_id, limit)
-        if df.empty:
-            raise HTTPException(status_code=404, detail="No data for this float_id")
-
-        result = argo_td_curve(df.to_dict("records"), show_plot=False)
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/compare_td", response_model=ProfilesResponse)
-def compare_td(float_id_a: str, float_id_b: str, limit: int = 200):
-    """Compare temperature-pressure profiles for two floats"""
-    try:
-        df_a = load_profile_data(float_id_a, limit)
-        df_b = load_profile_data(float_id_b, limit)
-
-        if df_a.empty:
-            raise HTTPException(status_code=404, detail=f"No data for float_id_a={float_id_a}")
-        if df_b.empty:
-            raise HTTPException(status_code=404, detail=f"No data for float_id_b={float_id_b}")
-
-        result = argo_comparison_tool(
-            datasets=[df_a.to_dict("records"), df_b.to_dict("records")],
-            labels=[float_id_a, float_id_b],
-            variable="temperature",
-            axis_var="pressure",
-        )
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/compare_ts", response_model=ProfilesResponse)
-def compare_ts(float_id_a: str, float_id_b: str, limit: int = 200):
-    """Compare temperature-salinity profiles for two floats"""
-    try:
-        df_a = load_profile_data(float_id_a, limit)
-        df_b = load_profile_data(float_id_b, limit)
-
-        if df_a.empty:
-            raise HTTPException(status_code=404, detail=f"No data for float_id_a={float_id_a}")
-        if df_b.empty:
-            raise HTTPException(status_code=404, detail=f"No data for float_id_b={float_id_b}")
-
-        result = argo_comparison_tool(
-            datasets=[df_a.to_dict("records"), df_b.to_dict("records")],
-            labels=[float_id_a, float_id_b],
-            variable="temperature",
-            axis_var="salinity",
-        )
-        return result
-    except HTTPException:
-        raise
+        # Build structured plan for analysis
+        intent = {
+            "query_text": f"analysis {type} for float {float_id} cycle {cycle_number}",
+            "entities": {"float_ids": [float_id], "regions": [], "parameters": [], "temporal": {}}
+        }
+        plan = {
+            "strategy": "analysis",
+            "analysis_type": type,
+            "data_requirements": {"float_ids": [float_id], "regions": [], "parameters": [], "temporal": {}},
+            "analysis_parameters": ({"cycle_number": cycle_number} if cycle_number is not None else {}),
+            "database": database,
+        }
+        result = orchestrator._execute_analysis_strategy(plan, intent)  # internal call by design
+        return _to_jsonable(result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

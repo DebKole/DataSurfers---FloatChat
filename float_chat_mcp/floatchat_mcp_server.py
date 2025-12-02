@@ -78,10 +78,71 @@ def get_cache_stats() -> dict:
     stats = cache_manager.get_cache_stats()
     return stats
 
+@mcp.tool()
+def run_analysis(
+    analysis_type: str,
+    float_ids: list = None,
+    regions: list = None,
+    parameters: list = None,
+    database: str = "main"
+) -> dict:
+    """
+    Run an explicit analysis (e.g., ts_curve, td_curve, temp_trend, sal_trend, comparison, statistics)
+    using data fetched via the orchestrator's data access tools.
+
+    Args:
+        analysis_type: One of 'ts_curve','td_curve','temp_trend','sal_trend','comparison','statistics'
+        float_ids: Optional list of float IDs
+        regions: Optional list of region names
+        parameters: Optional list of parameters (e.g., ['temperature','salinity'])
+        database: 'main' (historical) or 'live'
+
+    Returns:
+        Analysis results in the same structure as orchestrator.execute_query() returns for analysis
+    """
+    try:
+        # Build a minimal intent and plan mimicking QueryBuilderTool._build_analysis_plan
+        intent = {
+            "query_text": f"explicit analysis: {analysis_type}",
+            "entities": {
+                "float_ids": float_ids or [],
+                "regions": regions or [],
+                "parameters": parameters or [],
+                "temporal": {"seasons": [], "years": [], "months": [], "relative_time": None}
+            }
+        }
+        plan = {
+            "strategy": "analysis",
+            "analysis_type": analysis_type,
+            "data_requirements": {
+                "float_ids": float_ids or [],
+                "regions": regions or [],
+                "parameters": parameters or [],
+                "temporal": intent["entities"]["temporal"]
+            },
+            "analysis_parameters": {},
+            "database": database
+        }
+        # Use the same internal executor used by execute_query()
+        results = orchestrator._execute_analysis_strategy(plan, intent)  # noqa: SLF001 intentional internal call
+        # Attach metadata similar to execute_query
+        results.update({
+            "query_metadata": {
+                "original_query": intent["query_text"],
+                "intent_analysis": intent,
+                "execution_plan": plan,
+                "timestamp": ""
+            }
+        })
+        return results
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
 if __name__ == "__main__":
     print("🚀 Starting FloatChat MCP Server (FastMCP)")
     print("📊 Tools available:")
     print("   - execute_query (Gemini AI + Redis caching)")
+    print("   - run_analysis (explicit analysis via data access)")
     print("   - get_recent_queries")
     print("   - get_system_status")
     print("   - get_cache_stats")
