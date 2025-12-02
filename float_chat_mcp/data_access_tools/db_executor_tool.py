@@ -29,7 +29,7 @@ class DatabaseExecutorTool:
             'port': int(os.getenv('DB_PORT', 5432)),
             'user': os.getenv('DB_USERNAME', 'postgres'),
             'password': os.getenv('DB_PASSWORD'),
-            'database': 'argo_db'  # January data
+            'database': os.getenv('DB_NAME', 'floatchat_argo')  # Main historical data
         }
         
         self.live_db_config = {
@@ -171,6 +171,7 @@ class DatabaseExecutorTool:
         float_id: str,
         database: str = "main",
         include_measurements: bool = False,
+        cycle_number: Optional[int] = None,
         limit: int = 100
     ) -> Dict[str, Any]:
         """Get profiles for a specific float"""
@@ -191,6 +192,7 @@ class DatabaseExecutorTool:
             FROM argo_profiles ap
             JOIN argo_measurements am ON ap.global_profile_id = am.global_profile_id
             WHERE ap.float_id = '{float_id}'
+            {f"AND ap.cycle_number = {cycle_number}" if cycle_number is not None else ""}
             ORDER BY ap.datetime DESC, am.level ASC
             LIMIT {limit};
             """
@@ -199,10 +201,41 @@ class DatabaseExecutorTool:
             SELECT *
             FROM argo_profiles
             WHERE float_id = '{float_id}'
+            {f"AND cycle_number = {cycle_number}" if cycle_number is not None else ""}
             ORDER BY datetime DESC
             LIMIT {limit};
             """
         
+        return self.execute_query(sql, database)
+
+    def get_distinct_floats(self, database: str = "main", limit: int = 1000) -> Dict[str, Any]:
+        """List distinct float IDs available in the database"""
+        sql = f"""
+        SELECT DISTINCT float_id
+        FROM argo_profiles
+        ORDER BY float_id
+        LIMIT {limit};
+        """
+        return self.execute_query(sql, database)
+
+    def get_profiles_list_by_float_id(self, float_id: str, database: str = "main", limit: int = 200) -> Dict[str, Any]:
+        """List profiles (metadata only) for a float"""
+        sql = f"""
+        SELECT 
+            global_profile_id,
+            float_id,
+            cycle_number,
+            datetime,
+            latitude,
+            longitude,
+            min_pressure,
+            max_pressure,
+            measurement_count
+        FROM argo_profiles
+        WHERE float_id = '{float_id}'
+        ORDER BY datetime DESC
+        LIMIT {limit};
+        """
         return self.execute_query(sql, database)
     
     def get_database_stats(self, database: str = "main") -> Dict[str, Any]:

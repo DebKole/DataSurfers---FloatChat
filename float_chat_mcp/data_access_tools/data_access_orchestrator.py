@@ -17,6 +17,7 @@ from float_chat_mcp.data_access_tools.query_builder_tool import QueryBuilderTool
 from float_chat_mcp.data_access_tools.vector_retrieval_tool import VectorRetrievalTool
 from float_chat_mcp.data_access_tools.db_executor_tool import DatabaseExecutorTool
 from float_chat_mcp.data_access_tools.analysis_tools_wrapper import AnalysisToolsWrapper
+from gemini_sql_generator import GeminiSQLGenerator
 
 class DataAccessOrchestrator:
     """Orchestrates all data access tools for intelligent query execution"""
@@ -33,6 +34,9 @@ class DataAccessOrchestrator:
         self.vector_tool = VectorRetrievalTool()
         self.db_tool = DatabaseExecutorTool(enable_cache=enable_cache)
         self.analysis_wrapper = AnalysisToolsWrapper()
+        # Initialize Gemini for summarization (reuse same generator)
+        self.use_gemini = use_gemini
+        self.gemini_generator = GeminiSQLGenerator() if use_gemini else None
     
     def execute_query(self, user_query: str) -> Dict[str, Any]:
         """
@@ -74,6 +78,8 @@ class DataAccessOrchestrator:
                     "intent_analysis": intent,
                     "execution_plan": plan,
                     "execution_time": f"{execution_time:.2f}s",
+                    "strategy_decided_by": intent.get("strategy_decider"),
+                    "analysis_type_decided_by": intent.get("analysis_decider"),
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
                 }
             })
@@ -249,13 +255,64 @@ class DataAccessOrchestrator:
             filters=plan.get("filters")
         )
         
+        # Try to produce an LLM summary over vector results
+        llm_summary = None
+        gemini_powered = False
+        try:
+            llm_summary = self._summarize_vector_results(intent["query_text"], vector_result)
+            gemini_powered = llm_summary is not None
+        except Exception as e:
+            print(f"⚠️ LLM summarization failed: {e}")
+            llm_summary = None
+            gemini_powered = False
+        
         return {
             "status": "success",
             "strategy": "vector_only",
             "data_sources": ["ChromaDB Vector Search"],
             "results": [vector_result],
-            "semantic_query": plan["query"]
+            "semantic_query": plan["query"],
+            "llm_summary": llm_summary,
+            "gemini_powered": gemini_powered
         }
+
+    def _summarize_vector_results(self, user_query: str, vector_result: Dict[str, Any]) -> Optional[str]:
+        """Use Gemini to synthesize a concise answer from vector search results."""
+        if not self.use_gemini or not self.gemini_generator:
+            return None
+        model = getattr(self.gemini_generator, "model", None)
+        if model is None:
+            return None
+        # Prepare a compact context from vector hits
+        hits = []
+        try:
+            for item in vector_result.get("results", [])[:20]:
+                # Keep small subset of fields to limit prompt size
+                compact = {
+                    k: item.get(k)
+                    for k in [
+                        "profile_id", "global_profile_id", "float_id", "datetime",
+                        "latitude", "longitude", "temperature", "salinity", "region"
+                    ]
+                    if k in item
+                }
+                hits.append(compact)
+        except Exception:
+            pass
+        context_json = json.dumps({"hits": hits}, default=str)
+        prompt = (
+            "You are an oceanography assistant. Given a user query and top vector search hits, "
+            "write a short, helpful answer (2-4 sentences) summarizing what the data suggests. "
+            "Avoid markdown, be concise, and mention that detailed rows are available in the table.\n\n"
+            f"USER QUERY: {user_query}\n"
+            f"TOP HITS (JSON): {context_json}\n\n"
+            "Answer:"
+        )
+        resp = model.generate_content(prompt)
+        summary = (resp.text or "").strip()
+        # Sanitize stray markdown
+        summary = summary.replace("**", "").replace("*", "").replace("#", "")
+        return summary or None
     
     def _execute_hybrid_strategy(self, plan: Dict[str, Any], intent: Dict[str, Any]) -> Dict[str, Any]:
         """Execute hybrid strategy (vector + SQL)"""
@@ -415,16 +472,26 @@ class DataAccessOrchestrator:
         
         # Determine what data to fetch based on requirements
         if data_req["float_ids"]:
-            # Fetch by float ID
+            # Fetch by float ID (support optional cycle_number)
+            cycle_number = None
+            try:
+                cycle_number = plan.get("analysis_parameters", {}).get("cycle_number")
+                if cycle_number is None:
+                    cycle_number = data_req.get("cycle_number")
+            except Exception:
+                cycle_number = None
             for float_id in data_req["float_ids"]:
+                params = {
+                    "float_id": float_id,
+                    "include_measurements": True,
+                    "limit": 500
+                }
+                if cycle_number is not None:
+                    params["cycle_number"] = cycle_number
                 temp_plan["queries"].append({
                     "type": "float_lookup",
                     "method": "get_profiles_by_float_id",
-                    "params": {
-                        "float_id": float_id,
-                        "include_measurements": True,
-                        "limit": 500
-                    }
+                    "params": params
                 })
         elif data_req["regions"]:
             # Fetch by region
@@ -445,8 +512,61 @@ class DataAccessOrchestrator:
                 "params": {}
             })
         
-        # Execute the data fetch
-        return self._execute_sql_strategy(temp_plan, intent)
+        # Execute the initial data fetch
+        initial = self._execute_sql_strategy(temp_plan, intent)
+
+        # If no data was found and we're on 'main', try 'live' automatically
+        try:
+            initial_list = self._extract_data_list(initial)
+            if not initial_list and database == "main":
+                print("   ℹ️ No data on 'main', retrying data fetch on 'live' database...")
+                temp_plan_live = dict(temp_plan)
+                temp_plan_live["database"] = "live"
+                initial_live = self._execute_sql_strategy(temp_plan_live, intent)
+                live_list = self._extract_data_list(initial_live)
+                if live_list:
+                    return initial_live
+        except Exception:
+            pass
+
+        # If we fetched by regions, enrich by fetching measurements for the found profile IDs
+        try:
+            need_enrichment = any(q.get("type") == "regional_search" for q in temp_plan.get("queries", []))
+            if need_enrichment:
+                # Collect profile IDs from initial results
+                profile_ids = []
+                for res in initial.get("results", []):
+                    inner = res.get("result") if isinstance(res, dict) else None
+                    if isinstance(inner, dict):
+                        data = inner.get("data", [])
+                        for row in data:
+                            gp = row.get("global_profile_id") or row.get("GLOBAL_PROFILE_ID")
+                            if gp is not None:
+                                try:
+                                    profile_ids.append(int(gp))
+                                except Exception:
+                                    continue
+                profile_ids = list({pid for pid in profile_ids})
+
+                if profile_ids:
+                    # Fetch measurements for these profiles (include common parameters)
+                    meas = self.db_tool.get_measurements_by_profile_ids(
+                        profile_ids=profile_ids[:100],
+                        parameters=["temperature", "salinity", "pressure"],
+                        database=database
+                    )
+                    # Replace results with measurement result for analysis friendliness
+                    return {
+                        "status": "success",
+                        "strategy": "sql_only",
+                        "data_sources": [f"PostgreSQL ({database})"],
+                        "results": [{"query_type": "regional_measurements", "result": meas}]
+                    }
+        except Exception:
+            # If enrichment fails, fall back to initial
+            pass
+
+        return initial
     
     def _extract_data_list(self, data_result: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract flat list of measurements from orchestrator result"""
@@ -481,30 +601,32 @@ class DataAccessOrchestrator:
         labels = []
         
         for entity in entities_to_compare[:5]:  # Limit to 5 comparisons
-            # Create temp plan for this entity
+            # Build a temp plan per entity
             temp_plan = {
                 "strategy": "sql_only",
                 "database": plan.get("database", "main"),
                 "queries": []
             }
-            
-            if entity in data_req["float_ids"]:
+
+            # Decide if entity is a float_id (all digits) or region label
+            if isinstance(entity, str) and entity.isdigit():
                 temp_plan["queries"].append({
                     "type": "float_lookup",
                     "method": "get_profiles_by_float_id",
-                    "params": {"float_id": entity, "include_measurements": True, "limit": 200}
+                    "params": {"float_id": entity, "include_measurements": True, "limit": 500}
                 })
-                labels.append(f"Float {entity}")
+                labels.append(entity)
             else:
                 temp_plan["queries"].append({
                     "type": "regional_search",
                     "method": "get_profiles_by_region",
                     "params": {"region": entity, "limit": 200}
                 })
-                labels.append(entity)
-            
-            # Fetch data
+                labels.append(str(entity))
+
+            # Fetch data for this entity
             entity_result = self._execute_sql_strategy(temp_plan, intent)
+            # If region, enrich to measurements similar to _fetch_data_for_analysis()
             entity_data = self._extract_data_list(entity_result)
             
             if entity_data:
