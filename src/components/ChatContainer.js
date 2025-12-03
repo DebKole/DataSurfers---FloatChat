@@ -3,13 +3,14 @@ import { useNavigate } from "react-router-dom";
 import "./ChatContainer.css";
 import axios from "axios";
 import FAQ from "./FAQ";
-import logo from "../assets/Logo (3).png";
 import ChartRenderer from "./ChartRenderer";
 
 const ChatContainer = ({
   onMapRequest = () => {},
   onMapData = () => {},
   onTableData = () => {},
+  showChatHistory = false,
+  onToggleChatHistory = () => {},
 }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
@@ -18,14 +19,18 @@ const ChatContainer = ({
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
   const userRequestedMapRef = useRef(false);
+  
+  // Chat history state
+  const [chatHistory, setChatHistory] = useState([
+    { id: 1, title: 'Ocean Temperature Analysis', date: '2024-01-15', preview: 'Analyzing temperature trends in Pacific...' },
+    { id: 2, title: 'Salinity Data Query', date: '2024-01-14', preview: 'Looking at salinity levels in Arctic...' },
+    { id: 3, title: 'Deep Ocean Exploration', date: '2024-01-13', preview: 'Exploring abyssal zone characteristics...' },
+    { id: 4, title: 'Current Patterns Study', date: '2024-01-12', preview: 'Understanding ocean current patterns...' }
+  ]);
+  const [activeChat, setActiveChat] = useState(null);
 
   const actionOptions = [
-    // {
-    //   title: "Retrieve Argo Data",
-    //   description: "Access oceanographic data from ARGO floats worldwide",
-    //   icon: "fa-download",
-    //   prompt: "Help me retrieve ARGO float data"
-    // },
+
     {
       title: "Analyse Data",
       description: "Perform analysis on oceanographic datasets",
@@ -211,17 +216,46 @@ const ChatContainer = ({
     }
   };
 
+  const selectChat = (chatId) => {
+    setActiveChat(chatId);
+    // Here you would load the selected chat conversation
+  };
+
+  const deleteChat = (chatId, e) => {
+    e.stopPropagation();
+    setChatHistory(chatHistory.filter(chat => chat.id !== chatId));
+    if (activeChat === chatId) {
+      setActiveChat(null);
+    }
+  };
+
+  const startNewChat = () => {
+    setActiveChat(null);
+    setMessages([]);
+    onToggleChatHistory();
+  };
+
   return (
     <main className="chat-container" id="chat">
-      {/* Dashboard Button (top-left) */}
-      <button
-        className="dashboard-top-btn"
-        onClick={() => navigate("/dashboard")}
-        aria-label="Open Dashboard"
-      >
-        <i className="fas fa-chart-line"></i>
-        Dashboard
-      </button>
+      {/* Top buttons */}
+      <div className="top-buttons">
+        <button
+          className="chat-history-icon-btn"
+          onClick={onToggleChatHistory}
+          aria-label="Toggle Chat History"
+        >
+          <i className="fas fa-comments"></i>
+        </button>
+        <button
+          className="dashboard-top-btn"
+          onClick={() => navigate("/dashboard")}
+          aria-label="Open Dashboard"
+        >
+          <i className="fas fa-chart-line"></i>
+          Dashboard
+        </button>
+      </div>
+      
       {/* FAQ Button */}
       <button
         className={`faq-button ${highlightFAQ ? "highlight" : ""}`}
@@ -231,6 +265,54 @@ const ChatContainer = ({
         <i className="fas fa-question-circle"></i>
         FAQ
       </button>
+
+      {/* Chat History Slide-in Panel */}
+      {showChatHistory && (
+        <>
+          <div className="chat-history-overlay" onClick={onToggleChatHistory}></div>
+          <div className="chat-history-panel">
+            <div className="chat-history-header">
+              <h2>
+                <i className="fas fa-comments"></i>
+                Chat History
+              </h2>
+              <button className="close-panel-btn" onClick={onToggleChatHistory}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <button className="new-chat-btn" onClick={startNewChat}>
+              <i className="fas fa-plus"></i>
+              <span>New Chat</span>
+            </button>
+
+            <div className="chat-history-list">
+              {chatHistory.map((chat) => (
+                <div
+                  key={chat.id}
+                  className={`chat-history-item ${activeChat === chat.id ? "active" : ""}`}
+                  onClick={() => selectChat(chat.id)}
+                >
+                  <div className="chat-info">
+                    <div className="chat-title">{chat.title}</div>
+                    <div className="chat-meta">
+                      <span className="chat-date">{chat.date}</span>
+                      <span className="chat-preview">{chat.preview}</span>
+                    </div>
+                  </div>
+                  <button
+                    className="delete-chat-btn"
+                    onClick={(e) => deleteChat(chat.id, e)}
+                    title="Delete chat"
+                  >
+                    <i className="fas fa-trash"></i>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="chat-header">
         <h1>FloatChat</h1>

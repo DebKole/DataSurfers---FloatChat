@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
-import Sidebar from './components/Sidebar';
 import ChatContainer from './components/ChatContainer';
 import DataSidebar from './components/DataSidebar';
 import MapPage from './components/MapPage';
@@ -13,6 +12,7 @@ import './index.css';
 //Main chat interface
 function ChatInterface() {
   const [dataSidebarView, setDataSidebarView] = useState('table');
+  const [showChatHistory, setShowChatHistory] = useState(false);
   const navigate = useNavigate();
   // Keep BOTH: table data AND map/trajectory/demo features
   const [tableData, setTableData] = useState(null);
@@ -134,8 +134,13 @@ function ChatInterface() {
 
   return (
     <div className="container">
-      <Sidebar />
-      <ChatContainer onMapRequest={handleMapRequest} onMapData={handleMapData} onTableData={handleTableData} />
+      <ChatContainer 
+        onMapRequest={handleMapRequest} 
+        onMapData={handleMapData} 
+        onTableData={handleTableData}
+        showChatHistory={showChatHistory}
+        onToggleChatHistory={() => setShowChatHistory(!showChatHistory)}
+      />
       <DataSidebar
         selectedView={dataSidebarView}
         onViewChange={setDataSidebarView}
