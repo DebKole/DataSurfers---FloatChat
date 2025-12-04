@@ -3,16 +3,15 @@ import { useNavigate } from "react-router-dom";
 import "./ChatContainer.css";
 import axios from "axios";
 import FAQ from "./FAQ";
-
+import ChartRenderer from "./ChartRenderer";
 import logo from "../assets/Logo (3).png";
-import ChartRenderer from './ChartRenderer';
-
 
 const ChatContainer = ({
   onMapRequest = () => {},
   onMapData = () => {},
   onTableData = () => {},
-  // NEW: history props
+  showChatHistory = false,
+  onToggleChatHistory = () => {},
   chatHistory = [],
   onSelectChat = () => {},
 }) => {
@@ -26,14 +25,29 @@ const ChatContainer = ({
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
   const userRequestedMapRef = useRef(false);
+  
+  // Chat history state
+  const [activeChat, setActiveChat] = useState(null);
+  const [localChatHistory, setLocalChatHistory] = useState(
+    chatHistory.length > 0 
+      ? chatHistory 
+      : [
+          { id: 1, title: 'Ocean Temperature Analysis', date: '2024-01-15', preview: 'Analyzing temperature trends in Pacific...' },
+          { id: 2, title: 'Salinity Data Query', date: '2024-01-14', preview: 'Looking at salinity levels in Arctic...' },
+          { id: 3, title: 'Deep Ocean Exploration', date: '2024-01-13', preview: 'Exploring abyssal zone characteristics...' },
+          { id: 4, title: 'Current Patterns Study', date: '2024-01-12', preview: 'Understanding ocean current patterns...' }
+        ]
+  );
+
+  // Update local chat history when prop changes
+  useEffect(() => {
+    if (chatHistory && chatHistory.length > 0) {
+      setLocalChatHistory(chatHistory);
+    }
+  }, [chatHistory]);
 
   const actionOptions = [
-    // {
-    //   title: "Retrieve Argo Data",
-    //   description: "Access oceanographic data from ARGO floats worldwide",
-    //   icon: "fa-download",
-    //   prompt: "Help me retrieve ARGO float data"
-    // },
+
     {
       title: "Analyse Data",
       description: "Perform analysis on oceanographic datasets",
@@ -133,13 +147,13 @@ const ChatContainer = ({
 
       setMessages((prev) => [
         ...prev,
-        { 
-          type: 'bot', 
+        {
+          type: "bot",
           content: response.data.message,
           chartData: response.data.chart_data,
           tableData: response.data.table_data,
-          hasData: response.data.has_data
-        }
+          hasData: response.data.has_data,
+        },
       ]);
 
       // Open map overlay only if backend explicitly indicates AND there's no table view requested
@@ -168,7 +182,7 @@ const ChatContainer = ({
   };
 
   const handleSend = async () => {
-    if (!inputValue.trim()) {
+    if (inputValue.trim()) {
       // Add user message
       console.log("handle send");
       const newMessages = [...messages, { type: "user", content: inputValue }];
@@ -203,13 +217,13 @@ const ChatContainer = ({
         // Add bot message with response
         setMessages((prev) => [
           ...prev,
-          { 
-            type: 'bot', 
+          {
+            type: "bot",
             content: response.data.message,
             chartData: response.data.chart_data,
             tableData: response.data.table_data,
-            hasData: response.data.has_data
-          }
+            hasData: response.data.has_data,
+          },
         ]);
 
         // Open map overlay only if backend explicitly indicates AND there's no table view requested
@@ -243,17 +257,57 @@ const ChatContainer = ({
     }
   };
 
+  const selectChat = (chatId) => {
+    setActiveChat(chatId);
+    // Here you would load the selected chat conversation
+  };
+
+  const deleteChat = (chatId, e) => {
+    e.stopPropagation();
+    const updatedHistory = localChatHistory.filter(chat => chat.id !== chatId);
+    setLocalChatHistory(updatedHistory);
+    
+    // If we have an onSelectChat prop, use it to notify parent
+    if (onSelectChat) {
+      onSelectChat(null);
+    }
+    
+    if (activeChat === chatId) {
+      setActiveChat(null);
+    }
+  };
+
+  const startNewChat = () => {
+    setActiveChat(null);
+    setMessages([]);
+    
+    // If we have the toggle prop, use it, otherwise just clear the chat
+    if (onToggleChatHistory) {
+      onToggleChatHistory();
+    }
+  };
+
   return (
     <main className="chat-container" id="chat">
-      {/* Dashboard Button (top-left) */}
-      <button
-        className="dashboard-top-btn"
-        onClick={() => navigate("/dashboard")}
-        aria-label="Open Dashboard"
-      >
-        <i className="fas fa-chart-line"></i>
-        Dashboard
-      </button>
+      {/* Top buttons */}
+      <div className="top-buttons">
+        <button
+          className="chat-history-icon-btn"
+          onClick={onToggleChatHistory}
+          aria-label="Toggle Chat History"
+        >
+          <i className="fas fa-comments"></i>
+        </button>
+        <button
+          className="dashboard-top-btn"
+          onClick={() => navigate("/dashboard")}
+          aria-label="Open Dashboard"
+        >
+          <i className="fas fa-chart-line"></i>
+          Dashboard
+        </button>
+      </div>
+      
       {/* FAQ Button */}
       <button
         className={`faq-button ${highlightFAQ ? "highlight" : ""}`}
@@ -263,6 +317,54 @@ const ChatContainer = ({
         <i className="fas fa-question-circle"></i>
         FAQ
       </button>
+
+      {/* Chat History Slide-in Panel */}
+      {showChatHistory && (
+        <>
+          <div className="chat-history-overlay" onClick={onToggleChatHistory}></div>
+          <div className="chat-history-panel">
+            <div className="chat-history-header">
+              <h2>
+                <i className="fas fa-comments"></i>
+                Chat History
+              </h2>
+              <button className="close-panel-btn" onClick={onToggleChatHistory}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <button className="new-chat-btn" onClick={startNewChat}>
+              <i className="fas fa-plus"></i>
+              <span>New Chat</span>
+            </button>
+
+            <div className="chat-history-list">
+              {localChatHistory.map((chat) => (
+                <div
+                  key={chat.id}
+                  className={`chat-history-item ${activeChat === chat.id ? "active" : ""}`}
+                  onClick={() => selectChat(chat.id)}
+                >
+                  <div className="chat-info">
+                    <div className="chat-title">{chat.title}</div>
+                    <div className="chat-meta">
+                      <span className="chat-date">{chat.date}</span>
+                      <span className="chat-preview">{chat.preview}</span>
+                    </div>
+                  </div>
+                  <button
+                    className="delete-chat-btn"
+                    onClick={(e) => deleteChat(chat.id, e)}
+                    title="Delete chat"
+                  >
+                    <i className="fas fa-trash"></i>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="chat-header">
         <h1>FloatChat</h1>
@@ -304,20 +406,24 @@ const ChatContainer = ({
           </div>
         ) : (
           messages.map((message, index) => (
-            <div key={index}>
+            <React.Fragment key={index}>
               <div className={`message ${message.type}-message`}>
                 <div className={`message-header ${message.type}-header`}>
-                  <i className={`fas ${message.type === 'user' ? 'fa-user' : 'fa-robot'}`} aria-hidden="true"></i>
-                  {message.type === 'user' ? 'You' : 'FloatChat'}
+                  <i
+                    className={`fas ${
+                      message.type === "user" ? "fa-user" : "fa-robot"
+                    }`}
+                  ></i>
+                  {message.type === "user" ? "You" : "FloatChat"}
                 </div>
                 {message.content}
               </div>
-              
-              {/* Render chart if available */}
-              {message.chartData && message.type === 'bot' && (
+
+              {/* Chart renderer, if available */}
+              {message.chartData && message.type === "bot" && (
                 <ChartRenderer chartData={message.chartData} />
               )}
-            </div>
+            </React.Fragment>
           ))
         )}
         <div ref={messagesEndRef} />
@@ -392,12 +498,12 @@ const ChatContainer = ({
             </div>
 
             <div className="chat-history-modal-list">
-              {(!chatHistory || chatHistory.length === 0) && (
+              {(!localChatHistory || localChatHistory.length === 0) && (
                 <div className="chat-history-empty">No chats yet</div>
               )}
 
-              {chatHistory &&
-                chatHistory.map((chat) => (
+              {localChatHistory &&
+                localChatHistory.map((chat) => (
                   <button
                     key={chat.id}
                     className="chat-history-modal-item"

@@ -46,16 +46,18 @@ class MCPQueryAgent:
         
         # If it's a pure informational question, route to LLM immediately
         if any(pattern in query_lower for pattern in pure_informational_patterns):
+            print(f"   ℹ️ Detected informational query, routing to LLM")
             return False
         
         # Action verbs that indicate data retrieval (strong signals)
         action_verbs = [
             'show', 'get', 'find', 'list', 'display', 'retrieve',
-            'fetch', 'give me', 'show me', 'get me'
+            'fetch', 'give me', 'show me', 'get me', 'give'
         ]
         
         # If query has action verbs, it's definitely a data query
         if any(verb in query_lower for verb in action_verbs):
+            print(f"   ✅ Detected data query (action verb: {[v for v in action_verbs if v in query_lower]})")
             return True
         
         # Data-specific terms with context (profiles, measurements, specific IDs)
@@ -69,6 +71,7 @@ class MCPQueryAgent:
         
         # If query has data-specific terms with context, it's a data query
         if any(term in query_lower for term in data_specific_terms):
+            print(f"   ✅ Detected data query (data-specific term)")
             return True
         
         # Check for pattern: "what are the [data_term]" (e.g., "what are the profiles")
@@ -76,9 +79,11 @@ class MCPQueryAgent:
         if 'what are the' in query_lower or 'what is the' in query_lower:
             data_nouns = ['profile', 'measurement', 'data', 'temperature', 'salinity', 'pressure']
             if any(noun in query_lower for noun in data_nouns):
+                print(f"   ✅ Detected data query (what are the...)")
                 return True
         
         # Default: not a data query
+        print(f"   ❌ Not detected as data query, routing to LLM")
         return False
     
     def execute_query(self, query: str) -> dict:

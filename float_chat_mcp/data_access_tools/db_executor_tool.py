@@ -24,24 +24,88 @@ class DatabaseExecutorTool:
         Args:
             enable_cache: Whether to enable caching (for future use)
         """
-        self.main_db_config = {
+        # Base database configuration
+        self.base_db_config = {
             'host': os.getenv('DB_HOST', 'localhost'),
             'port': int(os.getenv('DB_PORT', 5432)),
             'user': os.getenv('DB_USERNAME', 'postgres'),
-            'password': os.getenv('DB_PASSWORD'),
-            'database': 'argo_db'  # January data
+            'password': os.getenv('DB_PASSWORD')
+        }
+        
+        # Year-based databases: argo_indian_ocean_15 through argo_indian_ocean_25
+        self.year_databases = {
+            year: f"argo_indian_ocean_{year}" 
+            for year in range(15, 26)  # 2015-2025
+        }
+        
+        # Legacy database configs for backward compatibility
+        self.main_db_config = {
+            **self.base_db_config,
+            'database': os.getenv('DB_NAME', 'floatchat_argo')
         }
         
         self.live_db_config = {
-            'host': os.getenv('DB_HOST', 'localhost'),
-            'port': int(os.getenv('DB_PORT', 5432)),
-            'user': os.getenv('DB_USERNAME', 'postgres'),
-            'password': os.getenv('DB_PASSWORD'),
-            'database': 'floatchat_argo_live'  # Live data
+            **self.base_db_config,
+            'database': 'floatchat_argo_live'
         }
         
         self.logger = logging.getLogger(__name__)
         self.cache = None  # Placeholder for future caching implementation
+    
+    def get_database_for_year(self, year: int) -> str:
+        """
+        Get database name for a specific year
+        
+        Args:
+            year: Full year (e.g., 2023) or 2-digit year (e.g., 23)
+            
+        Returns:
+            Database name
+        """
+        # Convert to 2-digit year if needed
+        if year >= 2000:
+            year = year % 100
+        
+        if year in self.year_databases:
+            return self.year_databases[year]
+        
+        # Default to most recent database if year not found
+        return self.year_databases[25]  # 2025
+    
+    def determine_databases_for_query(self, start_year: int = None, end_year: int = None) -> List[str]:
+        """
+        Determine which databases to query based on year range
+        
+        Args:
+            start_year: Start year (optional)
+            end_year: End year (optional)
+            
+        Returns:
+            List of database names to query
+        """
+        if start_year is None and end_year is None:
+            # Query all databases
+            return list(self.year_databases.values())
+        
+        # Convert to 2-digit years
+        if start_year and start_year >= 2000:
+            start_year = start_year % 100
+        if end_year and end_year >= 2000:
+            end_year = end_year % 100
+        
+        # Default range
+        if start_year is None:
+            start_year = 15
+        if end_year is None:
+            end_year = 25
+        
+        # Get databases in range
+        databases = []
+        for year in range(start_year, end_year + 1):
+            if year in self.year_databases:
+                databases.append(self.year_databases[year])
+        
+        return databases if databases else [self.year_databases[25]]
     
     def execute_query(
         self, 
@@ -50,18 +114,20 @@ class DatabaseExecutorTool:
         return_format: str = "dict",
         use_cache: bool = True,
         user_query: str = None,
-        analysis: str = None
+        analysis: str = None,
+        year: int = None
     ) -> Dict[str, Any]:
         """
         Execute SQL query on specified database
         
         Args:
             sql: SQL query string
-            database: "main" (January data) or "live" (current data)
+            database: Database name or "main"/"live" for legacy support
             return_format: "dict", "dataframe", or "json"
             use_cache: Whether to use cache for this query
             user_query: Original user query (optional, for context)
             analysis: Gemini analysis of results (optional)
+            year: Specific year to query (optional, overrides database param)
             
         Returns:
             Query results with metadata
@@ -75,8 +141,20 @@ class DatabaseExecutorTool:
                     "sql": sql
                 }
             
-            # Choose database configuration
-            db_config = self.main_db_config if database == "main" else self.live_db_config
+            # Determine database configuration
+            if year:
+                # Use year-based database
+                db_name = self.get_database_for_year(year)
+                db_config = {**self.base_db_config, 'database': db_name}
+            elif database == "main":
+                db_config = self.main_db_config
+            elif database == "live":
+                db_config = self.live_db_config
+            elif database.startswith("argo_"):
+                # Direct database name provided
+                db_config = {**self.base_db_config, 'database': database}
+            else:
+                db_config = self.main_db_config
             
             # Execute query
             with psycopg2.connect(**db_config) as conn:
@@ -85,7 +163,7 @@ class DatabaseExecutorTool:
             # Format results
             result = {
                 "status": "success",
-                "database": database,
+                "database": db_config['database'],
                 "sql": sql,
                 "row_count": len(df),
                 "columns": list(df.columns),
@@ -118,6 +196,75 @@ class DatabaseExecutorTool:
                 "sql": sql,
                 "database": database
             }
+    
+    def execute_multi_database_query(
+        self,
+        sql: str,
+        databases: List[str] = None,
+        start_year: int = None,
+        end_year: int = None,
+        return_format: str = "dict"
+    ) -> Dict[str, Any]:
+        """
+        Execute query across multiple year-based databases and combine results
+        
+        Args:
+            sql: SQL query string
+            databases: List of database names (optional)
+            start_year: Start year for range query (optional)
+            end_year: End year for range query (optional)
+            return_format: "dict", "dataframe", or "json"
+            
+        Returns:
+            Combined query results from all databases
+        """
+        if databases is None:
+            databases = self.determine_databases_for_query(start_year, end_year)
+        
+        all_results = []
+        successful_dbs = []
+        failed_dbs = []
+        
+        for db_name in databases:
+            try:
+                result = self.execute_query(sql, database=db_name, return_format="dataframe")
+                if result["status"] == "success" and result["row_count"] > 0:
+                    all_results.append(result["data"])
+                    successful_dbs.append(db_name)
+            except Exception as e:
+                failed_dbs.append({"database": db_name, "error": str(e)})
+        
+        if not all_results:
+            return {
+                "status": "error",
+                "error": "No data found in any database",
+                "databases_queried": databases,
+                "failed_databases": failed_dbs
+            }
+        
+        # Combine all dataframes
+        combined_df = pd.concat(all_results, ignore_index=True)
+        
+        # Format result
+        result = {
+            "status": "success",
+            "databases_queried": successful_dbs,
+            "failed_databases": failed_dbs,
+            "sql": sql,
+            "row_count": len(combined_df),
+            "columns": list(combined_df.columns),
+            "execution_time": "< 1s"
+        }
+        
+        # Add data in requested format
+        if return_format == "dataframe":
+            result["data"] = combined_df
+        elif return_format == "json":
+            result["data"] = combined_df.to_json(orient="records", date_format="iso")
+        else:
+            result["data"] = combined_df.to_dict(orient="records")
+        
+        return result
     
     def get_profiles_by_region(
         self, 
@@ -171,6 +318,7 @@ class DatabaseExecutorTool:
         float_id: str,
         database: str = "main",
         include_measurements: bool = False,
+        cycle_number: Optional[int] = None,
         limit: int = 100
     ) -> Dict[str, Any]:
         """Get profiles for a specific float"""
@@ -191,6 +339,7 @@ class DatabaseExecutorTool:
             FROM argo_profiles ap
             JOIN argo_measurements am ON ap.global_profile_id = am.global_profile_id
             WHERE ap.float_id = '{float_id}'
+            {f"AND ap.cycle_number = {cycle_number}" if cycle_number is not None else ""}
             ORDER BY ap.datetime DESC, am.level ASC
             LIMIT {limit};
             """
@@ -199,10 +348,41 @@ class DatabaseExecutorTool:
             SELECT *
             FROM argo_profiles
             WHERE float_id = '{float_id}'
+            {f"AND cycle_number = {cycle_number}" if cycle_number is not None else ""}
             ORDER BY datetime DESC
             LIMIT {limit};
             """
         
+        return self.execute_query(sql, database)
+
+    def get_distinct_floats(self, database: str = "main", limit: int = 1000) -> Dict[str, Any]:
+        """List distinct float IDs available in the database"""
+        sql = f"""
+        SELECT DISTINCT float_id
+        FROM argo_profiles
+        ORDER BY float_id
+        LIMIT {limit};
+        """
+        return self.execute_query(sql, database)
+
+    def get_profiles_list_by_float_id(self, float_id: str, database: str = "main", limit: int = 200) -> Dict[str, Any]:
+        """List profiles (metadata only) for a float"""
+        sql = f"""
+        SELECT 
+            global_profile_id,
+            float_id,
+            cycle_number,
+            datetime,
+            latitude,
+            longitude,
+            min_pressure,
+            max_pressure,
+            measurement_count
+        FROM argo_profiles
+        WHERE float_id = '{float_id}'
+        ORDER BY datetime DESC
+        LIMIT {limit};
+        """
         return self.execute_query(sql, database)
     
     def get_database_stats(self, database: str = "main") -> Dict[str, Any]:

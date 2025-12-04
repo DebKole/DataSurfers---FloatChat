@@ -23,22 +23,29 @@ class GeminiSQLGenerator:
         genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
         self.model = genai.GenerativeModel('gemini-2.5-flash')  # Latest model
         
-        # Database configuration
-        self.db_config = {
+        # Base database configuration
+        self.base_db_config = {
             'host': os.getenv('DB_HOST', 'localhost'),
             'port': int(os.getenv('DB_PORT', 5432)),
             'user': os.getenv('DB_USERNAME', 'postgres'),
-            'password': os.getenv('DB_PASSWORD'),
-            'database': os.getenv('DB_NAME')
+            'password': os.getenv('DB_PASSWORD')
         }
         
-        # Get database schema
+        # Year-based databases: argo_indian_ocean_15 through argo_indian_ocean_25
+        self.year_databases = {
+            year: f"argo_indian_ocean_{year}" 
+            for year in range(15, 26)  # 2015-2025
+        }
+        
+        # Get database schema (using most recent database as reference)
         self.schema_info = self._get_database_schema()
         
     def _get_database_schema(self) -> str:
         """Get database schema information for Gemini context"""
         try:
-            with psycopg2.connect(**self.db_config) as conn:
+            # Use the most recent database (2025) as schema reference
+            db_config = {**self.base_db_config, 'database': self.year_databases[25]}
+            with psycopg2.connect(**db_config) as conn:
                 # Get table structures
                 schema_query = """
                 SELECT 
@@ -89,6 +96,25 @@ class GeminiSQLGenerator:
                 schema_text += f"- Latitude range: {sample_info['min_lat']:.2f} to {sample_info['max_lat']:.2f}\n"
                 schema_text += f"- Longitude range: {sample_info['min_lng']:.2f} to {sample_info['max_lng']:.2f}\n\n"
                 
+                # Add multi-database information with FDW
+                schema_text += "MULTI-DATABASE STRUCTURE (Foreign Data Wrapper):\n"
+                schema_text += "- Data is split across year-based databases: argo_indian_ocean_15 through argo_indian_ocean_25\n"
+                schema_text += "- **IMPORTANT**: For cross-year queries, use the unified FDW views:\n"
+                schema_text += "  * all_years_argo_profiles - combines argo_profiles from all years (2015-2025)\n"
+                schema_text += "  * all_years_argo_measurements - combines argo_measurements from all years (2015-2025)\n"
+                schema_text += "- These views include a 'data_year' column to identify which year the data is from\n"
+                schema_text += "- **USE CASE**: When user asks for date ranges spanning multiple years (e.g., 'November 2016 to February 2017')\n"
+                schema_text += "- **SINGLE YEAR**: For single-year queries, you can still use regular tables in specific databases\n"
+                schema_text += "- Year range: 2015-2025 (all years available)\n\n"
+                
+                # Add quality control information
+                schema_text += "QUALITY CONTROL (QC) FLAGS:\n"
+                schema_text += "- All measurements use ADJUSTED values (quality-controlled)\n"
+                schema_text += "- QC flag columns: pressure_adjusted_qc, temperature_adjusted_qc, salinity_adjusted_qc\n"
+                schema_text += "- QC flag values: 1 = best quality, 2 = good quality, 3 = acceptable, >3 = poor/bad\n"
+                schema_text += "- Recommendation: Filter for QC flags <= 2 for high-quality data, <= 3 for acceptable data\n"
+                schema_text += "- Example: WHERE temperature_adjusted_qc <= 2 (for best quality temperature data)\n\n"
+                
                 # Add geographic context
                 schema_text += "GEOGRAPHIC REGIONS (approximate bounds):\n"
                 schema_text += "- Arabian Sea: longitude 50-80, latitude 0-30\n"
@@ -101,6 +127,110 @@ class GeminiSQLGenerator:
         except Exception as e:
             return f"Error getting schema: {str(e)}"
     
+    def _extract_database_from_sql(self, sql: str) -> tuple:
+        """
+        Extract database name from SQL comment and clean SQL
+        
+        Args:
+            sql: SQL query with optional database comment
+            
+        Returns:
+            Tuple of (database_name, cleaned_sql)
+        """
+        lines = sql.strip().split('\n')
+        database = None
+        cleaned_lines = []
+        
+        for line in lines:
+            if line.strip().startswith('-- DATABASE:'):
+                # Extract database name
+                db_part = line.split('-- DATABASE:')[1].strip()
+                database = db_part
+            else:
+                cleaned_lines.append(line)
+        
+        cleaned_sql = '\n'.join(cleaned_lines).strip()
+        
+        # If no database specified, try to infer from query
+        if not database:
+            # Look for year mentions in the SQL
+            import re
+            year_match = re.search(r"'(20\d{2})", cleaned_sql)
+            if year_match:
+                year = int(year_match.group(1))
+                database = f"argo_indian_ocean_{year % 100:02d}"
+            else:
+                # Default to most recent
+                database = "argo_indian_ocean_25"
+        
+        return database, cleaned_sql
+    
+    def _is_cross_year_query(self, user_query: str) -> bool:
+        """
+        Determine if query spans multiple years
+        
+        Args:
+            user_query: Natural language query
+            
+        Returns:
+            True if query spans multiple years
+        """
+        import re
+        
+        # Look for date range patterns
+        range_patterns = [
+            r'between\s+(\w+)\s+(20\d{2})\s+and\s+(\w+)\s+(20\d{2})',  # between Nov 2016 and Feb 2017
+            r'from\s+(\w+)\s+(20\d{2})\s+to\s+(\w+)\s+(20\d{2})',      # from Nov 2016 to Feb 2017
+            r'(\w+)\s+(20\d{2})\s+to\s+(\w+)\s+(20\d{2})',             # Nov 2016 to Feb 2017
+            r'(20\d{2})\s*-\s*(20\d{2})',                               # 2016-2017
+        ]
+        
+        for pattern in range_patterns:
+            match = re.search(pattern, user_query.lower())
+            if match:
+                # Extract years from the match
+                years = [int(y) for y in re.findall(r'20\d{2}', match.group(0))]
+                if len(years) >= 2 and years[0] != years[1]:
+                    return True
+        
+        return False
+    
+    def _extract_year_from_query(self, user_query: str) -> int:
+        """
+        Extract year from user query
+        
+        Args:
+            user_query: Natural language query
+            
+        Returns:
+            Year as integer (defaults to 2025 if not found)
+        """
+        import re
+        
+        # Look for month names with years (e.g., "November 2016", "February 2017")
+        month_year_match = re.search(r'(january|february|march|april|may|june|july|august|september|october|november|december)\s+(20[12][0-9])', user_query.lower())
+        if month_year_match:
+            year = int(month_year_match.group(2))
+            if 2015 <= year <= 2025:
+                return year
+        
+        # Look for 4-digit years (2015-2025)
+        year_match = re.search(r'\b(20[12][0-9])\b', user_query)
+        if year_match:
+            year = int(year_match.group(1))
+            if 2015 <= year <= 2025:
+                return year
+        
+        # Look for 2-digit years
+        year_match = re.search(r'\b([12][0-9])\b', user_query)
+        if year_match:
+            year = int(year_match.group(1))
+            if 15 <= year <= 25:
+                return 2000 + year
+        
+        # Default to 2025
+        return 2025
+    
     def generate_sql_query(self, user_query: str) -> Dict[str, Any]:
         """
         Generate SQL query from natural language using Gemini
@@ -111,6 +241,16 @@ class GeminiSQLGenerator:
         Returns:
             Dictionary with generated SQL and metadata
         """
+        
+        # Check if this is a cross-year query
+        is_cross_year = self._is_cross_year_query(user_query)
+        
+        # Extract year from query for context
+        inferred_year = self._extract_year_from_query(user_query)
+        
+        # For cross-year queries, always use main database with FDW views
+        if is_cross_year:
+            inferred_year = 25  # Use main database (2025) which has FDW views
         
         # Create comprehensive prompt for Gemini
         prompt = f"""
@@ -123,17 +263,53 @@ RELATIONSHIPS:
 - argo_measurements contains measurement data (many rows per profile)
 - Join on: argo_profiles.global_profile_id = argo_measurements.global_profile_id
 
+FOREIGN DATA WRAPPER (FDW) VIEWS:
+- **all_years_argo_profiles**: Unified view of argo_profiles across ALL years (2015-2025)
+- **all_years_argo_measurements**: Unified view of argo_measurements across ALL years (2015-2025)
+- Both views include a 'data_year' column (integer) indicating the source year
+- **USE THESE VIEWS** when query spans multiple years (e.g., "November 2016 to February 2017")
+- These views are available in the main database (argo_indian_ocean_25)
+
+DATABASE SELECTION RULES (with Foreign Data Wrapper):
+1. **CRITICAL**: Determine which year(s) the user is asking about
+2. **CROSS-YEAR QUERIES** (date range spans multiple years):
+   - Use database: argo_indian_ocean_25 (main database with FDW views)
+   - Use tables: all_years_argo_profiles and all_years_argo_measurements
+   - Example: "November 2016 to February 2017" → Use all_years_argo_profiles
+   - These views automatically query across all year databases (2015-2025)
+3. **SINGLE-YEAR QUERIES** (date range within one year):
+   - Use specific year database: argo_indian_ocean_YY (e.g., argo_indian_ocean_16 for 2016)
+   - Use regular tables: argo_profiles and argo_measurements
+   - Example: "January 2020" → Use argo_indian_ocean_20 with argo_profiles
+4. Database naming: argo_indian_ocean_YY where YY is 2-digit year (15=2015, 16=2016, 23=2023, 25=2025)
+5. **ALL YEARS AVAILABLE**: 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025
+6. If no year specified, assume most recent data (2025) or use argo_indian_ocean_25
+7. Return the database name as a comment at the top: -- DATABASE: argo_indian_ocean_YY
+
+QUALITY CONTROL RULES:
+1. All measurement columns use ADJUSTED values (pressure_adjusted, temperature_adjusted, salinity_adjusted)
+2. Each measurement has QC flags: pressure_adjusted_qc, temperature_adjusted_qc, salinity_adjusted_qc
+3. QC flag meanings: 1=best, 2=good, 3=acceptable, 4+=poor/bad
+4. **DEFAULT**: Filter for QC <= 2 (best and good quality) unless user asks for all data
+5. If user asks for "high quality" or "best quality", use QC = 1
+6. If user asks for "all data" or doesn't mention quality, use QC <= 3
+7. Example filter: WHERE temperature_adjusted_qc <= 2 AND salinity_adjusted_qc <= 2
+
 IMPORTANT RULES:
 1. Always use proper JOIN syntax when accessing both tables
 2. **DEFAULT TO RETURNING RAW DATA** unless user specifically asks for statistics/aggregation
-3. Always ORDER BY datetime DESC for temporal queries
-4. Use BETWEEN for coordinate ranges
-5. Use ILIKE for case-insensitive text matching
-6. Return only SELECT queries (no INSERT/UPDATE/DELETE)
-7. Handle potential NULL values appropriately
-8. For date queries without year, assume 2025 (current year in the dataset)
-9. Use proper PostgreSQL date format: 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'
-10. For date ranges, use: datetime >= '2025-01-01' AND datetime <= '2025-01-15'
+3. **NO REGION SPECIFIED = RETURN ALL DATA** for that date range (don't ask for clarification)
+4. Always ORDER BY datetime DESC for temporal queries
+5. Use BETWEEN for coordinate ranges
+6. Use ILIKE for case-insensitive text matching
+7. Return only SELECT queries (no INSERT/UPDATE/DELETE)
+8. Handle potential NULL values appropriately
+9. For date queries without year, assume 2025 (current year in the dataset)
+10. Use proper PostgreSQL date format: 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'
+11. For date ranges, use: datetime >= '2025-01-01' AND datetime <= '2025-01-15'
+12. **ALWAYS include QC filters** for measurement queries (default: QC <= 2)
+13. **ALWAYS specify database** as first line comment: -- DATABASE: argo_indian_ocean_YY
+14. **GENERATE SQL, DON'T ASK FOR CLARIFICATION** - if region not specified, query all regions
 
 QUERY STRATEGY - WHEN TO USE RAW DATA vs AGGREGATION:
 
@@ -155,21 +331,56 @@ QUERY STRATEGY - WHEN TO USE RAW DATA vs AGGREGATION:
 - User explicitly asks for aggregated metrics
 
 **EXAMPLES:**
-- "show me data of profiles in Arabian Sea" → SELECT * FROM argo_profiles WHERE ...
+- "show me data of profiles in Arabian Sea" → SELECT * FROM argo_profiles WHERE latitude BETWEEN ... AND longitude BETWEEN ...
 - "get temperature data from region X" → SELECT * FROM argo_profiles WHERE ...
-- "data available in region 10N-18N" → SELECT * FROM argo_profiles WHERE ...
+- "data available in region 10N-18N" → SELECT * FROM argo_profiles WHERE latitude BETWEEN 10 AND 18
+- "give temperature data between november 2016 and february 2017" → SELECT * FROM all_years_argo_profiles WHERE datetime >= '2016-11-01' AND datetime <= '2017-02-28'
 - "how many profiles in Arabian Sea" → SELECT COUNT(*) FROM argo_profiles WHERE ...
 - "average temperature in region" → SELECT AVG(temperature) FROM argo_measurements WHERE ...
 
 COMMON QUERY PATTERNS:
 
-**RAW DATA QUERIES (most common):**
-- Regional data: SELECT * FROM argo_profiles WHERE latitude BETWEEN X AND Y AND longitude BETWEEN A AND B ORDER BY datetime DESC
-- Float lookup: SELECT * FROM argo_profiles WHERE float_id = 'XXXXXX' ORDER BY datetime DESC
-- Temporal data: SELECT * FROM argo_profiles WHERE datetime >= '2025-01-01' AND datetime <= '2025-01-15' ORDER BY datetime DESC
-- Temperature data: SELECT * FROM argo_profiles WHERE latitude BETWEEN X AND Y ORDER BY datetime DESC
-- Latest data: SELECT * FROM argo_profiles ORDER BY datetime DESC
-- Institution data: SELECT * FROM argo_profiles WHERE institution ILIKE '%keyword%'
+**CROSS-YEAR QUERIES (date range spans multiple years):**
+- Date range across years (Nov 2016 - Feb 2017), no region specified:
+  -- DATABASE: argo_indian_ocean_25
+  SELECT * FROM all_years_argo_profiles 
+  WHERE datetime >= '2016-11-01' AND datetime <= '2017-02-28' 
+  ORDER BY datetime DESC
+  
+- Temperature data across years with measurements:
+  -- DATABASE: argo_indian_ocean_25
+  SELECT ap.*, am.temperature_adjusted, am.temperature_adjusted_qc
+  FROM all_years_argo_profiles ap
+  JOIN all_years_argo_measurements am ON ap.global_profile_id = am.global_profile_id
+  WHERE ap.datetime >= '2016-11-01' AND ap.datetime <= '2017-02-28'
+    AND am.temperature_adjusted_qc <= 2
+  ORDER BY ap.datetime DESC
+
+**RAW DATA QUERIES (single year):**
+- Regional data (2023): 
+  -- DATABASE: argo_indian_ocean_23
+  SELECT * FROM argo_profiles WHERE latitude BETWEEN X AND Y AND longitude BETWEEN A AND B ORDER BY datetime DESC
+  
+- Float lookup with measurements (2020):
+  -- DATABASE: argo_indian_ocean_20
+  SELECT ap.*, am.pressure_adjusted, am.temperature_adjusted, am.salinity_adjusted, 
+         am.temperature_adjusted_qc, am.salinity_adjusted_qc
+  FROM argo_profiles ap
+  JOIN argo_measurements am ON ap.global_profile_id = am.global_profile_id
+  WHERE ap.float_id = 'XXXXXX' AND am.temperature_adjusted_qc <= 2 AND am.salinity_adjusted_qc <= 2
+  ORDER BY ap.datetime DESC
+  
+- High-quality temperature data (2022):
+  -- DATABASE: argo_indian_ocean_22
+  SELECT ap.*, am.temperature_adjusted, am.temperature_adjusted_qc
+  FROM argo_profiles ap
+  JOIN argo_measurements am ON ap.global_profile_id = am.global_profile_id
+  WHERE latitude BETWEEN X AND Y AND am.temperature_adjusted_qc = 1
+  ORDER BY ap.datetime DESC
+  
+- Latest data (2025):
+  -- DATABASE: argo_indian_ocean_25
+  SELECT * FROM argo_profiles ORDER BY datetime DESC LIMIT 50
 
 **AGGREGATION QUERIES (only when explicitly requested):**
 - Count profiles: SELECT COUNT(*) as profile_count FROM argo_profiles WHERE ...
@@ -187,13 +398,25 @@ TEMPORAL QUERY EXAMPLES:
 
 USER QUERY: "{user_query}"
 
+QUERY TYPE: {"CROSS-YEAR (use FDW views)" if is_cross_year else "SINGLE-YEAR"}
+INFERRED YEAR: {inferred_year} (use database: argo_indian_ocean_{inferred_year % 100:02d})
+{"**IMPORTANT**: Use all_years_argo_profiles and all_years_argo_measurements views for this cross-year query" if is_cross_year else ""}
+
 Generate a PostgreSQL query that answers this question intelligently. 
 
-IMPORTANT: 
-- Return ONLY the SQL query
-- NO explanations or markdown formatting
-- NO semicolon at the end (we'll add it if needed)
-- Just the raw SQL statement
+**CRITICAL INSTRUCTIONS:**
+1. **ALWAYS GENERATE SQL** - Never respond with text asking for clarification
+2. **NO REGION = ALL REGIONS** - If user doesn't specify region, query all data for that date range
+3. **FIRST LINE MUST BE**: -- DATABASE: argo_indian_ocean_YY (where YY is the 2-digit year)
+4. Include QC filters for measurement queries (default: QC <= 2)
+5. Return ONLY the SQL query with database comment
+6. NO explanations, NO questions, NO markdown formatting
+7. NO semicolon at the end (we'll add it if needed)
+8. Just the database comment + raw SQL statement
+
+EXAMPLE OUTPUT FORMAT:
+-- DATABASE: argo_indian_ocean_25
+SELECT * FROM all_years_argo_profiles WHERE datetime >= '2016-11-01' AND datetime <= '2017-02-28' ORDER BY datetime DESC
 """
 
         try:
@@ -210,15 +433,19 @@ IMPORTANT:
             # Remove trailing semicolon (we'll add LIMIT before it if needed)
             generated_sql = generated_sql.rstrip().rstrip(';').strip()
             
+            # Extract database name from SQL comment
+            database, cleaned_sql = self._extract_database_from_sql(generated_sql)
+            
             # Validate the query
-            validation_result = self._validate_sql(generated_sql)
+            validation_result = self._validate_sql(cleaned_sql)
             
             return {
                 "status": "success",
-                "sql": generated_sql,
+                "sql": cleaned_sql,
+                "database": database,
                 "user_query": user_query,
                 "validation": validation_result,
-                "ai_model": "gemini-2.0-flash-exp"
+                "ai_model": "gemini-2.5-flash"
             }
             
         except Exception as e:
@@ -263,15 +490,23 @@ IMPORTANT:
         
         return validation
     
-    def execute_generated_query(self, sql: str) -> Dict[str, Any]:
-        """Execute the generated SQL query"""
+    def execute_generated_query(self, sql: str, database: str = None) -> Dict[str, Any]:
+        """Execute the generated SQL query on specified database"""
         try:
-            with psycopg2.connect(**self.db_config) as conn:
+            # Determine database config
+            if database and database.startswith("argo_"):
+                db_config = {**self.base_db_config, 'database': database}
+            else:
+                # Default to most recent database
+                db_config = {**self.base_db_config, 'database': self.year_databases[25]}
+            
+            with psycopg2.connect(**db_config) as conn:
                 df = pd.read_sql(sql, conn)
                 
                 return {
                     "status": "success",
                     "sql": sql,
+                    "database": db_config['database'],
                     "row_count": len(df),
                     "columns": list(df.columns),
                     "data": df.to_dict(orient="records")
@@ -281,7 +516,8 @@ IMPORTANT:
             return {
                 "status": "error",
                 "error": str(e),
-                "sql": sql
+                "sql": sql,
+                "database": database
             }
     
     def analyze_results(self, user_query: str, sql: str, results: Dict[str, Any]) -> str:
@@ -503,10 +739,15 @@ Provide your analysis:
                 "status": "error",
                 "error": "Generated SQL failed safety validation",
                 "sql": generated_sql,
+                "database": sql_result.get("database"),
                 "validation": validation,
                 "execution": {"status": "error", "row_count": 0},
                 "analysis": ""
             }
+        
+        # Get database from SQL result
+        target_database = sql_result.get("database", "argo_indian_ocean_25")
+        print(f"🗄️ Target database: {target_database}")
         
         # Previously: auto-appended LIMIT 100 for safety on non-aggregated queries.
         # Requirement: return complete datasets for CSV export; UI will handle preview slicing.
@@ -518,8 +759,8 @@ Provide your analysis:
         else:
             print("ℹ️ No LIMIT appended; returning full result set by request")
         
-        # Step 3: Execute query
-        execution_result = self.execute_generated_query(generated_sql)
+        # Step 3: Execute query on the determined database
+        execution_result = self.execute_generated_query(generated_sql, database=target_database)
         
         # Step 4: Analyze results with Gemini (always attempt, even if no data)
         analysis = ""
@@ -550,6 +791,7 @@ Provide your analysis:
             "status": execution_result["status"],
             "user_query": user_query,
             "generated_sql": generated_sql,
+            "database": execution_result.get("database", target_database),
             "validation": validation,
             "execution": execution_result,
             "analysis": analysis,  # Top-level analysis

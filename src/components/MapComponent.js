@@ -97,47 +97,31 @@ const MapComponent = ({ fullPage = false, data = null }) => {
 
       const marker = L.circleMarker([lat, lng], {
         radius: 6,
-        color,
+        color: color,
         weight: 2,
         fillColor: color,
         fillOpacity: 0.85,
       });
 
-      const id =
-        point.id || point.float_id || point.profile_id || "Unknown Float";
-      const dateStr = point.datetime
-        ? new Date(point.datetime).toLocaleString()
-        : "";
+      const id = point.id || point.float_id || point.profile_id || '—';
+      const dateStr = point.datetime 
+        ? new Date(point.datetime).toLocaleString() 
+        : '';
 
-      marker.bindTooltip(`Float ${id}`, { direction: "top", offset: [0, -6] });
+      marker.bindTooltip(`Float ${id}`, { direction: 'top', offset: [0, -6] });
 
       marker.bindPopup(`
         <div class="map-popup">
           <h4>Float ${id}</h4>
-          <p><strong>Location:</strong> ${lat.toFixed(2)}°, ${lng.toFixed(
-        2
-      )}°</p>
-          ${dateStr ? `<p><strong>Date:</strong> ${dateStr}</p>` : ""}
-          ${
-            point.cycle
-              ? `<p><strong>Cycle:</strong> ${point.cycle}</p>`
-              : ""
-          }
-          ${
-            point.measurements
-              ? `<p><strong>Measurements:</strong> ${point.measurements}</p>`
-              : ""
-          }
+          <p><strong>Location:</strong> ${lat.toFixed(2)}°, ${lng.toFixed(2)}°</p>
+          ${dateStr ? `<p><strong>Date:</strong> ${dateStr}</p>` : ''}
+          ${point.cycle ? `<p><strong>Cycle:</strong> ${point.cycle}</p>` : ''}
+          ${point.measurements ? `<p><strong>Measurements:</strong> ${point.measurements}</p>` : ''}
         </div>
       `);
 
-      marker.on("mouseover", () =>
-        marker.setStyle({ radius: 9, fillOpacity: 1 })
-      );
-      marker.on("mouseout", () =>
-        marker.setStyle({ radius: 6, fillOpacity: 0.85 })
-      );
-
+      marker.on('mouseover', () => marker.setStyle({ radius: 9, fillOpacity: 1 }));
+      marker.on('mouseout', () => marker.setStyle({ radius: 6, fillOpacity: 0.85 }));
       marker.addTo(layer);
       created.push(marker);
     });
@@ -157,12 +141,12 @@ const MapComponent = ({ fullPage = false, data = null }) => {
   //    - Otherwise use fetched floatData
   // -------------------------------------------------------
   useEffect(() => {
-    const points =
-      Array.isArray(data) && data.length > 0 ? data : floatData;
-    if (points && points.length > 0) {
-      renderMarkers(points);
+    if (data && Array.isArray(data) && data.length > 0) {
+      renderMarkers(data);
+    } else if (!loading && floatData.length > 0) {
+      renderMarkers(floatData);
     }
-  }, [data, floatData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, floatData, loading]);
 
   // -------------------------------------------------------
   // UI
