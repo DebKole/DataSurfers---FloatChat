@@ -121,9 +121,12 @@ class ArgoDataProcessor:
             id BIGSERIAL PRIMARY KEY,
             global_profile_id BIGINT REFERENCES argo_profiles(global_profile_id) ON DELETE CASCADE,
             level INTEGER,
-            pressure DOUBLE PRECISION,
-            temperature DOUBLE PRECISION,
-            salinity DOUBLE PRECISION,
+            pressure_adjusted DOUBLE PRECISION,
+            temperature_adjusted DOUBLE PRECISION,
+            salinity_adjusted DOUBLE PRECISION,
+            pressure_adjusted_qc INTEGER,
+            temperature_adjusted_qc INTEGER,
+            salinity_adjusted_qc INTEGER,
             latitude DOUBLE PRECISION,
             longitude DOUBLE PRECISION,
             datetime TIMESTAMP WITH TIME ZONE,
@@ -146,18 +149,18 @@ class ArgoDataProcessor:
             "CREATE INDEX IF NOT EXISTS idx_measurements_datetime ON argo_measurements(datetime);",
             
             # Depth/pressure queries
-            "CREATE INDEX IF NOT EXISTS idx_measurements_pressure ON argo_measurements(pressure);",
+            "CREATE INDEX IF NOT EXISTS idx_measurements_pressure ON argo_measurements(pressure_adjusted);",
             
             # Temperature and salinity queries
-            "CREATE INDEX IF NOT EXISTS idx_measurements_temp ON argo_measurements(temperature);",
-            "CREATE INDEX IF NOT EXISTS idx_measurements_salinity ON argo_measurements(salinity);",
+            "CREATE INDEX IF NOT EXISTS idx_measurements_temp ON argo_measurements(temperature_adjusted);",
+            "CREATE INDEX IF NOT EXISTS idx_measurements_salinity ON argo_measurements(salinity_adjusted);",
             
             # Float-specific queries
             "CREATE INDEX IF NOT EXISTS idx_profiles_cycle ON argo_profiles(cycle_number);",
             
             # Composite indexes for common query patterns
-            "CREATE INDEX IF NOT EXISTS idx_measurements_location_pressure ON argo_measurements(latitude, longitude, pressure);",
-            "CREATE INDEX IF NOT EXISTS idx_measurements_temp_depth ON argo_measurements(temperature, pressure);",
+            "CREATE INDEX IF NOT EXISTS idx_measurements_location_pressure ON argo_measurements(latitude, longitude, pressure_adjusted);",
+            "CREATE INDEX IF NOT EXISTS idx_measurements_temp_depth ON argo_measurements(temperature_adjusted, pressure_adjusted);",
             
             # Source file index for deduplication
             "CREATE INDEX IF NOT EXISTS idx_profiles_source_file ON argo_profiles(source_file);"
@@ -236,7 +239,7 @@ class ArgoDataProcessor:
             measurements_df = measurements_df.copy()
             measurements_df["datetime"] = pd.to_datetime(measurements_df["datetime"], errors="coerce")
 
-        cols = ["global_profile_id", "level", "pressure", "temperature", "salinity", "latitude", "longitude", "datetime"]
+        cols = ["global_profile_id", "level", "pressure_adjusted", "temperature_adjusted", "salinity_adjusted", "pressure_adjusted_qc", "temperature_adjusted_qc", "salinity_adjusted_qc", "latitude", "longitude", "datetime"]
         measurements_df = measurements_df[[c for c in cols if c in measurements_df.columns]]
 
         conn = self._connect()
@@ -256,26 +259,38 @@ class ArgoDataProcessor:
 
 
 class HistoricalArgoDownloader:
-    def __init__(self, config: Dict[str, Any], db_config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], db_config: Dict[str, Any], region: str = None, year: str = None):
         self.config = config
         self.db_config = db_config
+        self.region = region
+        self.year = year
+
+        # Region-specific directories if region is specified
+        if region:
+            self.download_dir = os.path.join(self.config["download_dir"], region)
+        else:
+            self.download_dir = self.config["download_dir"]
 
         # Make directories
-        os.makedirs(self.config["download_dir"], exist_ok=True)
+        os.makedirs(self.download_dir, exist_ok=True)
         os.makedirs(self.config["log_dir"], exist_ok=True)
-        os.makedirs(self.config["processed_data_dir"], exist_ok=True)
 
         # Logging file
-        fh = logging.FileHandler(os.path.join(self.config["log_dir"], f"historical_ingest_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"))
+        log_suffix = f"_{region}" if region else ""
+        if year:
+            log_suffix += f"_{year}"
+        fh = logging.FileHandler(os.path.join(self.config["log_dir"], f"historical_ingest{log_suffix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"))
         fh.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
         LOG.addHandler(fh)
 
         # Instantiate processors
         # Pass download_dir as NetCDFProcessor's data_dir so it reads where we download files
-        self.netcdf_processor = NetCDFProcessor(data_dir=self.config["download_dir"], db_config=self.db_config)
+        self.netcdf_processor = NetCDFProcessor(data_dir=self.download_dir, db_config=self.db_config)
         self.data_processor = ArgoDataProcessor(self.db_config)
 
         self.stats = {
+            "region": region,
+            "year": year,
             "found": 0,
             "downloaded": 0,
             "processed_files": 0,
@@ -286,13 +301,21 @@ class HistoricalArgoDownloader:
 
     # ---------- discovery ----------
     def discover_historical_files(self) -> List[Dict[str, Any]]:
-        LOG.info("Discovering files on IFREMER...")
+        region_str = self.region or 'all regions'
+        year_str = self.year or 'all years'
+        LOG.info(f"Discovering files on IFREMER for region: {region_str}, year: {year_str}...")
         all_files = []
         base = self.config["base_url"]
 
-        for region in self.config["regions"]:
-            region_url = base.replace("indian_ocean", region)
-            for year in self.config["years"]:
+        # If region is specified, only process that region
+        regions = [self.region] if self.region else self.config["regions"]
+        
+        # If year is specified, only process that year
+        years = [self.year] if self.year else self.config["years"]
+
+        for region in regions:
+            region_url = f"{base}{region}/"
+            for year in years:
                 if len(all_files) >= self.config["max_total_files"]:
                     break
                 for month in self.config["months"]:
@@ -324,35 +347,55 @@ class HistoricalArgoDownloader:
         unique = {f["url"]: f for f in all_files}
         files = list(unique.values())[: self.config["max_total_files"]]
         self.stats["found"] = len(files)
-        LOG.info(f"Discovered {len(files)} netcdf files")
+        LOG.info(f"Discovered {len(files)} netcdf files for {region_str}, year: {year_str}")
         return files
 
     # ---------- download ----------
     def download_file(self, file_info: Dict[str, Any]) -> str:
         url = file_info["url"]
         filename = file_info["filename"]
-        dest = os.path.join(self.config["download_dir"], filename)
+        dest = os.path.join(self.download_dir, filename)
 
         if self.config.get("skip_existing", True) and os.path.exists(dest):
             LOG.info(f"Skip (exists): {filename}")
             return dest
 
         attempts = 0
-        while attempts < self.config.get("max_retries", 3):
+        max_retries = self.config.get("max_retries", 3)
+        base_delay = self.config.get("retry_delay", 5)
+        
+        while attempts < max_retries:
             try:
-                r = requests.get(url, timeout=self.config.get("download_timeout", 120))
+                # Add exponential backoff with jitter
+                if attempts > 0:
+                    delay = base_delay * (2 ** (attempts - 1)) + (time.time() % 1)  # Add jitter
+                    LOG.info(f"Retry {attempts}/{max_retries} for {filename} after {delay:.1f}s delay")
+                    time.sleep(delay)
+                
+                r = requests.get(url, timeout=self.config.get("download_timeout", 120), stream=True)
+                
                 if r.status_code == 200:
                     with open(dest, "wb") as fh:
-                        fh.write(r.content)
+                        for chunk in r.iter_content(chunk_size=8192):
+                            fh.write(chunk)
                     LOG.info(f"Downloaded: {filename}")
                     self.stats["downloaded"] += 1
                     return dest
+                elif r.status_code == 500:
+                    LOG.warning(f"Server error (500) for {url} - attempt {attempts + 1}/{max_retries}")
+                elif r.status_code == 404:
+                    LOG.warning(f"File not found (404) for {url} - skipping retries")
+                    break  # Don't retry 404s
                 else:
                     LOG.warning(f"Bad response ({r.status_code}) for {url}")
+            except requests.exceptions.Timeout as e:
+                LOG.warning(f"Timeout on attempt {attempts + 1}/{max_retries} for {url}")
+            except requests.exceptions.ConnectionError as e:
+                LOG.warning(f"Connection error on attempt {attempts + 1}/{max_retries} for {url}: {str(e)[:100]}")
             except Exception as e:
-                LOG.warning(f"Download attempt failed for {url}: {e}")
+                LOG.warning(f"Download attempt {attempts + 1}/{max_retries} failed for {url}: {str(e)[:100]}")
+            
             attempts += 1
-            time.sleep(self.config.get("retry_delay", 5))
 
         LOG.error(f"Failed to download {url} after {attempts} attempts")
         self.stats["errors"].append({"url": url, "error": "download_failed"})
@@ -395,9 +438,10 @@ class HistoricalArgoDownloader:
             return 0, 0
 
     def _save_to_csv(self, profiles_df: pd.DataFrame, measurements_df: pd.DataFrame, filename: str):
-        """Save processed data to CSV files."""
+        """Save processed data to CSV files in the download directory."""
         try:
-            csv_dir = self.config["processed_data_dir"]
+            # Save CSV files in the same directory as the downloaded NetCDF files
+            csv_dir = self.download_dir
             base_name = os.path.splitext(filename)[0]
             
             if not profiles_df.empty:
@@ -414,22 +458,22 @@ class HistoricalArgoDownloader:
 
     # ---------- run ----------
     def run(self):
+        """
+        Main execution method - processes files sequentially.
+        """
         files = self.discover_historical_files()
         if not files:
             LOG.warning("No files discovered. Exiting.")
             return
 
-        # Optionally prioritize months or sample; here we just iterate discovered list
+        # Limit files to max_total_files
+        files = files[:self.config.get("max_total_files", 10000)]
+        
+        # Sequential processing
+        LOG.info(f"Processing {len(files)} files sequentially")
         for f in files:
-            # Respect overall max_total_files and per-year limit if set
-            if self.stats["downloaded"] >= self.config.get("max_total_files", 10000):
-                LOG.info("Reached max_total_files limit")
-                break
-
-            # Download then process
             local = self.download_file(f)
             if local:
-                # pass only the filename to NetCDFProcessor.process_single_file
                 self.process_file(f["filename"])
 
         # Summary
@@ -441,21 +485,24 @@ class HistoricalArgoDownloader:
 # CLI / default config
 # -------------------------
 DEFAULT_CONFIG = {
-    "base_url": "https://data-argo.ifremer.fr/geo/indian_ocean/",
-    "years": ["2019","2020","2021","2022","2023","2024"],
+    "base_url": "https://data-argo.ifremer.fr/geo/",  # Base URL without region
+    "years": ["2025"],
     "months": ["01","02","03","04","05","06","07","08","09","10","11","12"],
-    "regions": ["indian_ocean"],
+    "regions": [
+        "indian_ocean",
+#       "atlantic_ocean",
+#       "pacific_ocean",
+    ],
     "download_dir": "./data/historical_downloads/",
-    "processed_data_dir": "./processed_data_historical/",
     "log_dir": "./logs/",
     "file_extensions": [".nc"],
     "max_files_per_year": 500,
     "max_total_files": 2000,
     "download_timeout": 180,
-    "max_retries": 3,
-    "retry_delay": 5,
+    "max_retries": 5,  # Increased from 3 to 5
+    "retry_delay": 10,  # Increased from 5 to 10 seconds base delay
     "skip_existing": True,
-    "save_csv": True  # Set to True if you want CSV backups
+    "save_csv": False,  # Set to True if you want CSV backups
 }
 
 
@@ -509,10 +556,50 @@ def load_db_config_from_env_or_file(cfg_path: str = None):
 
 
 
+def process_region_year(region: str, year: str, config: Dict[str, Any], base_db_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Process a single region and year combination.
+    
+    Args:
+        region: Ocean region name
+        year: Year to process (e.g., "2023")
+        config: Configuration dictionary
+        base_db_cfg: Base database configuration
+    
+    Returns:
+        Dictionary with processing statistics
+    """
+    LOG.info(f"\n{'='*60}")
+    LOG.info(f"Starting ingestion for region: {region}, year: {year}")
+    LOG.info(f"{'='*60}\n")
+    
+    # Create region and year-specific database config
+    # Convert year to 2-digit format (e.g., "2023" -> "23")
+    year_suffix = year[-2:]
+    db_cfg = base_db_cfg.copy()
+    db_cfg["database"] = f"argo_{region}_{year_suffix}"
+    
+    LOG.info(f"Using database: {db_cfg['database']}")
+    
+    # Create downloader for this region and year
+    downloader = HistoricalArgoDownloader(config, db_cfg, region=region, year=year)
+    
+    # Run sequential processing
+    downloader.run()
+    
+    LOG.info(f"\n{'='*60}")
+    LOG.info(f"Completed ingestion for region: {region}, year: {year}")
+    LOG.info(f"{'='*60}\n")
+    
+    return downloader.stats
+
+
 def main_cli():
     parser = argparse.ArgumentParser(description="Historical Argo downloader + Postgres ingest")
     parser.add_argument("--config", "-c", help="Path to JSON config for downloader", default=None)
     parser.add_argument("--db-config", "-d", help="Path to JSON DB config", default=None)
+    parser.add_argument("--region", "-r", help="Specific region to process (indian_ocean, atlantic_ocean, pacific_ocean). If not specified, processes all regions.", default=None)
+    parser.add_argument("--year", "-y", help="Specific year to process (e.g., 2023). If not specified, processes all years.", default=None)
     args = parser.parse_args()
 
     cfg = DEFAULT_CONFIG.copy()
@@ -525,13 +612,35 @@ def main_cli():
             LOG.warning("Config file path provided but not found; using defaults.")
 
     try:
-        db_cfg = load_db_config_from_env_or_file(args.db_config)
+        base_db_cfg = load_db_config_from_env_or_file(args.db_config)
     except Exception as e:
         LOG.error(f"Database config error: {e}")
         sys.exit(1)
 
-    downloader = HistoricalArgoDownloader(cfg, db_cfg)
-    downloader.run()
+    # Determine regions and years to process
+    if args.region:
+        regions_to_process = [args.region]
+    else:
+        regions_to_process = cfg["regions"]
+    
+    if args.year:
+        years_to_process = [args.year]
+    else:
+        years_to_process = cfg["years"]
+
+    # Create all region/year combinations
+    region_year_combinations = [(region, year) for region in regions_to_process for year in years_to_process]
+
+    LOG.info(f"Processing regions: {regions_to_process}")
+    LOG.info(f"Processing years: {years_to_process}")
+    LOG.info(f"Total combinations: {len(region_year_combinations)}")
+    
+    # Process region/year combinations sequentially
+    LOG.info(f"Processing {len(region_year_combinations)} region/year combinations sequentially")
+    
+    # Process each region/year combination sequentially
+    for region, year in region_year_combinations:
+        process_region_year(region, year, cfg, base_db_cfg)
 
 
 if __name__ == "__main__":
