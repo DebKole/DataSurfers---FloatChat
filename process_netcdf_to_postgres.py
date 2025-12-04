@@ -141,11 +141,45 @@ class NetCDFProcessor:
             ds.close()
             return pd.DataFrame(), pd.DataFrame()
         
-        # Extract variables safely
+        # Extract adjusted variables and QC flags
         try:
-            pres = ds["PRES"].values if "PRES" in ds.variables else np.full((n_prof, n_levels), np.nan)
-            temp = ds["TEMP"].values if "TEMP" in ds.variables else np.full((n_prof, n_levels), np.nan)
-            psal = ds["PSAL"].values if "PSAL" in ds.variables else np.full((n_prof, n_levels), np.nan)
+            # Use adjusted values instead of raw values
+            pres = ds["PRES_ADJUSTED"].values if "PRES_ADJUSTED" in ds.variables else np.full((n_prof, n_levels), np.nan)
+            temp = ds["TEMP_ADJUSTED"].values if "TEMP_ADJUSTED" in ds.variables else np.full((n_prof, n_levels), np.nan)
+            psal = ds["PSAL_ADJUSTED"].values if "PSAL_ADJUSTED" in ds.variables else np.full((n_prof, n_levels), np.nan)
+            
+            # Extract QC flags
+            pres_qc = ds["PRES_ADJUSTED_QC"].values if "PRES_ADJUSTED_QC" in ds.variables else np.full((n_prof, n_levels), np.nan)
+            temp_qc = ds["TEMP_ADJUSTED_QC"].values if "TEMP_ADJUSTED_QC" in ds.variables else np.full((n_prof, n_levels), np.nan)
+            psal_qc = ds["PSAL_ADJUSTED_QC"].values if "PSAL_ADJUSTED_QC" in ds.variables else np.full((n_prof, n_levels), np.nan)
+            
+            # Convert QC flags from bytes to integers if needed
+            def qc_to_int(qc_array):
+                """Convert QC flags to integer values"""
+                if qc_array.dtype.kind in ['S', 'U', 'O']:  # String or object type
+                    result = np.full(qc_array.shape, np.nan)
+                    for i in range(qc_array.shape[0]):
+                        for j in range(qc_array.shape[1]):
+                            try:
+                                val = qc_array[i, j]
+                                if isinstance(val, bytes):
+                                    val = val.decode('utf-8').strip()
+                                elif isinstance(val, str):
+                                    val = val.strip()
+                                else:
+                                    val = str(val).strip()
+                                
+                                if val and val.isdigit():
+                                    result[i, j] = int(val)
+                            except:
+                                result[i, j] = np.nan
+                    return result
+                return qc_array.astype(float)
+            
+            pres_qc = qc_to_int(pres_qc)
+            temp_qc = qc_to_int(temp_qc)
+            psal_qc = qc_to_int(psal_qc)
+            
             lat = ds["LATITUDE"].values if "LATITUDE" in ds.variables else np.full(n_prof, np.nan)
             lon = ds["LONGITUDE"].values if "LONGITUDE" in ds.variables else np.full(n_prof, np.nan)
         except Exception as e:
@@ -201,17 +235,30 @@ class NetCDFProcessor:
             
             # Extract measurements for this profile
             for level in range(n_levels):
-                # Only include valid measurements
+                # Get QC values for this measurement
+                pres_qc_val = pres_qc[local_profile_id, level]
+                temp_qc_val = temp_qc[local_profile_id, level]
+                psal_qc_val = psal_qc[local_profile_id, level]
+                
+                # Only include measurements where:
+                # 1. All values are not NaN
+                # 2. All QC flags are <= 3 and not NaN
                 if (not np.isnan(pres[local_profile_id, level]) and 
                     not np.isnan(temp[local_profile_id, level]) and 
-                    not np.isnan(psal[local_profile_id, level])):
+                    not np.isnan(psal[local_profile_id, level]) and
+                    not np.isnan(pres_qc_val) and pres_qc_val <= 3 and
+                    not np.isnan(temp_qc_val) and temp_qc_val <= 3 and
+                    not np.isnan(psal_qc_val) and psal_qc_val <= 3):
                     
                     measurement_record = {
                         'global_profile_id': global_profile_id,
                         'level': level,
-                        'pressure': float(pres[local_profile_id, level]),
-                        'temperature': float(temp[local_profile_id, level]),
-                        'salinity': float(psal[local_profile_id, level]),
+                        'pressure_adjusted': float(pres[local_profile_id, level]),
+                        'temperature_adjusted': float(temp[local_profile_id, level]),
+                        'salinity_adjusted': float(psal[local_profile_id, level]),
+                        'pressure_adjusted_qc': int(pres_qc_val),
+                        'temperature_adjusted_qc': int(temp_qc_val),
+                        'salinity_adjusted_qc': int(psal_qc_val),
                         'latitude': float(lat[local_profile_id]) if not np.isnan(lat[local_profile_id]) else None,
                         'longitude': float(lon[local_profile_id]) if not np.isnan(lon[local_profile_id]) else None,
                         'datetime': datetime_val
@@ -324,7 +371,7 @@ def main():
     print(profiles_df.head(3)[['global_profile_id', 'float_id', 'latitude', 'longitude', 'measurement_count']])
     
     print("\nMeasurement data sample:")
-    print(measurements_df.head(3)[['global_profile_id', 'level', 'pressure', 'temperature', 'salinity']])
+    print(measurements_df.head(3)[['global_profile_id', 'level', 'pressure_adjusted', 'temperature_adjusted', 'salinity_adjusted', 'pressure_adjusted_qc', 'temperature_adjusted_qc', 'salinity_adjusted_qc']])
     
     print(f"\nNext step: Import these CSV files into PostgreSQL")
     print(f"Files ready at: {output_dir}")
