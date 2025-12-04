@@ -1,6 +1,6 @@
 /* Data sidebar shared base */
 .data-sidebar {
-  width: 280px;
+  width: 400px; /*increasing the width*/ 
   background: rgba(26,54,93,0.9);
   border-radius: 16px;
   padding: 20px;
@@ -287,13 +287,13 @@
   margin-top: 12px;
 }
 
-.map-placeholder {
+/* .map-placeholder {
   background: rgba(44,82,130,0.4);
   border-radius: 8px;
   padding: 20px;
   text-align: center;
   border: 1px solid rgba(49,130,206,0.2);
-}
+} */
 
 .map-placeholder i {
   font-size: 32px;
@@ -351,6 +351,7 @@
 /* View More Button Styles */
 .view-more {
   display:flex;
+  flex-direction: column;
   margin-top: 15px;
   text-align: center;
   gap:5px;
@@ -379,7 +380,7 @@
   border: 1px solid rgba(59, 130, 246, 0.5);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
   font-weight: 700;
-  animation: pulse 2s infinite;
+  /* animation: pulse 2s infinite; */
 }
 
 .view-more-btn.has-data:hover {
@@ -541,6 +542,105 @@
 
 .data-sidebar .map-content .map-component .map-display {
   height: 250px !important;
+}
+
+.sidebar-input-panel {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-left: 5px;
+  padding-right: 5px;
+  padding-top: 5px;
+}
+
+.sidebar-input-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: flex-start;
+}
+
+.sidebar-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+  flex: 1 1 auto;
+}
+
+.sidebar-input-inline {
+  max-width: 220px;
+}
+
+.sidebar-input-label {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.sidebar-input-label.dark {
+  color: #003366;
+}
+
+.sidebar-input-field {
+  background: rgba(26, 54, 93, 0.8);
+  border: 1px solid rgba(49, 130, 206, 0.3);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #ffffff;
+  font-size: 0.95em;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  outline: none;
+  width: 100%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-input-field::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.sidebar-input-field:hover {
+  border-color: rgba(49, 130, 206, 0.5);
+  background: rgba(26, 54, 93, 0.9);
+  box-shadow: 0 2px 8px rgba(49, 130, 206, 0.2);
+}
+
+.sidebar-input-field:focus {
+  border-color: rgba(49, 130, 206, 0.8);
+  background: rgba(26, 54, 93, 1);
+  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.2), 0 4px 12px rgba(49, 130, 206, 0.3);
+  transform: translateY(-1px);
+}
+
+.sidebar-number-field {
+  max-width: 160px;
+}
+
+.sidebar-slider-group {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-slider-group input[type='range'] {
+  width: 100%;
+  accent-color: #3182ce;
+}
+
+.sidebar-status-line {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sidebar-error {
+  color: #f87171;
 }
 
 .data-sidebar .map-content .map-component .map-info {

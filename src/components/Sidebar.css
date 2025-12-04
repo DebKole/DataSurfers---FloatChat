@@ -132,9 +132,18 @@
   
   /* Chat History Styles */
   .chat-history-section {
-    margin-bottom: 20px;
+    /* margin-bottom: 20px;
     border-bottom: 1px solid rgba(100,181,246,0.2);
-    padding-bottom: 15px;
+    padding-bottom: 15px; */
+
+    margin-bottom: 0;
+    padding-bottom:0;
+    border-bottom: none;
+
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
   }
 
   .section-header {
@@ -179,9 +188,23 @@
   }
 
   .chat-history-list {
-    max-height: 300px;
-    overflow-y: auto;
+    /* max-height: 300px;
+    overflow-y: auto; */
+
+    flex: 1;               /* fill whatever space the section has */
+    overflow-y: auto;      /* scrollbar only if content overflows */
+    min-height: 0;
+    margin-top: 10px;
+    padding-right: 4px;    /* so content doesn’t hide behind scrollbar */
   }
+
+  /*thinner scrollbar */
+.chat-history-list::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-history-list::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+}
 
   .chat-history-item {
     background: rgba(44,82,130,0.6);
@@ -271,7 +294,7 @@
   }
 
   /* Filters Section */
-  .filters-section {
+  /* .filters-section {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -301,7 +324,7 @@
 
   .filters-content::-webkit-scrollbar-thumb:hover {
     background: rgba(49,130,206,0.8);
-  }
+  } */
 
   /* Hide elements when collapsed */
   .sidebar.collapsed .chat-history-section,

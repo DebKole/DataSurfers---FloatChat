@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "./ChatContainer.css";
 import axios from "axios";
@@ -12,11 +12,17 @@ const ChatContainer = ({
   onMapRequest = () => {},
   onMapData = () => {},
   onTableData = () => {},
+  // NEW: history props
+  chatHistory = [],
+  onSelectChat = () => {},
 }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
   const [showFAQ, setShowFAQ] = useState(false);
   const [highlightFAQ, setHighlightFAQ] = useState(true);
+
+  const [showHistoryBox, setShowHistoryBox] = useState(false);
+  
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
   const userRequestedMapRef = useRef(false);
@@ -41,6 +47,30 @@ const ChatContainer = ({
       prompt: "Show me data on the map",
     },
   ];
+
+  // --- Chat history helpers ---
+  const recentChats = useMemo(() => {
+    if (!Array.isArray(chatHistory)) return [];
+    // try updatedAt, fall back to lastUpdated if that’s what your data uses
+    return [...chatHistory]
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt || b.lastUpdated || 0) -
+          new Date(a.updatedAt || a.lastUpdated || 0)
+      )
+      .slice(0, 3);
+  }, [chatHistory]);
+
+  const getChatTitle = (chat) =>
+    chat?.title || chat?.name || "Untitled chat";
+
+  const getChatTime = (chat, withTime = false) => {
+  const ts = chat?.updatedAt || chat?.lastUpdated || chat?.date;
+  if (!ts) return "";
+  const d = new Date(ts);
+  return withTime ? d.toLocaleString() : d.toLocaleDateString();
+};
+
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -138,7 +168,7 @@ const ChatContainer = ({
   };
 
   const handleSend = async () => {
-    if (inputValue.trim()) {
+    if (!inputValue.trim()) {
       // Add user message
       console.log("handle send");
       const newMessages = [...messages, { type: "user", content: inputValue }];
@@ -292,6 +322,104 @@ const ChatContainer = ({
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* 🔹 Chat history preview bar */}
+      <div className="chat-history-preview">
+        <div className="chat-history-items">
+          {recentChats.length === 0 ? (
+            <span className="chat-history-empty">No recent chats yet</span>
+          ) : (
+            recentChats.map((chat) => (
+              <button
+                key={chat.id}
+                className="chat-history-item"
+                onClick={() => onSelectChat(chat)}
+              >
+                <span className="chat-history-title">
+                  {getChatTitle(chat)}
+                </span>
+                {getChatTime(chat) && (
+                  <span className="chat-history-time">
+                    {getChatTime(chat)}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+
+        <button
+          className="chat-history-view-all"
+          onClick={() => setShowHistoryBox(true)}
+        >
+          View all
+        </button>
+      </div>
+
+      {/* <div className="chat-input">
+        <input
+          type="text"
+          placeholder="Ask about ocean data..."
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyPress={handleKeyPress}
+          aria-label="Ask about ocean data"
+        />
+        <button onClick={handleSend} id="sendBtn">
+          <i className="fas fa-paper-plane" aria-hidden="true"></i>
+          Send
+        </button>
+      </div> */}
+
+      {/* 🔹 Chat history small box */}
+      {showHistoryBox && (
+        <div
+          className="chat-history-modal-backdrop"
+          onClick={() => setShowHistoryBox(false)}
+        >
+          <div
+            className="chat-history-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="chat-history-modal-header">
+              <span>Chat history</span>
+              <button
+                className="chat-history-close"
+                onClick={() => setShowHistoryBox(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="chat-history-modal-list">
+              {(!chatHistory || chatHistory.length === 0) && (
+                <div className="chat-history-empty">No chats yet</div>
+              )}
+
+              {chatHistory &&
+                chatHistory.map((chat) => (
+                  <button
+                    key={chat.id}
+                    className="chat-history-modal-item"
+                    onClick={() => {
+                      onSelectChat(chat);
+                      setShowHistoryBox(false);
+                    }}
+                  >
+                    <div className="chat-history-modal-title">
+                      {getChatTitle(chat)}
+                    </div>
+                    {getChatTime(chat, true) && (
+                      <div className="chat-history-modal-subtitle">
+                        {getChatTime(chat, true)}
+                      </div>
+                    )}
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="chat-input">
         <input

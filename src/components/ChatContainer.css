@@ -86,6 +86,7 @@
   color: #ffffff;
 }
 
+/* ---------- Chat Input ------------------*/
 .chat-input {
   padding: 20px;
   background: rgba(44,82,130,0.6);
@@ -127,7 +128,7 @@
   transform: translateY(-2px);
 }
 
-/* Welcome Screen Styles */
+/* ----------Welcome Screen Styles ----------- */
 .welcome-screen {
   flex: 1;
   display: flex;
@@ -206,6 +207,187 @@
   opacity: 0.8;
   line-height: 1.4;
   margin: 0;
+}
+
+/* -------------- Chat History preview(bottom bar) --------*/
+.chat-history-preview {
+  margin: 0 20px 8px 20px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.chat-history-items {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.chat-history-item {
+  flex-shrink: 0;
+  max-width: 180px;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  opacity: 0.85;
+  transition: opacity 0.15s ease, transform 0.15s ease,
+    background 0.15s ease;
+  color: #ffffff;
+}
+
+.chat-history-item:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.chat-history-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-history-time {
+  font-size: 0.7rem;
+  opacity: 0.6;
+}
+
+.chat-history-view-all {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: transparent;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  opacity: 0.6; /* faded look */
+  transition: opacity 0.15s ease, background 0.15s ease;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.chat-history-view-all:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.chat-history-empty {
+  opacity: 0.6;
+  color: #ffffff;
+}
+
+/* ---------- Chat history “View all” box ---------- */
+
+.chat-history-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-end;
+  z-index: 999;
+}
+
+.chat-history-modal {
+  margin: 0 0 90px 40px; /* adjust to position the box */
+  width: 260px;
+  max-height: 50vh;
+  background: #0b2445;
+  border-radius: 16px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+  padding: 10px 10px 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-history-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+  color: #ffffff;
+}
+
+.chat-history-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.7;
+  color: #ffffff;
+}
+
+.chat-history-close:hover {
+  opacity: 1;
+}
+
+.chat-history-modal-list {
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.chat-history-modal-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  padding: 6px 6px;
+  margin-bottom: 2px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  font-size: 0.8rem;
+  color: #ffffff;
+}
+
+.chat-history-modal-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.chat-history-modal-title {
+  font-weight: 500;
+}
+
+.chat-history-modal-subtitle {
+  font-size: 0.7rem;
+  opacity: 0.6;
+}
+
+/* ---------- Responsive adjustments ---------- */
+
+@media (max-width: 768px) {
+  .action-options {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .welcome-content h2 {
+    font-size: 24px;
+  }
+
+  .welcome-icon {
+    font-size: 40px;
+  }
+
+  .chat-logo {
+    width: 120px;
+    height: 120px;
+  }
+
+  .chat-history-modal {
+    margin-left: 16px;
+    margin-bottom: 80px;
+    width: 230px;
+  }
 }
 
 /* LOGO Designing */

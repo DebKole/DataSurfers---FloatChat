@@ -76,6 +76,7 @@ const Sidebar = () => {
       </div>
 
       {/* Data Filters Section */}
+      {/*
       <div className="filters-section">
         <div className="section-header">
           <i className="fas fa-filter" aria-hidden="true"></i>
@@ -163,7 +164,9 @@ const Sidebar = () => {
         
         <button className="apply-btn">Apply Filters</button>
       </div>
+      */}
     </aside>
+    
   );
 };
 

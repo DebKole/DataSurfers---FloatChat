@@ -20,8 +20,10 @@ function CompareProfilesTool({ profiles, profileIds = [], variable = 'TEMP' }) {
     return <div>No profiles selected for comparison.</div>;
   }
 
-  // Color palette for comparison graphs - keeping soft orange for first profile
-  const colors = ['#FF7F50', '#A0D6B4']; // Soft chocolate orange and soft cadet blue
+  // Color palette for comparison graphs
+  const colors = ['#FF7F50', '#A0D6B4'];
+
+  const fillColors = ['rgba(255, 127, 80, 0.20)','rgba(183, 226, 200, 0.20)'];
   
   const traces = selectedProfiles.map((profile, index) => {
     const x = profile.measurements.map(m =>
@@ -30,6 +32,7 @@ function CompareProfilesTool({ profiles, profileIds = [], variable = 'TEMP' }) {
     const y = profile.measurements.map(m => m.pressure);
     
     const color = colors[index % colors.length];
+    const fillcolor = fillColors[index % fillColors.length];
 
     return {
       x,
@@ -41,6 +44,9 @@ function CompareProfilesTool({ profiles, profileIds = [], variable = 'TEMP' }) {
         color: color,
         width: 2.5,
       },
+      fill: "tozeroy",
+      fillcolor: fillcolor,
+      
     };
   });
 
