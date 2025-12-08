@@ -176,6 +176,108 @@ const ChartRenderer = ({ chartData }) => {
           }
         };
 
+      case 'three_axis_line':
+        // Three-axis line chart with multiple Y-axes
+        const xData = data.x || [];
+        const y1Data = data.y1 || [];
+        const y2Data = data.y2 || [];
+        const y3Data = data.y3 || [];
+        
+        const series = [{
+          x: xData,
+          y: y1Data,
+          type: 'scatter',
+          mode: 'lines+markers',
+          name: chartData.y1Label || 'Series 1',
+          marker: { 
+            color: '#FF6B6B',
+            size: 6
+          },
+          line: { 
+            color: '#FF6B6B',
+            width: 2
+          }
+        }];
+
+        if (y2Data.length > 0) {
+          series.push({
+            x: xData,
+            y: y2Data,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: chartData.y2Label || 'Series 2',
+            yaxis: 'y2',
+            marker: { 
+              color: '#4ECDC4',
+              size: 6
+            },
+            line: { 
+              color: '#4ECDC4',
+              width: 2
+            }
+          });
+        }
+
+        if (y3Data.length > 0) {
+          series.push({
+            x: xData,
+            y: y3Data,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: chartData.y3Label || 'Series 3',
+            yaxis: 'y3',
+            marker: { 
+              color: '#FFD166',
+              size: 6
+            },
+            line: { 
+              color: '#FFD166',
+              width: 2
+            }
+          });
+        }
+
+        return {
+          data: series,
+          layout: {
+            title: chartData.title || 'Multi-Axis Line Chart',
+            xaxis: { 
+              title: chartData.xLabel || 'X-Axis',
+              gridcolor: '#2a3f5f',
+              color: '#e0e0e0'
+            },
+            yaxis: { 
+              title: chartData.y1Label || 'Y1-Axis',
+              gridcolor: '#2a3f5f',
+              color: '#e0e0e0'
+            },
+            yaxis2: chartData.y2Label ? {
+              title: chartData.y2Label,
+              overlaying: 'y',
+              side: 'right',
+              gridcolor: '#2a3f5f',
+              color: '#e0e0e0'
+            } : undefined,
+            yaxis3: chartData.y3Label ? {
+              title: chartData.y3Label,
+              overlaying: 'y',
+              side: 'right',
+              position: 1,
+              gridcolor: '#2a3f5f',
+              color: '#e0e0e0'
+            } : undefined,
+            paper_bgcolor: '#1a2332',
+            plot_bgcolor: '#1a2332',
+            font: { color: '#e0e0e0' },
+            showlegend: true,
+            legend: {
+              bgcolor: '#2a3f5f',
+              bordercolor: '#4ECDC4',
+              borderwidth: 1
+            }
+          }
+        };
+
       default:
         // Generic chart
         return {
