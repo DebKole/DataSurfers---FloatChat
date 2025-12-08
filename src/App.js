@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
-import Sidebar from './components/Sidebar';
 import ChatContainer from './components/ChatContainer';
 import DataSidebar from './components/DataSidebar';
 import MapPage from './components/MapPage';
@@ -10,30 +9,73 @@ import PlotProfileTool from './components/PlotProfile';
 import CompareProfilesTool from './components/CompareProfilesTool';
 import './index.css';
 
-// Main chat interface
+// ---------------- MAIN CHAT INTERFACE ----------------
 function ChatInterface() {
-  const [dataSidebarView, setDataSidebarView] = useState('table');
+  const [dataSidebarView, setDataSidebarView] = useState('map');
+  const [showChatHistory, setShowChatHistory] = useState(false);
   const navigate = useNavigate();
+
+  // ---------------- CHAT HISTORY ----------------
+  const [chatHistory, setChatHistory] = useState([
+    {
+      id: 1,
+      title: 'Ocean Temperature Analysis',
+      date: '2024-01-15',
+      preview: 'Analyzing temperature trends in Pacific...',
+    },
+    {
+      id: 2,
+      title: 'Salinity Data Query',
+      date: '2024-01-14',
+      preview: 'Looking at salinity levels in Arctic...',
+    },
+    {
+      id: 3,
+      title: 'Deep Ocean Exploration',
+      date: '2024-01-13',
+      preview: 'Exploring abyssal zone characteristics...',
+    },
+    {
+      id: 4,
+      title: 'Current Patterns Study',
+      date: '2024-01-12',
+      preview: 'Understanding ocean current patterns...',
+    },
+  ]);
+  const [activeChatId, setActiveChatId] = useState(null);
+
+  const handleSelectChat = (chat) => {
+    setActiveChatId(chat.id);
+    console.log('Selected chat from history:', chat);
+  };
+
+  // ---------------- STATE MANAGEMENT ----------------
   const [tableData, setTableData] = useState(null);
   const [mapData, setMapData] = useState(null);
   const [showMap, setShowMap] = useState(false);
   const [showTrajectoryOverlay, setShowTrajectoryOverlay] = useState(false);
+
   const [demoFloatId, setDemoFloatId] = useState('5906527');
+
   const [tsProfiles, setTsProfiles] = useState([]);
   const [tsLoading, setTsLoading] = useState(false);
   const [tsError, setTsError] = useState(null);
+
   const [tdProfiles, setTdProfiles] = useState([]);
   const [tdLoading, setTdLoading] = useState(false);
   const [tdError, setTdError] = useState(null);
+
   const [compareFloatIdA, setCompareFloatIdA] = useState('5906527');
   const [compareFloatIdB, setCompareFloatIdB] = useState('1901744');
   const [compareProfiles, setCompareProfiles] = useState([]);
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState(null);
+
   const [compareTsProfiles, setCompareTsProfiles] = useState([]);
   const [compareTsLoading, setCompareTsLoading] = useState(false);
   const [compareTsError, setCompareTsError] = useState(null);
 
+  // ---------------- ACTION HANDLERS ----------------
   const handleMapRequest = () => {
     navigate('/map', { state: { source: 'chat' } });
   };
@@ -52,9 +94,8 @@ function ChatInterface() {
     setTsError(null);
     try {
       const res = await fetch(`http://127.0.0.1:8000/api/ts_curve?float_id=${demoFloatId}`);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data = await res.json();
       setTsProfiles(data.profiles || []);
     } catch (err) {
@@ -70,9 +111,8 @@ function ChatInterface() {
     setTdError(null);
     try {
       const res = await fetch(`http://127.0.0.1:8000/api/td_curve?float_id=${demoFloatId}`);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data = await res.json();
       setTdProfiles(data.profiles || []);
     } catch (err) {
@@ -90,9 +130,8 @@ function ChatInterface() {
       const res = await fetch(
         `http://127.0.0.1:8000/api/compare_td?float_id_a=${compareFloatIdA}&float_id_b=${compareFloatIdB}`
       );
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data = await res.json();
       setCompareProfiles(data.profiles || []);
     } catch (err) {
@@ -110,9 +149,8 @@ function ChatInterface() {
       const res = await fetch(
         `http://127.0.0.1:8000/api/compare_ts?float_id_a=${compareFloatIdA}&float_id_b=${compareFloatIdB}`
       );
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data = await res.json();
       setCompareTsProfiles(data.profiles || []);
     } catch (err) {
@@ -129,12 +167,18 @@ function ChatInterface() {
 
   return (
     <div className="app-container">
-      <Sidebar />
-      <ChatContainer 
-        onMapRequest={handleMapRequest} 
-        onMapData={handleMapData} 
-        onTableData={handleTableData} 
+
+      <ChatContainer
+        onMapRequest={handleMapRequest}
+        onMapData={handleMapData}
+        onTableData={handleTableData}
+        
+        showChatHistory={showChatHistory}
+        onToggleChatHistory={() => setShowChatHistory(!showChatHistory)}
+        chatHistory={chatHistory}
+        onSelectChat={handleSelectChat}
       />
+
       <DataSidebar
         selectedView={dataSidebarView}
         onViewChange={setDataSidebarView}
@@ -150,10 +194,7 @@ function ChatInterface() {
           <div className="trajectory-modal">
             <div className="trajectory-header">
               <h2>Trajectory Map</h2>
-              <button 
-                className="close-button" 
-                onClick={() => setShowTrajectoryOverlay(false)}
-              >
+              <button className="close-button" onClick={() => setShowTrajectoryOverlay(false)}>
                 Close
               </button>
             </div>
@@ -167,10 +208,10 @@ function ChatInterface() {
   );
 }
 
+// ---------------- MAIN APP ROUTES ----------------
 function App() {
   return (
     <div className="app">
-      
       <Routes>
         <Route path="/" element={<ChatInterface />} />
         <Route path="/dashboard" element={<Dashboard />} />
