@@ -338,7 +338,7 @@ async def get_trajectories_in_radius(
 
 # Listing endpoints for floats and profiles
 @app.get("/api/floats")
-async def list_floats(limit: int = Query(default=1000, ge=1, le=5000), database: str = Query(default="main")):
+async def list_floats(limit: int = Query(default=1000, ge=1, le=5000), database: str = Query(default="argo_indian_ocean_25")):
     try:
         res = db_executor.get_distinct_floats(database=database, limit=limit)
         rows = res.get("data", [])
@@ -350,7 +350,7 @@ async def list_floats(limit: int = Query(default=1000, ge=1, le=5000), database:
 
 
 @app.get("/api/floats/{float_id}/profiles")
-async def list_profiles(float_id: str, limit: int = Query(default=200, ge=1, le=2000), database: str = Query(default="main")):
+async def list_profiles(float_id: str, limit: int = Query(default=200, ge=1, le=2000), database: str = Query(default="argo_indian_ocean_25")):
     try:
         res = db_executor.get_profiles_list_by_float_id(float_id=float_id, database=database, limit=limit)
         return _to_jsonable({"status": 200, "profiles": res.get("data", [])})

@@ -103,6 +103,18 @@ class QueryBuilderTool:
             "depth_terms": self._extract_depth_terms(query_lower)
         }
         
+        # NEW: Try to resolve unknown locations if no coordinates found
+        if not entities["coordinates"]["lat_bounds"] and not entities["regions"]:
+            potential_locs = self._extract_potential_locations(query_text, entities)
+            if potential_locs:
+                # Try to resolve the first one
+                resolved = self._resolve_location_with_gemini(potential_locs[0])
+                if resolved:
+                    self.logger.info(f"📍 Resolved location '{potential_locs[0]}' to {resolved}")
+                    entities["coordinates"] = resolved
+                    # Add a special flag so we know this was resolved
+                    entities["resolved_location"] = potential_locs[0]
+        
         # Determine query type
         query_type = self._classify_query_type(entities, query_lower)
 
@@ -258,6 +270,88 @@ class QueryBuilderTool:
                 depth_terms.append(category)
         
         return depth_terms
+
+    def _extract_potential_locations(self, query_text: str, known_entities: Dict[str, Any]) -> List[str]:
+        """Extract potential location names that aren't already known regions"""
+        # Simple heuristic: look for "near X", "in X", "around X"
+        # This is a basic extraction; for robust extraction, we might need NER or LLM
+        potential_locs = []
+        
+        # Patterns to look for locations
+        patterns = [
+            r'\bnear\s+([a-zA-Z\s]+)',
+            r'\baround\s+([a-zA-Z\s]+)',
+            r'\boff\s+the\s+coast\s+of\s+([a-zA-Z\s]+)',
+            r'\boff\s+([a-zA-Z\s]+)'
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, query_text, re.IGNORECASE)
+            for match in matches:
+                loc = match.strip()
+                # Filter out known keywords to avoid false positives
+                # Also filter out common stop words that might be matched
+                stop_words = ["the", "a", "an", "me", "us", "it", "them", "data", "show", "get", "find"]
+                
+                # Stop capturing at common prepositions
+                prepositions = ["from", "in", "during", "since", "to", "at", "for", "with"]
+                
+                # Clean up the match
+                words = loc.split()
+                clean_words = []
+                for word in words:
+                    if word.lower() in prepositions:
+                        break
+                    clean_words.append(word)
+                
+                loc = " ".join(clean_words)
+                
+                if loc and loc.lower() not in self.regions and loc.lower() not in stop_words:
+                    potential_locs.append(loc)
+                    
+        return potential_locs
+
+    def _resolve_location_with_gemini(self, location_name: str) -> Optional[Dict[str, List[float]]]:
+        """Use Gemini to resolve a location name to a bounding box"""
+        if not self.use_gemini or not self.gemini_generator:
+            return None
+            
+        try:
+            model = getattr(self.gemini_generator, "model", None)
+            if model is None:
+                return None
+                
+            prompt = (
+                f"Identify the geographic bounding box and center point for the marine location: '{location_name}'. "
+                "Return ONLY a JSON object with keys 'lat_bounds' ([min_lat, max_lat]), 'lng_bounds' ([min_lng, max_lng]), "
+                "and 'center' ([lat, lng]). "
+                "If the location is not a valid marine/coastal location, return null."
+                "Example: {'lat_bounds': [18.0, 20.0], 'lng_bounds': [72.0, 73.5], 'center': [19.07, 72.87]}"
+            )
+            
+            resp = model.generate_content(prompt)
+            text = (resp.text or "").strip()
+            
+            # Clean and parse JSON
+            cleaned = text.replace("```json", "").replace("```", "").strip()
+            if not cleaned: 
+                return None
+                
+            data = json.loads(cleaned)
+            
+            if data and 'lat_bounds' in data and 'lng_bounds' in data:
+                result = {
+                    "lat_bounds": data['lat_bounds'],
+                    "lng_bounds": data['lng_bounds']
+                }
+                if 'center' in data:
+                    result['center'] = data['center']
+                return result
+            return None
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to resolve location '{location_name}': {e}")
+            return None
     
     def _classify_query_type(self, entities: Dict[str, Any], query_lower: str) -> str:
         """Classify the type of query based on entities"""
@@ -484,8 +578,17 @@ class QueryBuilderTool:
             try:
                 self.logger.info("🧠 Using Gemini AI to generate SQL query")
                 
+                # Prepare user query with context if available
+                user_query_with_context = intent["query_text"]
+                
+                # Add location context for nearest neighbor search
+                if intent["entities"].get("resolved_location") and intent["entities"].get("coordinates", {}).get("center"):
+                    loc_name = intent["entities"]["resolved_location"]
+                    center = intent["entities"]["coordinates"]["center"]
+                    user_query_with_context += f" (Context: Location '{loc_name}' is at {center[0]}N, {center[1]}E. Use nearest neighbor search.)"
+                
                 # Use the full query_and_execute method to get SQL + analysis
-                gemini_result = self.gemini_generator.query_and_execute(intent["query_text"])
+                gemini_result = self.gemini_generator.query_and_execute(user_query_with_context)
                 
                 # Accept Gemini results if:
                 # 1. Status is success
@@ -505,7 +608,7 @@ class QueryBuilderTool:
                         "params": {
                             "sql": gemini_result["generated_sql"],
                             "return_format": "dict",
-                            "user_query": intent["query_text"],
+                            "user_query": intent["query_text"], # Keep original query for display
                             "analysis": gemini_result.get("analysis", "")  # Pass Gemini analysis
                         },
                         "gemini_metadata": {
