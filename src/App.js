@@ -11,7 +11,7 @@ import './index.css';
 
 //Main chat interface
 function ChatInterface() {
-  const [dataSidebarView, setDataSidebarView] = useState('table');
+  const [dataSidebarView, setDataSidebarView] = useState('map');
   const [showChatHistory, setShowChatHistory] = useState(false);
   const navigate = useNavigate();
 
@@ -170,22 +170,23 @@ function ChatInterface() {
     setTableData(data);
   };
 
+  const toggleChatHistory = () => {
+  setShowChatHistory(prev => !prev);
+};
+
   return (
     <div className="container">
-<<<<<<< HEAD
-      {/* <Sidebar /> */}
-      <ChatContainer onMapRequest={handleMapRequest} onMapData={handleMapData} onTableData={handleTableData}
-      chatHistory={chatHistory}
-      onSelectchat={handleSelectChat}/>
-=======
+
       <ChatContainer 
         onMapRequest={handleMapRequest} 
         onMapData={handleMapData} 
         onTableData={handleTableData}
         showChatHistory={showChatHistory}
         onToggleChatHistory={() => setShowChatHistory(!showChatHistory)}
+        chatHistory={chatHistory}
+        onSelectChat={handleSelectChat}
+        // onToggleChatHistory={toggleChatHistory}
       />
->>>>>>> 0adfb06eac9546cda0158a14ca2e444e7fa9c85e
       <DataSidebar
         selectedView={dataSidebarView}
         onViewChange={setDataSidebarView}

@@ -184,14 +184,26 @@ const Dashboard = ({ onClose }) => {
           overflowY: "auto",
         }}
       >
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Floats</div>
-        <input
-          type="text"
-          value={floatSearch}
-          onChange={(e) => setFloatSearch(e.target.value)}
-          placeholder="Search float"
-          style={{ width: "100%", marginBottom: 8 }}
-        />
+        <div style={{ fontWeight: 700, marginBottom: 12, color: '#e2e8f0' }}>Floats</div>
+        <div className="search-float-container">
+          <input
+            type="text"
+            value={floatSearch}
+            onChange={(e) => setFloatSearch(e.target.value)}
+            placeholder="Search float ID..."
+            className="float-input-field"
+            style={{
+              paddingLeft: '36px',
+              paddingbottom:'30px',
+              marginbottom:'30px',
+              background: 'rgba(26, 40, 65, 0.5)',
+              color: '#e2e8f0',
+              border: '1px solid rgba(49, 130, 206, 0.3)',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+            }}
+          />
+        </div>
         {loadingFloats ? (
           <div>Loading floats…</div>
         ) : (

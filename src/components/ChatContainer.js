@@ -6,6 +6,32 @@ import FAQ from "./FAQ";
 import ChartRenderer from "./ChartRenderer";
 import logo from "../assets/Logo (3).png";
 
+// QuestionPanel component
+export const QuestionPanel = ({ onQuestionClick }) => {
+  const questions = [
+    "Show me ocean temperature trends",
+    "What's the current sea level?",
+    "Analyze water quality data"
+  ];
+
+  return (
+    <div className="question-panel">
+      <div className="question-panel-title">Quick Start</div>
+      <div className="suggested-questions">
+        {questions.map((question, index) => (
+          <button
+            key={index}
+            className="suggested-question"
+            onClick={() => onQuestionClick(question)}
+          >
+            {question}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const ChatContainer = ({
   onMapRequest = () => {},
   onMapData = () => {},
@@ -19,6 +45,7 @@ const ChatContainer = ({
   const [inputValue, setInputValue] = useState("");
   const [showFAQ, setShowFAQ] = useState(false);
   const [highlightFAQ, setHighlightFAQ] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   const [showHistoryBox, setShowHistoryBox] = useState(false);
   
@@ -48,18 +75,18 @@ const ChatContainer = ({
 
   const actionOptions = [
 
-    {
-      title: "Analyse Data",
-      description: "Perform analysis on oceanographic datasets",
-      icon: "fa-chart-line",
-      prompt: "I want to analyse oceanographic data",
-    },
-    {
-      title: "Use Map",
-      description: "Visualize data on interactive ocean maps",
-      icon: "fa-map",
-      prompt: "Show me data on the map",
-    },
+    // {
+    //   title: "Analyse Data",
+    //   description: "Perform analysis on oceanographic datasets",
+    //   icon: "fa-chart-line",
+    //   prompt: "I want to analyse oceanographic data",
+    // },
+    // {
+    //   title: "Use Map",
+    //   description: "Visualize data on interactive ocean maps",
+    //   icon: "fa-map",
+    //   prompt: "Show me data on the map",
+    // },
   ];
 
   // --- Chat history helpers ---
@@ -127,17 +154,55 @@ const ChatContainer = ({
     } catch (_) {}
   }, [inputValue]);
 
+  const updateLoadingState = async (messageId) => {
+    const states = [
+      { state: 'thinking', text: 'Thinking...', duration: 1500 },
+      { state: 'retrieving', text: 'Retrieving data...', duration: 2000 },
+      { state: 'analyzing', text: 'Analyzing...', duration: 1500 }
+    ];
+
+    for (const { state, text, duration } of states) {
+      // Update to current state
+      setMessages(prev => {
+        const newMessages = [...prev];
+        const messageIndex = newMessages.findIndex(msg => msg.id === messageId);
+        if (messageIndex !== -1) {
+          newMessages[messageIndex] = {
+            ...newMessages[messageIndex],
+            loadingState: state,
+            loadingText: text
+          };
+        }
+        return newMessages;
+      });
+
+      // Wait for the specified duration before moving to next state
+      await new Promise(resolve => setTimeout(resolve, duration));
+    }
+  };
+
   const handleOptionClick = async (option) => {
-    const newMessages = [...messages, { type: "user", content: option.prompt }];
-    setMessages(newMessages);
+    const userMessage = { 
+      type: "user", 
+      content: option.prompt,
+      id: Date.now()
+    };
+    setMessages(prev => [...prev, userMessage]);
+
+    // Add loading message
+    const loadingMessage = {
+      type: "bot",
+      content: "",
+      loadingState: "thinking",
+      id: Date.now() + 1,
+      isLoading: true
+    };
+    setMessages(prev => [...prev, loadingMessage]);
+    setIsLoading(true);
 
     // For 'Use Map', we still show fetching message, but open map only after backend returns show_map
     if (option.title === "Use Map") {
       userRequestedMapRef.current = true;
-      setMessages((prev) => [
-        ...prev,
-        { type: "bot", content: "Fetching details..." },
-      ]);
     }
 
     try {
@@ -178,15 +243,34 @@ const ChatContainer = ({
           content: "⚠️ Sorry, could not fetch response from server.",
         },
       ]);
-    }
+    } finally {
+      // Enable input and send button
+      setIsLoading(false);
+    };
   };
 
   const handleSend = async () => {
     if (inputValue.trim()) {
       // Add user message
       console.log("handle send");
-      const newMessages = [...messages, { type: "user", content: inputValue }];
-      setMessages(newMessages);
+      const userMessage = {
+        type: "user",
+        content: inputValue,
+        id: Date.now()
+      };
+      setMessages(prev => [...prev, userMessage]);
+
+      // Add loading message
+      const loadingMessageId = Date.now() + 1;
+      const loadingMessage = {
+        type: "bot",
+        content: "",
+        loadingState: "thinking",
+        id: loadingMessageId,
+        isLoading: true
+      };
+      setMessages(prev => [...prev, loadingMessage]);
+      setIsLoading(true);
 
       // Store the current query before clearing
       const query = inputValue;
@@ -209,22 +293,31 @@ const ChatContainer = ({
       );
 
       try {
+        // Run through all loading states
+        await updateLoadingState(loadingMessageId);
+
         // Call FastAPI backend
         const response = await axios.post("http://127.0.0.1:8000", {
           query: query,
         });
 
-        // Add bot message with response
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: "bot",
-            content: response.data.message,
-            chartData: response.data.chart_data,
-            tableData: response.data.table_data,
-            hasData: response.data.has_data,
-          },
-        ]);
+        // Update the loading message with the actual response
+        setMessages(prev => {
+          const newMessages = [...prev];
+          const messageIndex = newMessages.findIndex(msg => msg.id === loadingMessageId);
+          if (messageIndex !== -1) {
+            newMessages[messageIndex] = {
+              ...newMessages[messageIndex],
+              content: response.data.message,
+              chartData: response.data.chart_data,
+              tableData: response.data.table_data,
+              hasData: response.data.has_data,
+              isLoading: false,
+              loadingState: null
+            };
+          }
+          return newMessages;
+        });
 
         // Open map overlay only if backend explicitly indicates AND there's no table view requested
         if (
@@ -240,13 +333,21 @@ const ChatContainer = ({
         }
       } catch (error) {
         console.log("Error fetching response:", error);
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: "bot",
-            content: "⚠️ Sorry, something went wrong connecting to the server.",
-          },
-        ]);
+        setMessages(prev => {
+          const newMessages = [...prev];
+          const messageIndex = newMessages.findIndex(msg => msg.id === loadingMessageId);
+          if (messageIndex !== -1) {
+            newMessages[messageIndex] = {
+              ...newMessages[messageIndex],
+              content: "⚠️ Sorry, something went wrong connecting to the server.",
+              isLoading: false,
+              loadingState: null
+            };
+          }
+          return newMessages;
+        });
+      } finally {
+        setIsLoading(false);
       }
     }
   };
@@ -255,6 +356,13 @@ const ChatContainer = ({
     if (e.key === "Enter") {
       handleSend();
     }
+  };
+
+  const handleQuestionClick = (question) => {
+    setInputValue(question);
+    // Optional: Auto-focus the input field
+    const input = document.querySelector('.chat-input input');
+    if (input) input.focus();
   };
 
   const selectChat = (chatId) => {
@@ -294,10 +402,11 @@ const ChatContainer = ({
         <button
           className="chat-history-icon-btn"
           onClick={onToggleChatHistory}
-          aria-label="Toggle Chat History"
+          aria-label="View Chat History"
         >
           <i className="fas fa-comments"></i>
         </button>
+
         <button
           className="dashboard-top-btn"
           onClick={() => navigate("/dashboard")}
@@ -321,7 +430,8 @@ const ChatContainer = ({
       {/* Chat History Slide-in Panel */}
       {showChatHistory && (
         <>
-          <div className="chat-history-overlay" onClick={onToggleChatHistory}></div>
+          <div
+          className="chat-history-overlay" onClick={onToggleChatHistory}></div>
           <div className="chat-history-panel">
             <div className="chat-history-header">
               <h2>
@@ -416,11 +526,20 @@ const ChatContainer = ({
                   ></i>
                   {message.type === "user" ? "You" : "FloatChat"}
                 </div>
-                {message.content}
+                {message.isLoading ? (
+                  <div className="loading-state active">
+                    <div className="loading-dot"></div>
+                    <span>{message.loadingText || 'Processing...'}</span>
+                  </div>
+                ) : (
+                  <div className="message-content">
+                    {message.content}
+                  </div>
+                )}
               </div>
 
               {/* Chart renderer, if available */}
-              {message.chartData && message.type === "bot" && (
+              {message.chartData && message.type === "bot" && !message.isLoading && (
                 <ChartRenderer chartData={message.chartData} />
               )}
             </React.Fragment>
@@ -429,8 +548,8 @@ const ChatContainer = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 🔹 Chat history preview bar */}
-      <div className="chat-history-preview">
+      {/*Chat history preview bar at the bottom*/}
+      {/* <div className="chat-history-preview">
         <div className="chat-history-items">
           {recentChats.length === 0 ? (
             <span className="chat-history-empty">No recent chats yet</span>
@@ -460,7 +579,7 @@ const ChatContainer = ({
         >
           View all
         </button>
-      </div>
+      </div> */}
 
       {/* <div className="chat-input">
         <input
@@ -475,10 +594,10 @@ const ChatContainer = ({
           <i className="fas fa-paper-plane" aria-hidden="true"></i>
           Send
         </button>
-      </div> */}
+      </div>
 
       {/* 🔹 Chat history small box */}
-      {showHistoryBox && (
+      {/* {showHistoryBox && (
         <div
           className="chat-history-modal-backdrop"
           onClick={() => setShowHistoryBox(false)}
@@ -525,8 +644,9 @@ const ChatContainer = ({
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
+      <QuestionPanel onQuestionClick={handleQuestionClick} />
       <div className="chat-input">
         <input
           type="text"
