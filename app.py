@@ -47,7 +47,7 @@ DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_USERNAME = os.getenv("DB_USERNAME", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME", "argo_db")
+DB_NAME = os.getenv("DB_NAME", "argo_indian_ocean_25")
 DB_URL = f"postgresql+psycopg2://{DB_USERNAME}:{DB_PASSWORD}@localhost:{DB_PORT}/{DB_NAME}"
 print(DB_URL)
 engine = create_engine(DB_URL)
@@ -337,6 +337,69 @@ async def get_trajectories_in_radius(
             "trajectories": []
         }
 
+
+@app.get("/api/charts/ts-diagram")
+async def get_ts_diagram_data(
+    float_id: str = Query(..., description="Float ID to visualize"),
+    limit: int = Query(default=5, ge=1, le=20)
+):
+    """Get Temperature-Salinity diagram data for a float"""
+    try:
+        # 1. Get recent profiles
+        profile_query = """
+        SELECT DISTINCT ON (p.global_profile_id)
+            p.global_profile_id, 
+            p.cycle_number, 
+            m.datetime
+        FROM argo_profiles p
+        JOIN argo_measurements m ON m.global_profile_id = p.global_profile_id
+        WHERE p.float_id = %(float_id)s
+        ORDER BY p.global_profile_id, m.datetime DESC
+        LIMIT %(limit)s;
+        """
+        
+        profiles_df = pd.read_sql(profile_query, engine, params={"float_id": float_id, "limit": limit})
+        
+        if profiles_df.empty:
+            return {"status": 404, "error": f"No profiles found for float {float_id}", "data": []}
+            
+        profile_ids = tuple(profiles_df['global_profile_id'].tolist())
+        
+        # 2. Get measurements
+        data_query = """
+        SELECT
+            p.float_id,
+            p.global_profile_id,
+            p.cycle_number,
+            m.pressure_adjusted as pressure,
+            m.temperature_adjusted as temperature,
+            m.salinity_adjusted as salinity
+        FROM argo_profiles p
+        JOIN argo_measurements m
+            ON m.global_profile_id = p.global_profile_id
+        WHERE p.global_profile_id IN %(profile_ids)s
+        ORDER BY p.cycle_number, m.pressure_adjusted
+        """
+        
+        df = pd.read_sql(data_query, engine, params={"profile_ids": profile_ids})
+        
+        # Clean data (remove NaNs)
+        df = df.dropna(subset=['temperature', 'salinity', 'pressure'])
+        
+        # Format for frontend
+        result = []
+        for (profile_id, cycle_num), group in df.groupby(['global_profile_id', 'cycle_number']):
+            points = group[['temperature', 'salinity', 'pressure']].to_dict(orient='records')
+            result.append({
+                "id": str(profile_id),
+                "name": f"Cycle {cycle_num}",
+                "data": points
+            })
+            
+        return {"status": 200, "data": result}
+        
+    except Exception as e:
+        return {"status": 500, "error": str(e), "data": []}
 
 
 

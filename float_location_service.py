@@ -21,7 +21,7 @@ class FloatLocationService:
             'port': int(os.getenv('DB_PORT', 5432)),
             'user': os.getenv('DB_USERNAME', 'postgres'),
             'password': os.getenv('DB_PASSWORD'),
-            'database': os.getenv('DB_NAME', 'floatchat_argo')
+            'database': os.getenv('DB_NAME', 'argo_indian_ocean_25')
         }
     
     def _connect(self):

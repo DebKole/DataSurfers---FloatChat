@@ -566,7 +566,7 @@ class QueryBuilderTool:
         
         plan = {
             "strategy": "sql_only",
-            "database": "main",  # Default to January data
+            "database": "argo_indian_ocean_25",  # Default to 2025 data
             "queries": [],
             "parameters": {},
             "gemini_powered": False,
@@ -774,7 +774,7 @@ class QueryBuilderTool:
         }
         
         # Determine database (main for historical, live for recent)
-        database = "live" if entities["temporal"].get("relative_time") == "recent" else "main"
+        database = "argo_indian_ocean_25"
         
         return {
             "strategy": "analysis",

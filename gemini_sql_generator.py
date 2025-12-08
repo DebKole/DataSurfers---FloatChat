@@ -332,6 +332,17 @@ IMPORTANT RULES:
 13. **ALWAYS specify database** as first line comment: -- DATABASE: argo_indian_ocean_YY
 14. **GENERATE SQL, DON'T ASK FOR CLARIFICATION** - if region not specified, query all regions
 
+HANDLING HISTORICAL EVENTS & DISASTERS:
+1. **Identify Named Events**: If the user mentions a named event (e.g., "Cyclone Amphan", "2004 Tsunami", "Cyclone Ockhi"), use your internal knowledge to determine the event's date range.
+2. **Determine Date Range**:
+   - Find the start and end dates of the event.
+   - Add a buffer (e.g., +/- 2-5 days) to capture relevant data before and after.
+3. **Apply Filters**:
+   - Use `datetime` filters to restrict data to this period.
+   - If the event spans multiple years, use the FDW views (`all_years_argo_profiles`).
+   - If the event is localized, apply approximate latitude/longitude filters if known (optional but helpful).
+4. **Example**: "Cyclone Amphan" (May 2020) → WHERE datetime >= '2020-05-15' AND datetime <= '2020-05-25'
+
 QUERY STRATEGY - COLUMN SELECTION:
 
 **CRITICAL: SELECT ONLY RELEVANT COLUMNS**
@@ -365,6 +376,7 @@ QUERY STRATEGY - COLUMN SELECTION:
 - "give temperature data between november 2016 and february 2017" → SELECT ap.datetime, ap.latitude, ap.longitude, ap.float_id, am.temperature_adjusted, am.temperature_adjusted_qc FROM all_years_argo_profiles ap JOIN all_years_argo_measurements am ON ap.global_profile_id = am.global_profile_id WHERE ap.datetime >= '2016-11-01' AND ap.datetime <= '2017-02-28'
 - "how many profiles in Arabian Sea" → SELECT COUNT(*) FROM argo_profiles WHERE ...
 - "average temperature in region" → SELECT AVG(temperature) FROM argo_measurements WHERE ...
+- "salinity during Cyclone Amphan" → SELECT ap.datetime, ap.latitude, ap.longitude, ap.float_id, am.salinity_adjusted, am.salinity_adjusted_qc FROM argo_profiles ap JOIN argo_measurements am ON ap.global_profile_id = am.global_profile_id WHERE ap.datetime >= '2020-05-15' AND ap.datetime <= '2020-05-25'
 
 COMMON QUERY PATTERNS:
 
@@ -442,6 +454,7 @@ Generate a PostgreSQL query that answers this question intelligently.
 7. NO semicolon at the end (we'll add it if needed)
 8. Just the database comment + raw SQL statement
 9. **SELECT ONLY RELEVANT COLUMNS** - Do not use SELECT * unless explicitly requested.
+10. **DO NOT PREFIX TABLE NAMES** with the database name. Use `argo_profiles`, NOT `argo_indian_ocean_20.argo_profiles`.
 
 EXAMPLE OUTPUT FORMAT:
 -- DATABASE: argo_indian_ocean_25

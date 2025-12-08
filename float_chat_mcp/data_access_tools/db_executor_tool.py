@@ -41,7 +41,7 @@ class DatabaseExecutorTool:
         # Legacy database configs for backward compatibility
         self.main_db_config = {
             **self.base_db_config,
-            'database': os.getenv('DB_NAME', 'floatchat_argo')
+            'database': os.getenv('DB_NAME', 'argo_indian_ocean_25')
         }
         
         self.live_db_config = {
@@ -157,6 +157,7 @@ class DatabaseExecutorTool:
                 db_config = self.main_db_config
             
             # Execute query
+            print(f"🔌 Connecting to database: {db_config['database']}")
             with psycopg2.connect(**db_config) as conn:
                 df = pd.read_sql(sql, conn)
             
@@ -332,9 +333,9 @@ class DatabaseExecutorTool:
                 ap.latitude AS profile_latitude,
                 ap.longitude AS profile_longitude,
                 am.level,
-                am.pressure,
-                am.temperature,
-                am.salinity,
+                am.pressure_adjusted AS pressure,
+                am.temperature_adjusted AS temperature,
+                am.salinity_adjusted AS salinity,
                 am.datetime AS measurement_datetime
             FROM argo_profiles ap
             JOIN argo_measurements am ON ap.global_profile_id = am.global_profile_id
@@ -427,7 +428,22 @@ class DatabaseExecutorTool:
             parameters = ["temperature", "salinity", "pressure"]
         
         # Build column list
-        param_cols = ", ".join([f"am.{p}" for p in parameters if p in ["temperature", "salinity", "pressure"]])
+        # Map common names to adjusted column names
+        col_map = {
+            "temperature": "temperature_adjusted",
+            "salinity": "salinity_adjusted",
+            "pressure": "pressure_adjusted"
+        }
+        
+        param_cols_list = []
+        for p in parameters:
+            if p in col_map:
+                param_cols_list.append(f"am.{col_map[p]} AS {p}")
+            elif p in ["temperature", "salinity", "pressure"]:
+                 # Fallback if someone passes raw name but we want to be safe, though map covers it
+                 param_cols_list.append(f"am.{p}_adjusted AS {p}")
+        
+        param_cols = ", ".join(param_cols_list)
         
         # Build query
         profile_ids_str = ", ".join(str(pid) for pid in profile_ids[:100])  # Limit to 100 profiles
@@ -440,7 +456,7 @@ class DatabaseExecutorTool:
             ap.latitude,
             ap.longitude,
             am.level,
-            am.pressure,
+            am.pressure_adjusted AS pressure,
             {param_cols}
         FROM argo_profiles ap
         JOIN argo_measurements am ON ap.global_profile_id = am.global_profile_id
