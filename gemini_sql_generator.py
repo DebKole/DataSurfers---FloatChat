@@ -31,6 +31,17 @@ class GeminiSQLGenerator:
             'password': os.getenv('DB_PASSWORD')
         }
         
+        # Ensure password is loaded
+        if not self.base_db_config['password']:
+            print("⚠️ DB_PASSWORD not found in environment, attempting to reload .env...")
+            load_dotenv(override=True)
+            self.base_db_config['password'] = os.getenv('DB_PASSWORD')
+            
+        if not self.base_db_config['password']:
+            print("❌ ERROR: DB_PASSWORD is still missing after reload. Database connections will likely fail.")
+        else:
+            print(f"✅ DB Config loaded: user={self.base_db_config['user']}, password_set=True")
+        
         # Year-based databases: argo_indian_ocean_15 through argo_indian_ocean_25
         self.year_databases = {
             year: f"argo_indian_ocean_{year}" 
@@ -281,10 +292,20 @@ DATABASE SELECTION RULES (with Foreign Data Wrapper):
    - Use specific year database: argo_indian_ocean_YY (e.g., argo_indian_ocean_16 for 2016)
    - Use regular tables: argo_profiles and argo_measurements
    - Example: "January 2020" → Use argo_indian_ocean_20 with argo_profiles
-4. Database naming: argo_indian_ocean_YY where YY is 2-digit year (15=2015, 16=2016, 23=2023, 25=2025)
-5. **ALL YEARS AVAILABLE**: 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025
-6. If no year specified, assume most recent data (2025) or use argo_indian_ocean_25
-7. Return the database name as a comment at the top: -- DATABASE: argo_indian_ocean_YY
+4. **NEAREST NEIGHBOR SEARCH (CRITICAL)**
+   - If the user asks for data "near" a specific location (e.g., "near Mumbai", "near 19N 72E"), and you have a center point:
+   - **DO NOT** use a small bounding box (e.g., +/- 0.5 degrees) if it risks excluding data.
+   - Instead, use a **BROAD** bounding box (e.g., +/- 5 degrees) to filter candidates.
+   - **CRITICAL**: Sort by distance from the center point using the Pythagorean theorem approximation.
+   - Example: `ORDER BY ((latitude - 19.07)^2 + (longitude - 72.87)^2) ASC LIMIT 50`
+   - This ensures we find the closest available data even if it's slightly offshore.
+5. **Use 'argo_indian_ocean_24'** for 2024 data, 'argo_indian_ocean_25' for 2025.
+6. **Join `argo_profiles` (ap) and `argo_measurements` (am)** on `global_profile_id`.
+7. **Select ONLY relevant columns**.
+8. Database naming: argo_indian_ocean_YY where YY is 2-digit year (15=2015, 16=2016, 23=2023, 25=2025)
+9. **ALL YEARS AVAILABLE**: 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025
+10. If no year specified, assume most recent data (2025) or use argo_indian_ocean_25
+11. Return the database name as a comment at the top: -- DATABASE: argo_indian_ocean_YY
 
 QUALITY CONTROL RULES:
 1. All measurement columns use ADJUSTED values (pressure_adjusted, temperature_adjusted, salinity_adjusted)
@@ -311,7 +332,14 @@ IMPORTANT RULES:
 13. **ALWAYS specify database** as first line comment: -- DATABASE: argo_indian_ocean_YY
 14. **GENERATE SQL, DON'T ASK FOR CLARIFICATION** - if region not specified, query all regions
 
-QUERY STRATEGY - WHEN TO USE RAW DATA vs AGGREGATION:
+QUERY STRATEGY - COLUMN SELECTION:
+
+**CRITICAL: SELECT ONLY RELEVANT COLUMNS**
+- **DO NOT use `SELECT *`** unless the user explicitly asks for "all data" or "full profile".
+- Select ONLY the columns necessary to answer the user's question.
+- Always include `datetime`, `latitude`, `longitude` for context.
+- Always include `float_id` and `cycle_number` (or `global_profile_id`) for identification.
+- **Example**: If user asks for "temperature", SELECT `datetime`, `latitude`, `longitude`, `float_id`, `temperature_adjusted`, `temperature_adjusted_qc`. DO NOT select salinity or pressure.
 
 **USE RAW DATA (return actual rows):**
 - "show me data" / "get data" / "find data" / "data of profiles" / "available data"
@@ -331,10 +359,10 @@ QUERY STRATEGY - WHEN TO USE RAW DATA vs AGGREGATION:
 - User explicitly asks for aggregated metrics
 
 **EXAMPLES:**
-- "show me data of profiles in Arabian Sea" → SELECT * FROM argo_profiles WHERE latitude BETWEEN ... AND longitude BETWEEN ...
-- "get temperature data from region X" → SELECT * FROM argo_profiles WHERE ...
-- "data available in region 10N-18N" → SELECT * FROM argo_profiles WHERE latitude BETWEEN 10 AND 18
-- "give temperature data between november 2016 and february 2017" → SELECT * FROM all_years_argo_profiles WHERE datetime >= '2016-11-01' AND datetime <= '2017-02-28'
+- "show me data of profiles in Arabian Sea" → SELECT global_profile_id, float_id, datetime, latitude, longitude FROM argo_profiles WHERE latitude BETWEEN ... AND longitude BETWEEN ...
+- "get temperature data from region X" → SELECT ap.datetime, ap.latitude, ap.longitude, ap.float_id, am.temperature_adjusted, am.temperature_adjusted_qc FROM argo_profiles ap JOIN argo_measurements am ON ap.global_profile_id = am.global_profile_id WHERE ...
+- "data available in region 10N-18N" → SELECT global_profile_id, float_id, datetime, latitude, longitude FROM argo_profiles WHERE latitude BETWEEN 10 AND 18
+- "give temperature data between november 2016 and february 2017" → SELECT ap.datetime, ap.latitude, ap.longitude, ap.float_id, am.temperature_adjusted, am.temperature_adjusted_qc FROM all_years_argo_profiles ap JOIN all_years_argo_measurements am ON ap.global_profile_id = am.global_profile_id WHERE ap.datetime >= '2016-11-01' AND ap.datetime <= '2017-02-28'
 - "how many profiles in Arabian Sea" → SELECT COUNT(*) FROM argo_profiles WHERE ...
 - "average temperature in region" → SELECT AVG(temperature) FROM argo_measurements WHERE ...
 
@@ -343,13 +371,13 @@ COMMON QUERY PATTERNS:
 **CROSS-YEAR QUERIES (date range spans multiple years):**
 - Date range across years (Nov 2016 - Feb 2017), no region specified:
   -- DATABASE: argo_indian_ocean_25
-  SELECT * FROM all_years_argo_profiles 
+  SELECT global_profile_id, float_id, datetime, latitude, longitude FROM all_years_argo_profiles 
   WHERE datetime >= '2016-11-01' AND datetime <= '2017-02-28' 
   ORDER BY datetime DESC
   
 - Temperature data across years with measurements:
   -- DATABASE: argo_indian_ocean_25
-  SELECT ap.*, am.temperature_adjusted, am.temperature_adjusted_qc
+  SELECT ap.datetime, ap.latitude, ap.longitude, ap.float_id, am.temperature_adjusted, am.temperature_adjusted_qc
   FROM all_years_argo_profiles ap
   JOIN all_years_argo_measurements am ON ap.global_profile_id = am.global_profile_id
   WHERE ap.datetime >= '2016-11-01' AND ap.datetime <= '2017-02-28'
@@ -359,11 +387,11 @@ COMMON QUERY PATTERNS:
 **RAW DATA QUERIES (single year):**
 - Regional data (2023): 
   -- DATABASE: argo_indian_ocean_23
-  SELECT * FROM argo_profiles WHERE latitude BETWEEN X AND Y AND longitude BETWEEN A AND B ORDER BY datetime DESC
+  SELECT global_profile_id, float_id, datetime, latitude, longitude FROM argo_profiles WHERE latitude BETWEEN X AND Y AND longitude BETWEEN A AND B ORDER BY datetime DESC
   
 - Float lookup with measurements (2020):
   -- DATABASE: argo_indian_ocean_20
-  SELECT ap.*, am.pressure_adjusted, am.temperature_adjusted, am.salinity_adjusted, 
+  SELECT ap.datetime, ap.latitude, ap.longitude, ap.float_id, am.pressure_adjusted, am.temperature_adjusted, am.salinity_adjusted, 
          am.temperature_adjusted_qc, am.salinity_adjusted_qc
   FROM argo_profiles ap
   JOIN argo_measurements am ON ap.global_profile_id = am.global_profile_id
@@ -372,7 +400,7 @@ COMMON QUERY PATTERNS:
   
 - High-quality temperature data (2022):
   -- DATABASE: argo_indian_ocean_22
-  SELECT ap.*, am.temperature_adjusted, am.temperature_adjusted_qc
+  SELECT ap.datetime, ap.latitude, ap.longitude, ap.float_id, am.temperature_adjusted, am.temperature_adjusted_qc
   FROM argo_profiles ap
   JOIN argo_measurements am ON ap.global_profile_id = am.global_profile_id
   WHERE latitude BETWEEN X AND Y AND am.temperature_adjusted_qc = 1
@@ -380,7 +408,7 @@ COMMON QUERY PATTERNS:
   
 - Latest data (2025):
   -- DATABASE: argo_indian_ocean_25
-  SELECT * FROM argo_profiles ORDER BY datetime DESC LIMIT 50
+  SELECT global_profile_id, float_id, datetime, latitude, longitude FROM argo_profiles ORDER BY datetime DESC LIMIT 50
 
 **AGGREGATION QUERIES (only when explicitly requested):**
 - Count profiles: SELECT COUNT(*) as profile_count FROM argo_profiles WHERE ...
@@ -413,10 +441,11 @@ Generate a PostgreSQL query that answers this question intelligently.
 6. NO explanations, NO questions, NO markdown formatting
 7. NO semicolon at the end (we'll add it if needed)
 8. Just the database comment + raw SQL statement
+9. **SELECT ONLY RELEVANT COLUMNS** - Do not use SELECT * unless explicitly requested.
 
 EXAMPLE OUTPUT FORMAT:
 -- DATABASE: argo_indian_ocean_25
-SELECT * FROM all_years_argo_profiles WHERE datetime >= '2016-11-01' AND datetime <= '2017-02-28' ORDER BY datetime DESC
+SELECT global_profile_id, float_id, datetime, latitude, longitude FROM all_years_argo_profiles WHERE datetime >= '2016-11-01' AND datetime <= '2017-02-28' ORDER BY datetime DESC
 """
 
         try:
