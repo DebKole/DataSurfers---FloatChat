@@ -71,7 +71,7 @@
 }
 
 .map-popup h4 {
-  color:#ffffff;
+  color: #ffffff;
   margin: 0 0 8px 0;
   color: #63b3ed;
   font-size: 14px;
@@ -120,7 +120,7 @@
   align-items: center;
   max-width: 1200px;
   margin: 0 auto;
-  color:#ffffff;
+  color: #ffffff;
 }
 
 .data-summary span {
@@ -148,7 +148,8 @@
 }
 
 .map-component.full-page .map-container {
-  height: calc(100% - 50px); /* Account for info bar */
+  height: calc(100% - 50px);
+  /* Account for info bar */
 }
 
 /* Loading state */
@@ -176,8 +177,13 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Map controls */
@@ -211,12 +217,12 @@
     gap: 10px;
     justify-content: flex-start;
   }
-  
+
   .data-summary span {
     flex: 1 0 45%;
     font-size: 12px;
   }
-  
+
   .map-info {
     padding: 10px;
   }

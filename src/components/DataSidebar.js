@@ -6,6 +6,7 @@ import MapVisualization from "./MapVisualization";
 import PlotProfileTool from "./PlotProfile";
 import CompareProfilesTool from "./CompareProfilesTool";
 import MapTrajectories from "./MapTrajectories";
+import ChartsView from "./ChartsView";
 
 const profiles = [];
 const trajectories = [];
@@ -15,9 +16,9 @@ const DataSidebar = ({
   onViewChange,
   mapData = null,
   showMap = false,
-  onMapClose = () => {},
+  onMapClose = () => { },
   tableData = null,
-  onOpenTrajectoryOverlay = () => {},
+  onOpenTrajectoryOverlay = () => { },
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [isMapVisible, setIsMapVisible] = useState(false);
@@ -149,9 +150,8 @@ const DataSidebar = ({
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
         <i
-          className={`fas ${
-            collapsed ? "fa-chevron-left" : "fa-chevron-right"
-          }`}
+          className={`fas ${collapsed ? "fa-chevron-left" : "fa-chevron-right"
+            }`}
           aria-hidden="true"
         ></i>
       </button>
@@ -165,6 +165,7 @@ const DataSidebar = ({
         >
           <option value="map">Map</option>
           <option value="table">Table</option>
+          <option value="charts">Charts</option>
           {/* <option value="updates">Latest Updates</option> */}
         </select>
       </div>
@@ -178,7 +179,10 @@ const DataSidebar = ({
           <div className="collapsed-icon" title="Table">
             <i className="fas fa-table"></i>
           </div>
-          
+          <div className="collapsed-icon" title="Charts">
+            <i className="fas fa-chart-area"></i>
+          </div>
+
           {/* <div className="collapsed-icon" title="Latest Updates">
             <i className="fas fa-clock"></i>
           </div> */}
@@ -209,10 +213,10 @@ const DataSidebar = ({
                         value == null
                           ? "-"
                           : typeof value === "number"
-                          ? value.toFixed(2)
-                          : String(value).length > 15
-                          ? String(value).substring(0, 15) + "..."
-                          : String(value);
+                            ? value.toFixed(2)
+                            : String(value).length > 15
+                              ? String(value).substring(0, 15) + "..."
+                              : String(value);
                       return (
                         <span key={col} title={String(value ?? "")}>
                           {display}
@@ -321,6 +325,16 @@ const DataSidebar = ({
         </div>
       )}
 
+      {/* Charts View */}
+      {selectedView === "charts" && (
+        <div className="data-card">
+          <h3>
+            <i className="fas fa-chart-area"></i> Charts
+          </h3>
+          <ChartsView tableData={tableData} />
+        </div>
+      )}
+
       {/* Updates View */}
       {/* {selectedView === "updates" && (
         <div className="data-card">
@@ -328,13 +342,13 @@ const DataSidebar = ({
             <i className="fas fa-clock"></i> Latest Updates
           </h3>
           <div className="update-list"> */}
-            {/* Your update items here */}
-            {/* <div className="update-item">
+      {/* Your update items here */}
+      {/* <div className="update-item">
               <div className="update-time">2 min ago</div>
               <div className="update-text">New data from Float 4902916</div>
             </div> */}
-            {/* ... more items */}
-          {/* </div>
+      {/* ... more items */}
+      {/* </div>
           <div className="view-more">
             <button className="view-more-btn">View All Updates</button>
           </div>

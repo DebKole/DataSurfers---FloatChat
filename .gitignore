@@ -10,6 +10,7 @@
 *.key
 *.pem
 
+Landing_page/
 # ===== PYTHON =====
 __pycache__/
 *.py[cod]

@@ -1,12 +1,13 @@
 /* Data sidebar shared base */
 .data-sidebar {
-  width: 400px; /*increasing the width*/ 
-  background: rgba(26,54,93,0.9);
+  width: 400px;
+  /*increasing the width*/
+  background: rgba(26, 54, 93, 0.9);
   border-radius: 16px;
   padding: 20px;
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(49,130,206,0.3);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  border: 1px solid rgba(49, 130, 206, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   overflow-y: auto;
   overflow-x: hidden;
   transition: width 300ms ease, min-width 300ms ease, background 300ms ease;
@@ -22,9 +23,9 @@
   min-width: 64px;
   padding: 14px 10px;
   overflow: hidden;
-  background: rgba(26,54,93,0.3);
-  border: 1px solid rgba(49,130,206,0.1);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  background: rgba(26, 54, 93, 0.3);
+  border: 1px solid rgba(49, 130, 206, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 .data-header {
@@ -32,7 +33,7 @@
   align-items: center;
   margin-bottom: 18px;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(49,130,206,0.3);
+  border-bottom: 1px solid rgba(49, 130, 206, 0.3);
 }
 
 .data-header i {
@@ -62,8 +63,8 @@
   position: absolute;
   top: 12px;
   right: 12px;
-  background: rgba(49,130,206,0.8);
-  border: 1px solid rgba(49,130,206,0.3);
+  background: rgba(49, 130, 206, 0.8);
+  border: 1px solid rgba(49, 130, 206, 0.3);
   color: #ffffff;
   padding: 6px 8px;
   border-radius: 8px;
@@ -76,7 +77,7 @@
 
 .collapse-btn:hover {
   transform: translateY(-2px);
-  background: rgba(49,130,206,1);
+  background: rgba(49, 130, 206, 1);
 }
 
 /* Align collapse button with collapsed icons */
@@ -92,11 +93,13 @@
 
 /* Right data sidebar specifics */
 .data-card {
-  background: rgba(44,82,130,0.6);
+  background: rgba(44, 82, 130, 0.6);
   border-radius: 12px;
   padding: 15px;
   margin-bottom: 16px;
-  border: 1px solid rgba(49,130,206,0.2);
+  border: 1px solid rgba(49, 130, 206, 0.2);
+  min-width: 0;
+  /* Fix for flexbox child sizing */
 }
 
 .data-card h3 {
@@ -150,7 +153,7 @@
 .data-chart {
   height: 120px;
   margin-top: 12px;
-  background: rgba(44,82,130,0.4);
+  background: rgba(44, 82, 130, 0.4);
   border-radius: 8px;
   display: flex;
   align-items: flex-end;
@@ -163,7 +166,7 @@
   background: #3182ce;
   border-radius: 3px 3px 0 0;
   position: relative;
-  box-shadow: 0 6px 14px rgba(0,0,0,0.3);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
 }
 
 .chart-bar span {
@@ -189,12 +192,12 @@
 }
 
 .table-preview::-webkit-scrollbar-track {
-  background: rgba(26,54,93,0.3);
+  background: rgba(26, 54, 93, 0.3);
   border-radius: 2px;
 }
 
 .table-preview::-webkit-scrollbar-thumb {
-  background: rgba(49,130,206,0.6);
+  background: rgba(49, 130, 206, 0.6);
   border-radius: 2px;
 }
 
@@ -203,7 +206,7 @@
   grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
   gap: 6px;
   padding: 8px 4px;
-  border-bottom: 1px solid rgba(49,130,206,0.2);
+  border-bottom: 1px solid rgba(49, 130, 206, 0.2);
   font-size: 11px;
   align-items: center;
 }
@@ -211,10 +214,10 @@
 .table-row.header {
   font-weight: 600;
   color: #ffffff;
-  border-bottom: 2px solid rgba(49,130,206,0.4);
+  border-bottom: 2px solid rgba(49, 130, 206, 0.4);
   position: sticky;
   top: 0;
-  background: rgba(44,82,130,0.95);
+  background: rgba(44, 82, 130, 0.95);
   z-index: 1;
 }
 
@@ -225,7 +228,7 @@
 }
 
 .table-row:not(.header):hover {
-  background: rgba(49,130,206,0.2);
+  background: rgba(49, 130, 206, 0.2);
 }
 
 .table-row span {
@@ -328,7 +331,7 @@
 
 .update-item {
   padding: 10px 0;
-  border-bottom: 1px solid rgba(49,130,206,0.2);
+  border-bottom: 1px solid rgba(49, 130, 206, 0.2);
 }
 
 .update-item:last-child {
@@ -350,11 +353,11 @@
 
 /* View More Button Styles */
 .view-more {
-  display:flex;
+  display: flex;
   flex-direction: column;
   margin-top: 15px;
   text-align: center;
-  gap:5px;
+  gap: 5px;
 }
 
 .view-more-btn {
@@ -367,11 +370,11 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 200ms ease;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .view-more-btn:hover {
-  background: rgba(49,130,206,1);
+  background: rgba(49, 130, 206, 1);
   transform: translateY(-1px);
 }
 
@@ -390,9 +393,17 @@
 }
 
 @keyframes pulse {
-  0% { box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
-  50% { box-shadow: 0 4px 20px rgba(59, 130, 246, 0.5); }
-  100% { box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+  0% {
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+
+  50% {
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.5);
+  }
+
+  100% {
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
 }
 
 /* View Selector Styles */
@@ -416,8 +427,8 @@
 .view-dropdown {
   width: 100%;
   padding: 10px 12px;
-  background: rgba(44,82,130,0.8);
-  border: 1px solid rgba(49,130,206,0.3);
+  background: rgba(44, 82, 130, 0.8);
+  border: 1px solid rgba(49, 130, 206, 0.3);
   border-radius: 8px;
   color: #ffffff;
   font-size: 14px;
@@ -428,12 +439,12 @@
 
 .view-dropdown:focus {
   outline: none;
-  border-color: rgba(49,130,206,0.6);
-  background: rgba(49,130,206,0.9);
+  border-color: rgba(49, 130, 206, 0.6);
+  background: rgba(49, 130, 206, 0.9);
 }
 
 .view-dropdown option {
-  background: rgba(26,54,93,0.95);
+  background: rgba(26, 54, 93, 0.95);
   color: #ffffff;
   padding: 8px;
 }
@@ -453,7 +464,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(49,130,206,0.8);
+  background: rgba(49, 130, 206, 0.8);
   border-radius: 6px;
   cursor: pointer;
   transition: all 200ms ease;
@@ -461,7 +472,7 @@
 }
 
 .collapsed-icon:hover {
-  background: rgba(49,130,206,1);
+  background: rgba(49, 130, 206, 1);
   transform: translateY(-1px);
 }
 
@@ -475,17 +486,17 @@
 }
 
 .data-sidebar::-webkit-scrollbar-track {
-  background: rgba(26,54,93,0.3);
+  background: rgba(26, 54, 93, 0.3);
   border-radius: 3px;
 }
 
 .data-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(49,130,206,0.6);
+  background: rgba(49, 130, 206, 0.6);
   border-radius: 3px;
 }
 
 .data-sidebar::-webkit-scrollbar-thumb:hover {
-  background: rgba(49,130,206,0.8);
+  background: rgba(49, 130, 206, 0.8);
 }
 
 /* Hide data cards when collapsed */
@@ -507,7 +518,7 @@
 /* Map Card Specific Styles */
 .map-card {
   padding: 10px !important;
-  background: rgba(44,82,130,0.6) !important;
+  background: rgba(44, 82, 130, 0.6) !important;
 }
 
 .map-card h3 {
@@ -656,7 +667,7 @@
   .data-sidebar .map-content .map-component .map-display {
     height: 200px !important;
   }
-  
+
   .data-sidebar .map-content .map-component .map-container {
     min-height: 200px;
   }

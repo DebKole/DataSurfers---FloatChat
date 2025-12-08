@@ -23,12 +23,8 @@ class FloatChatVectorDB:
         self.client = chromadb.PersistentClient(path=persist_directory)
         
         # Collection names
-        self.january_collection_name = "floatchat_january_profiles"
-        self.live_collection_name = "floatchat_live_profiles"
-        
-        # Initialize collections
-        self.january_collection = self._get_or_create_collection(self.january_collection_name)
-        self.live_collection = self._get_or_create_collection(self.live_collection_name)
+        self.metadata_collection_name = "floatchat_float_metadata"
+        self.metadata_collection = self._get_or_create_collection(self.metadata_collection_name)
         
         self.logger = logging.getLogger(__name__)
     
@@ -45,7 +41,118 @@ class FloatChatVectorDB:
             print(f"✅ Created new collection: {collection_name}")
         
         return collection
-    
+
+    def create_float_metadata_document(self, metadata: Dict[str, Any]) -> str:
+        """Create a rich text document from float metadata"""
+        float_id = metadata.get('float_id', 'unknown')
+        project_name = metadata.get('project_name', 'unknown')
+        pi_name = metadata.get('pi_name', 'unknown')
+        platform_type = metadata.get('platform_type', 'unknown')
+        launch_date = metadata.get('launch_date', 'unknown')
+        launch_lat = metadata.get('launch_lat')
+        launch_lon = metadata.get('launch_lon')
+        
+        document = f"Argo float {float_id}"
+        
+        if project_name and project_name != 'unknown':
+            document += f" is part of the {project_name} project"
+        
+        if pi_name and pi_name != 'unknown':
+            document += f", led by PI {pi_name}"
+        
+        if platform_type and platform_type != 'unknown':
+            document += f". It is a {platform_type} float"
+            
+        if launch_date and launch_date != 'unknown':
+            document += f" launched on {launch_date}"
+            
+        if launch_lat is not None and launch_lon is not None:
+            document += f" at {launch_lat}°N, {launch_lon}°E"
+            
+        document += "."
+        
+        return document
+
+    def add_float_metadata_to_collection(self, metadata_list: List[Dict[str, Any]]) -> int:
+        """Add float metadata to the metadata collection"""
+        if not metadata_list:
+            return 0
+            
+        documents = []
+        metadatas = []
+        ids = []
+        
+        for meta in metadata_list:
+            # Use provided document content or generate one
+            if 'document_content' in meta:
+                doc = meta.pop('document_content')
+            else:
+                doc = self.create_float_metadata_document(meta)
+                
+            float_id = meta.get('float_id')
+            if not float_id:
+                continue
+                
+            # Filter out None values and ensure types are supported by Chroma
+            # Chroma supports: str, int, float, bool
+            clean_meta = {}
+            for k, v in meta.items():
+                if v is None:
+                    continue
+                if isinstance(v, (str, int, float, bool)):
+                    clean_meta[k] = v
+                else:
+                    # Convert complex types (lists, dicts) to string representation
+                    clean_meta[k] = str(v)
+            
+            documents.append(doc)
+            metadatas.append(clean_meta)
+            ids.append(f"float_{float_id}")
+            
+        try:
+            self.metadata_collection.add(
+                documents=documents,
+                metadatas=metadatas,
+                ids=ids
+            )
+            print(f"✅ Added {len(documents)} float metadata records to vector DB")
+            return len(documents)
+        except Exception as e:
+            print(f"❌ Error adding float metadata: {e}")
+            return 0
+
+    def search_float_metadata(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
+        """Search float metadata"""
+        try:
+            results = self.metadata_collection.query(
+                query_texts=[query],
+                n_results=n_results
+            )
+            
+            formatted_results = []
+            if results['documents'] and results['documents'][0]:
+                for i, doc in enumerate(results['documents'][0]):
+                    result = {
+                        'document': doc,
+                        'metadata': results['metadatas'][0][i] if results['metadatas'] else {},
+                        'distance': results['distances'][0][i] if results['distances'] else None,
+                        'id': results['ids'][0][i] if results['ids'] else None
+                    }
+                    formatted_results.append(result)
+            return formatted_results
+        except Exception as e:
+            print(f"❌ Error searching float metadata: {e}")
+            return []
+
+    def check_float_exists(self, float_id: str) -> bool:
+        """Check if a float ID already exists in the metadata collection"""
+        try:
+            result = self.metadata_collection.get(ids=[f"float_{float_id}"])
+            return len(result['ids']) > 0
+        except Exception as e:
+            print(f"❌ Error checking float existence: {e}")
+            return False
+
     def create_profile_document(self, profile_row: Dict[str, Any]) -> str:
         """Create a rich text document from profile data"""
         

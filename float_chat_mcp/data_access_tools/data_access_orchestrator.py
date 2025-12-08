@@ -241,6 +241,22 @@ class DataAccessOrchestrator:
                 })
                 results["data_sources"].append(f"PostgreSQL ({database})")
         
+                results["data_sources"].append(f"PostgreSQL ({database})")
+        
+        # Populate table_data for frontend if we have results
+        for res in results["results"]:
+            if isinstance(res, dict) and "result" in res:
+                inner = res["result"]
+                if isinstance(inner, dict) and "data" in inner and isinstance(inner["data"], list) and inner["data"]:
+                    data_list = inner["data"]
+                    columns = list(data_list[0].keys())
+                    print(f"   📊 SQL Table Columns: {columns}")
+                    results["table_data"] = {
+                        "columns": columns,
+                        "rows": data_list
+                    }
+                    break # Use the first valid result
+        
         return results
     
     def _execute_vector_strategy(self, plan: Dict[str, Any], intent: Dict[str, Any]) -> Dict[str, Any]:
@@ -444,8 +460,18 @@ class DataAccessOrchestrator:
                         "step": "analysis"
                     }
                 
-                results["analysis_result"] = analysis_result
-                print(f"   ✅ Analysis complete")
+            results["analysis_result"] = analysis_result
+            print(f"   ✅ Analysis complete")
+            
+            # Populate table_data for frontend
+            if data_list:
+                # Get columns from the first item if available
+                columns = list(data_list[0].keys()) if data_list else []
+                print(f"   📊 Table Columns: {columns}")
+                results["table_data"] = {
+                    "columns": columns,
+                    "rows": data_list
+                }
             
             return results
             
@@ -461,7 +487,7 @@ class DataAccessOrchestrator:
     def _fetch_data_for_analysis(self, plan: Dict[str, Any], intent: Dict[str, Any]) -> Dict[str, Any]:
         """Fetch data required for analysis using existing tools"""
         data_req = plan["data_requirements"]
-        database = plan.get("database", "main")
+        database = plan.get("database", "argo_indian_ocean_25")
         
         # Build a temporary SQL plan for data fetching
         temp_plan = {

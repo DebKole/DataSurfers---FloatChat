@@ -5,7 +5,20 @@ from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 
 # Database connection
-engine = create_engine("postgresql://postgres:parv12345@localhost:5432/testing_2025")
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_PORT = os.getenv('DB_PORT', '5432')
+DB_USER = os.getenv('DB_USERNAME', 'postgres')
+DB_PASSWORD = os.getenv('DB_PASSWORD', '')
+DB_NAME = os.getenv('DB_NAME', 'argo_indian_ocean_25')
+
+# Construct connection string
+db_url = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+engine = create_engine(db_url)
 
 def fetch_argo_data(float_id='5906527', limit_profiles=5):
     """
@@ -22,11 +35,11 @@ def fetch_argo_data(float_id='5906527', limit_profiles=5):
     from psycopg2 import sql
     
     conn = psycopg2.connect(
-        dbname="testing_2025",
-        user="postgres",
-        password="parv12345",
-        host="localhost",
-        port="5432"
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT
     )
     
     # First, get the most recent N profiles for the float with their locations
