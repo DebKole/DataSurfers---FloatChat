@@ -11,9 +11,47 @@ import './index.css';
 
 //Main chat interface
 function ChatInterface() {
-  const [dataSidebarView, setDataSidebarView] = useState('table');
+  const [dataSidebarView, setDataSidebarView] = useState('map');
   const [showChatHistory, setShowChatHistory] = useState(false);
   const navigate = useNavigate();
+
+  //Chat history + active chat (moved here from Sidebar)
+  const [chatHistory, setChatHistory] = useState([
+    {
+      id: 1,
+      title: 'Ocean Temperature Analysis',
+      date: '2024-01-15',
+      preview: 'Analyzing temperature trends in Pacific...',
+    },
+    {
+      id: 2,
+      title: 'Salinity Data Query',
+      date: '2024-01-14',
+      preview: 'Looking at salinity levels in Arctic...',
+    },
+    {
+      id: 3,
+      title: 'Deep Ocean Exploration',
+      date: '2024-01-13',
+      preview: 'Exploring abyssal zone characteristics...',
+    },
+    {
+      id: 4,
+      title: 'Current Patterns Study',
+      date: '2024-01-12',
+      preview: 'Understanding ocean current patterns...',
+    },
+  ]);
+  const [activeChatId, setActiveChatId] = useState(null);
+
+  // this is what ChatContainer will call when user clicks a history item
+  const handleSelectChat = (chat) => {
+    setActiveChatId(chat.id);
+    console.log('Selected chat from history:', chat);
+    // TODO: later you can load messages for this chat id
+  };
+
+
   // Keep BOTH: table data AND map/trajectory/demo features
   const [tableData, setTableData] = useState(null);
   const [mapData, setMapData] = useState(null);
@@ -36,7 +74,7 @@ function ChatInterface() {
   const [compareTsError, setCompareTsError] = useState(null);
 
   const handleMapRequest = () => {
-    // Open the full-page Map view directly when chat requests the map
+    // Open the full-page Map view directly when requests the map
     navigate('/map', { state: { source: 'chat' } });
   };
 
@@ -132,14 +170,22 @@ function ChatInterface() {
     setTableData(data);
   };
 
+  const toggleChatHistory = () => {
+  setShowChatHistory(prev => !prev);
+};
+
   return (
     <div className="container">
+
       <ChatContainer 
         onMapRequest={handleMapRequest} 
         onMapData={handleMapData} 
         onTableData={handleTableData}
         showChatHistory={showChatHistory}
         onToggleChatHistory={() => setShowChatHistory(!showChatHistory)}
+        chatHistory={chatHistory}
+        onSelectChat={handleSelectChat}
+        // onToggleChatHistory={toggleChatHistory}
       />
       <DataSidebar
         selectedView={dataSidebarView}
