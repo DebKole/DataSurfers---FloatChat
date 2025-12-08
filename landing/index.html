@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FloatChat Ocean Explorer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        /* ---------------- GLOBAL RESET --------------- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f4a7a 0%, #00457e 25%, #00284a 45%, #001f3a 65%, #001a33 80%, #000000 100%);
+            background-size: 400% 400%;
+            animation: waterGradient 15s ease infinite;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+            color: white;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Liquid Ether Effect */
+        .liquid-ether {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        
+        .liquid-ether canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        /* ---------------- FLOATING BUBBLES --------------- */
+        .bubble {
+            position: absolute;
+            bottom: -50px;
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 50%;
+            animation: bubbleRise 10s infinite ease-in;
+        }
+
+        @keyframes bubbleRise {
+            0% { transform: translateY(0) scale(1); opacity: 0.8; }
+            100% { transform: translateY(-120vh) scale(1.6); opacity: 0; }
+        }
+
+        @keyframes waterGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* ---------------- SECTIONS ---------------- */
+        .section-divider {
+            height: 1px;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(77, 166, 255, 0.4), 
+                transparent);
+            margin: 0 auto;
+            width: 80%;
+            border: none;
+        }
+
+        .header-section {
+            padding: 40px 20px 60px;
+            position: relative;
+            min-height: calc(100vh - 100px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .product-section {
+            padding: 100px 20px;
+            position: relative;
+        }
+
+
+        @media (max-width: 1024px) {
+            .header-text h1 {
+                font-size: 3.5rem !important;
+            }
+            .header-text p {
+                font-size: 1.5rem !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header-section, 
+            .product-section,
+            .section-divider {
+                width: 90%;
+                margin: 40px auto;
+            }
+            .header-text h1 {
+                font-size: 2.8rem !important;
+            }
+            .header-text p {
+                font-size: 1.3rem !important;
+            }
+        }
+
+
+        /* ---------------- HEADER SECTION --------------- */
+        .header-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto;
+            gap: 2rem;
+            padding: 2rem;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .header-text h1 {
+            font-size: 4.5rem;
+            font-weight: 800;
+            margin-bottom: 1.5rem;
+            line-height: 1.1;
+            color: #ffffff;
+        }
+
+        /* ---------------- DIVE IN BUTTON --------------- */
+        .dive-in-button {
+            display: inline-block;
+            padding: 1.1rem 3.5rem;
+            margin-top: 1rem;
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: white;
+            background: linear-gradient(135deg, #4da6ff, #0056b3);
+            border: 1px solid rgba(77, 166, 255, 0.3);
+            border-radius: 50px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .dive-in-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 86, 179, 0.3);
+            border-color: rgba(77, 166, 255, 0.5);
+            background: linear-gradient(135deg, #5fb0ff, #0066cc);
+        }
+
+        .dive-in-button:active {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(0, 86, 179, 0.3);
+        }
+
+        /* ---------------- MODEL VIEWER --------------- */
+        .model-viewer-container {
+            background: rgba(0, 150, 255, 0.1);
+            padding: 20px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .model-viewer-container:hover {
+            border-color: rgba(77, 166, 255, 0.5);
+            box-shadow: 0 0 20px rgba(77, 166, 255, 0.3);
+            transform: translateY(-3px);
+        }
+
+        model-viewer {
+            width: 420px;
+            height: 420px;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
+            background: rgba(100, 180, 255, 0.4); /* Lighter blue with 40% opacity */
+            --poster-color: rgba(100, 180, 255, 0.4); /* Lighter loading state */
+            backdrop-filter: blur(8px);
+        }
+
+        /* Lighting Presets */
+        model-viewer {
+            --environment-image: neutral;
+            --exposure: 1.2;
+            --shadow-intensity: 1;
+        }
+
+        /* ---------------- PRODUCT SUITE SECTION --------------- */
+        .product-suite {
+            max-width: 1200px;
+            margin: 5rem auto;
+            padding: 0 1rem;
+        }
+
+        .product-suite h4 {
+            text-align: center;
+            font-size: 1rem;
+            letter-spacing: 3px;
+            opacity: 0.8;
+            margin-bottom: 10px;
+        }
+
+        .product-suite h2 {
+            text-align: center;
+            font-size: 2.6rem;
+            margin-bottom: 1rem;
+        }
+
+        .product-suite p.ps-subtitle {
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto 3rem;
+            opacity: 0.85;
+        }
+
+        /* ---------------- PRODUCT CARDS --------------- */
+        .ps-card {
+            display: flex;
+            gap: 2rem;
+            align-items: flex-start;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .ps-card:hover {
+            border-color: rgba(77, 166, 255, 0.5);
+            box-shadow: 0 0 20px rgba(77, 166, 255, 0.3);
+            transform: translateY(-3px);
+        }
+
+        .ps-card.reverse {
+            flex-direction: row-reverse;
+        }
+
+        .ps-card-image {
+            flex-shrink: 0;
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(77, 166, 255, 0.1);
+            border-radius: 16px;
+            border: 1px solid rgba(77, 166, 255, 0.2);
+            margin: 0 10px;
+        }
+
+        .ps-card-image i {
+            font-size: 3rem;
+            color: #4da6ff;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .ps-card-text {
+            flex: 1;
+        }
+
+        .ps-card-text h3 {
+            font-size: 1.5rem;
+            margin: 0 0 1rem 0;
+            color: #4da6ff;
+        }
+
+        .ps-card-text p {
+            font-size: 1.1rem;
+            opacity: 0.85;
+            margin-bottom: 1rem;
+        }
+
+        .ps-card-text a {
+            color: #4da6ff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .ps-card-text a:hover {
+            text-decoration: underline;
+        }
+
+        /* Water Splash Animation */
+        .splash {
+            position: fixed;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(77, 166, 255, 0.8) 0%, rgba(0, 180, 255, 0.6) 50%, rgba(0, 150, 255, 0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%) scale(0);
+            opacity: 0;
+            z-index: 1000;
+        }
+
+        @keyframes splash {
+            0% {
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 0.8;
+            }
+            50% {
+                opacity: 0.6;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(10);
+                opacity: 0;
+            }
+        }
+
+        /* Marine Life */
+        .marine-life {
+            position: absolute;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.15;
+            filter: drop-shadow(0 0 3px rgba(77, 166, 255, 0.3));
+            animation: swim var(--duration, 20s) linear infinite;
+            animation-delay: var(--delay, 0s);
+            transform-style: preserve-3d;
+            will-change: transform, opacity;
+            left: calc(var(--start-pos, 0) * 1%);
+            top: calc(var(--start-y, 50) * 1%);
+        }
+
+        /* Fish specific styles */
+        .fish {
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            position: relative;
+        }
+
+        .fish .tail {
+            position: absolute;
+            width: 20%;
+            height: 40%;
+            background: inherit;
+            right: -15%;
+            top: 30%;
+            border-radius: 50% 0 0 50%;
+            transform: rotateY(180deg);
+            opacity: 0.8;
+        }
+
+        .fish .fin {
+            position: absolute;
+            width: 40%;
+            height: 20%;
+            background: inherit;
+            top: 10%;
+            left: 10%;
+            border-radius: 50%;
+            transform: rotate(-45deg);
+            opacity: 0.7;
+        }
+
+        .fish .eye {
+            position: absolute;
+            width: 15%;
+            height: 15%;
+            background: white;
+            border-radius: 50%;
+            top: 30%;
+            left: 15%;
+        }
+
+        .fish .eye:after {
+            content: '';
+            position: absolute;
+            width: 50%;
+            height: 50%;
+            background: black;
+            border-radius: 50%;
+            top: 25%;
+            left: 25%;
+        }
+
+        /* Swim animation - left to right - simplified and faster */
+        @keyframes swim {
+            0% {
+                transform: translateX(-100px) translateY(var(--swim-y, 0)) scaleX(1);
+                opacity: 0.8;
+            }
+            5% {
+                opacity: 1;
+            }
+            95% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(calc(100vw + 100px)) translateY(calc(-1 * var(--swim-y, 0))) scaleX(1);
+                opacity: 0.8;
+            }
+        }
+        
+        /* Keep the faster speed */
+        .marine-life {
+            animation-duration: 10s; /* Faster movement */
+        }
+
+        /* Add marine life container with full page coverage - background layer */
+        #marine-life-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: -1; /* Negative z-index to ensure it stays in background */
+        }
+
+        .dolphin {
+            width: 120px;
+            height: 50px;
+            background: linear-gradient(90deg, #a0d8f3, #c1e3f7);
+            border-radius: 50% 50% 40% 40% / 60% 60% 40% 40%;
+            position: relative;
+            animation: swim 25s linear infinite;
+            transform-style: preserve-3d;
+        }
+
+        .dolphin:before, .dolphin:after {
+            content: '';
+            position: absolute;
+            background: #c1e3f7;
+        }
+
+        /* Dolphin body details */
+        .dolphin:before {
+            width: 15px;
+            height: 40px;
+            border-radius: 7px;
+            top: 10px;
+            left: -8px;
+            transform: rotate(15deg);
+            background: #8bc9f0;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Dolphin fin */
+        .dolphin:after {
+            width: 50px;
+            height: 20px;
+            border-radius: 10px 5px 5px 10px;
+            top: 5px;
+            right: -30px;
+            transform: rotate(-15deg);
+            background: linear-gradient(90deg, #8bc9f0, #a0d8f3);
+            clip-path: polygon(0 0, 100% 50%, 0 100%);
+        }
+
+        /* Dolphin eye */
+        .dolphin .eye {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: #000;
+            border-radius: 50%;
+            top: 15px;
+            right: 30px;
+        }
+
+        .fish {
+            --start-pos: -10;
+            --start-y: 50;
+            width: 60px;
+            height: 30px;
+            background: linear-gradient(90deg, #4da6ff, #80bdff);
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            position: absolute;
+            animation: swim 8s linear infinite;
+            transform-style: preserve-3d;
+            opacity: 0;
+            will-change: transform, opacity;
+            left: calc(var(--start-pos) * 1%);
+            top: calc(var(--start-y) * 1%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .fish:before, .fish:after, .fish .fin, .fish .tail, .fish .eye {
+            content: '';
+            position: absolute;
+            background: #80bdff;
+        }
+
+        /* Fish body details */
+        .fish:before {
+            width: 10px;
+            height: 20px;
+            border-radius: 5px;
+            top: 5px;
+            left: -5px;
+            transform: rotate(15deg);
+            background: #3a8fe6;
+        }
+
+        /* Fish tail */
+        .fish .tail {
+            width: 20px;
+            height: 30px;
+            right: -15px;
+            top: 0;
+            background: linear-gradient(90deg, #3a8fe6, #4da6ff);
+            clip-path: polygon(0 0, 100% 50%, 0 100%);
+            border-radius: 0 50% 50% 0;
+        }
+
+        /* Fish fin */
+        .fish .fin {
+            width: 15px;
+            height: 10px;
+            background: #4da6ff;
+            clip-path: polygon(0 50%, 100% 0, 100% 100%);
+            top: 10px;
+            left: 15px;
+            opacity: 0.8;
+        }
+
+        /* Fish eye */
+        .fish .eye {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #000;
+            border-radius: 50%;
+            top: 8px;
+            right: 10px;
+            border: 2px solid #fff;
+        }
+
+        /* Fish base styles */
+        .marine-life {
+            position: absolute;
+            pointer-events: none;
+        }
+        
+        .fish {
+            position: relative;
+            width: 60px;
+            height: 30px;
+            background: linear-gradient(90deg, #4da6ff, #80bdff);
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            position: absolute;
+            animation: swim 8s linear infinite;
+            transform-style: preserve-3d;
+            opacity: 0;
+            will-change: transform, opacity;
+            left: calc(var(--start-pos, 0) * 1%);
+            top: calc(var(--start-y, 50) * 1%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+
+    </style>
+    <script src="/static/ocean-particles.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "ogl": "https://unpkg.com/ogl@0.0.1/dist/ogl.mjs"
+        }
+    }
+    </script>
+
+    
+    <script>
+        // Create marine life
+        function createMarineLife() {
+            const container = document.getElementById('marine-life-container');
+            if (!container) return;
+            
+            // Clear any existing marine life
+            container.innerHTML = '';
+            
+            // Create fish elements - more fish
+            const fishCount = 8;
+            for (let i = 0; i < fishCount; i++) {
+                const fish = document.createElement('div');
+                fish.className = 'marine-life';
+                
+                // Random fish properties - faster and more visible
+                const size = 40 + Math.random() * 60; // Bigger fish
+                const duration = 5 + Math.random() * 10; // Faster animation (5-15s)
+                const delay = Math.random() * 5; // Shorter delay
+                const startY = 10 + Math.random() * 80;
+                const swimY = (Math.random() - 0.5) * 50; // Less vertical movement
+                
+                fish.style.cssText = `
+                    position: fixed;
+                    width: ${size}px;
+                    height: ${size * 0.5}px;
+                    background: rgba(50, 130, 200, 0.8); /* Darker, more muted blue */
+                    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+                    left: -100px;
+                    top: ${startY}%;
+                    animation: swim ${duration}s linear infinite;
+                    animation-delay: ${delay}s;
+                    --swim-y: ${swimY}px;
+                    --duration: ${duration}s;
+                    --delay: ${delay}s;
+                    --start-pos: -100px;
+                    --start-y: ${startY};
+                    filter: drop-shadow(0 0 3px rgba(50, 130, 200, 0.5)); /* Softer, more subtle shadow */
+                    z-index: -1; /* Negative z-index to stay in background */
+                    opacity: 0.25; /* Slightly more transparent */
+                    mix-blend-mode: screen; /* Better blending with background */
+                `;
+                
+                // Add fish parts
+                fish.innerHTML = `
+                    <div class="tail" style="
+                        position: absolute;
+                        width: 30%;
+                        height: 60%;
+                        background: inherit;
+                        left: -20%;
+                        top: 20%;
+                        border-radius: 0 50% 50% 0;
+                        transform: scaleX(1);
+                        opacity: 0.5;
+                    "></div>
+                    <div class="fin" style="
+                        position: absolute;
+                        width: 40%;
+                        height: 20%;
+                        background: inherit;
+                        top: 10%;
+                        right: 10%;
+                        border-radius: 50%;
+                        transform: rotate(45deg);
+                        opacity: 0.5;
+                    "></div>
+                    <div class="eye" style="
+                        position: absolute;
+                        width: 15%;
+                        height: 30%;
+                        background: white;
+                        border-radius: 50%;
+                        top: 35%;
+                        right: 15%;
+                    ">
+                        <div style="
+                            position: absolute;
+                            width: 50%;
+                            height: 50%;
+                            background: black;
+                            border-radius: 50%;
+                            top: 25%;
+                            left: 25%;
+                        "></div>
+                    </div>
+                `;
+                
+                container.appendChild(fish);
+            }
+        }
+        
+        // Initialize marine life when the page loads
+        window.addEventListener('load', createMarineLife);
+        
+        // Recreate fish if window is resized
+        let resizeTimeout;
+        window.addEventListener('resize', function() {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(createMarineLife, 250);
+        });
+    </script>
+
+<!-- Header Section -->
+    <div class="header-section">
+        <div class="header-container">
+        <div class="header-text" style="text-align: center;">
+            <h1 style="font-size: 4.5rem; font-weight: 800; margin-bottom: 1.5rem; line-height: 1.1;">
+                Float<span style="color: #4da6ff">Chat</span>
+            </h1>
+            <p style="font-size: 1.8rem; opacity: 0.9; margin-bottom: 2.5rem;">See the Ocean like never before.</p>
+            <a href="http://localhost:3000/" class="dive-in-button">Dive In</a>
+        </div>
+
+        <div class="model-viewer-container">
+            <div id="debug-info" style="color: white; text-align: center; margin-bottom: 10px;"></div>
+            <model-viewer
+                id="model-viewer"
+                src="/Argo.glb"
+                alt="3D model of Argo float"
+                camera-controls
+                auto-rotate
+                shadow-intensity="1"
+                exposure="1.2"
+                style="width: 420px; height: 420px; display: block; margin: 0 auto;"
+                ar
+                ar-modes="webxr scene-viewer quick-look"
+                camera-controls="true"
+                auto-rotate-delay="0"
+                camera-orbit="0deg 75deg 100%"
+                environment-image="neutral"
+                shadow-softness="1"
+                shadow-intensity="1"
+                shadow-resolution="1024">
+                <div class="progress-bar" slot="progress-bar">
+                    <div class="update-bar"></div>
+                </div>
+                <div slot="poster" class="poster">
+                    <div class="loading">Loading 3D model...</div>
+                </div>
+            </model-viewer>
+        </div>
+        <script>
+            const modelViewer = document.querySelector('#model-viewer');
+            const debugInfo = document.querySelector('#debug-info');
+            
+            // Debug info
+            debugInfo.textContent = `Trying to load model from: ${new URL('../Argo.glb', window.location.href).href}`;
+            
+            // Log model loading events
+            modelViewer.addEventListener('load', () => {
+                console.log('Model loaded successfully!');
+                debugInfo.textContent = ''; // Clear the debug info on successful load
+            });
+            
+            modelViewer.addEventListener('error', (event) => {
+                console.error('ModelViewer error:', event.detail);
+                debugInfo.textContent = `Error loading model: ${event.detail?.message || 'Unknown error'}. Check console for details.`;
+                
+                // Try alternative paths
+                const pathsToTry = [
+                    'Argo.glb',
+                    '/Argo.glb',
+                    '../Argo.glb',
+                    'landing/Argo.glb',
+                    '/landing/Argo.glb'
+                ];
+                
+                let currentTry = 0;
+                const tryNextPath = () => {
+                    if (currentTry < pathsToTry.length) {
+                        const path = pathsToTry[currentTry++];
+                        debugInfo.textContent += `\nTrying alternative path: ${path}`;
+                        modelViewer.src = path;
+                    } else {
+                        debugInfo.textContent += '\nAll paths attempted. Please check the file location and try again.';
+                    }
+                };
+                
+                // Try the first alternative path
+                tryNextPath();
+            });
+
+            // Add water splash effect
+            document.addEventListener('click', function(e) {
+                const splash = document.createElement('div');
+                splash.className = 'splash';
+                document.body.appendChild(splash);
+                
+                // Position the splash at click location
+                splash.style.left = e.clientX + 'px';
+                splash.style.top = e.clientY + 'px';
+                
+                // Trigger the animation
+                setTimeout(() => {
+                    splash.style.animation = 'splash 0.8s ease-out forwards';
+                    
+                    // Remove the splash element after animation completes
+                    splash.addEventListener('animationend', () => {
+                        splash.remove();
+                    });
+                }, 10);
+            });
+            // Check if model-viewer is defined
+            if (!customElements.get('model-viewer')) {
+                debugInfo.textContent = 'Error: model-viewer component not loaded. Make sure the script is included.';
+                console.error('model-viewer component not found');
+            }
+        </script>
+        </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- Product Suite Section -->
+    <div class="product-section">
+    <section class="product-suite">
+        <h4>FEATURE SUITE</h4>
+        <h2 style="color: #4da6ff;">Tools for every layer of the ocean.</h2>
+        <p class="ps-subtitle">
+            Explore scientific data, compare ocean observations, and interact with beautiful
+            underwater 3D visuals—all with FloatChat.
+        </p>
+
+        <!-- CARDS -->
+        <div class="ps-card">
+            <div class="ps-card-image">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="ps-card-text">
+                <h3>Chatbot</h3>
+                <p>Ask ocean-related questions and explore data insights with our AI-powered conversational assistant.</p>
+                <a href="http://localhost:3000/">Learn more →</a>
+            </div>
+        </div>
+
+        <div class="ps-card reverse">
+            <div class="ps-card-image">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="ps-card-text">
+                <h3>Dashboard with Graphs & Comparison</h3>
+                <p>Compare floats, explore temperature–salinity profiles, track anomalies, and visualize trends.</p>
+                <a href="http://localhost:3000/dashboard">Learn more →</a>
+            </div>
+        </div>
+        
+        <div class="ps-card">
+            <div class="ps-card-image">
+                <i class="fas fa-map-marked-alt"></i>
+            </div>
+            <div class="ps-card-text">
+                <h3>Interactive Map Explorer</h3>
+                <p>Zoom, filter, highlight trends, and explore Argo float data through interactive and responsive charts.</p>
+                <a href="http://localhost:3000/map">Learn more →</a>
+            </div>
+        </div>
+
+        
+            </section>
+        </div>
+    </div>
+    
+    <hr class="section-divider">
+    
+    <!-- model-viewer script -->
+    <script type="module"
+        src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js">
+    </script>
+    
+    <script>
+        // Open chatbot when clicking the dive-in button
+        document.querySelector('.dive-in-button').addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.href = 'http://localhost:3000/';
+        });
+    </script>
+    <!-- Marine Life Container -->
+    <div id="marine-life-container"></div>
+</body>
+</html>
