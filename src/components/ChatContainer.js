@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import "./ChatContainer.css";
 import axios from "axios";
@@ -6,8 +6,12 @@ import FAQ from "./FAQ";
 import ChartRenderer from "./ChartRenderer";
 import logo from "../assets/Logo (3).png";
 
+// Cache constants
+const CACHE_NAME = 'float-chat-cache';
+const CHAT_HISTORY_KEY = 'chat-history';
+
 // QuestionPanel component
-export const QuestionPanel = ({ onQuestionClick }) => {
+export const QuestionPanel = ({ onQuestionClick, onClose }) => {
   const questions = [
     "Show me ocean temperature trends",
     "What's the current sea level?",
@@ -16,7 +20,16 @@ export const QuestionPanel = ({ onQuestionClick }) => {
 
   return (
     <div className="question-panel">
-      <div className="question-panel-title">Quick Start</div>
+      <div className="question-panel-title">
+        Quick Start
+        <button 
+          className="close-quickstart" 
+          onClick={onClose}
+          aria-label="Close quick start panel"
+        >
+          ×
+        </button>
+      </div>
       <div className="suggested-questions">
         {questions.map((question, index) => (
           <button
@@ -46,7 +59,7 @@ const ChatContainer = ({
   const [showFAQ, setShowFAQ] = useState(false);
   const [highlightFAQ, setHighlightFAQ] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-
+  const [showQuickStart, setShowQuickStart] = useState(true);
   const [showHistoryBox, setShowHistoryBox] = useState(false);
   
   const messagesEndRef = useRef(null);
@@ -127,32 +140,94 @@ const ChatContainer = ({
     return () => clearTimeout(t);
   }, []);
 
-  // Load persisted chat state on mount
-  useEffect(() => {
+  // Cache utility functions
+  const getCachedData = useCallback(async (key) => {
     try {
-      const saved = sessionStorage.getItem("floatchat_messages");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) setMessages(parsed);
+      const cache = await caches.open(CACHE_NAME);
+      const url = new URL(key, window.location.origin);
+      const response = await cache.match(url);
+      if (response) {
+        const data = await response.json();
+        console.log(`Retrieved from cache ${key}:`, data);
+        return data;
       }
-      const savedInput = sessionStorage.getItem("floatchat_input");
-      if (savedInput) setInputValue(savedInput);
-    } catch (_) {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      console.log(`No cache entry found for key: ${key}`);
+      return null;
+    } catch (error) {
+      console.error('Error getting data from cache:', error, { key });
+      return null;
+    }
   }, []);
 
-  // Persist chat state on change
-  useEffect(() => {
+  const setCachedData = useCallback(async (key, data) => {
     try {
-      sessionStorage.setItem("floatchat_messages", JSON.stringify(messages));
-    } catch (_) {}
-  }, [messages]);
+      const cache = await caches.open(CACHE_NAME);
+      const url = new URL(key, window.location.origin);
+      const response = new Response(JSON.stringify(data), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': JSON.stringify(data).length
+        }
+      });
+      await cache.put(url, response);
+      console.log(`Data cached successfully for key: ${key}`, data);
+    } catch (error) {
+      console.error('Error saving data to cache:', error, { key, data });
+    }
+  }, []);
 
+  // Load chat history from cache on mount
   useEffect(() => {
-    try {
-      sessionStorage.setItem("floatchat_input", inputValue);
-    } catch (_) {}
-  }, [inputValue]);
+    const loadChatHistory = async () => {
+      try {
+        // Initialize cache if it doesn't exist
+        if (!('caches' in window)) {
+          console.warn('Cache API not supported in this browser');
+          return;
+        }
+
+        // Load chat history from cache
+        const cachedHistory = await getCachedData(CHAT_HISTORY_KEY);
+        if (cachedHistory && Array.isArray(cachedHistory)) {
+          setLocalChatHistory(cachedHistory);
+        }
+
+        // Load current chat messages if there's an active chat
+        if (activeChat) {
+          const chatMessages = await getCachedData(`chat-${activeChat}`);
+          if (chatMessages && Array.isArray(chatMessages)) {
+            setMessages(chatMessages);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading chat history:', error);
+      }
+    };
+
+    loadChatHistory();
+  }, [activeChat, getCachedData]);
+
+  // Save chat history to cache when it changes
+  useEffect(() => {
+    const saveChatHistory = async () => {
+      if (localChatHistory.length > 0) {
+        await setCachedData(CHAT_HISTORY_KEY, localChatHistory);
+      }
+    };
+
+    saveChatHistory();
+  }, [localChatHistory, setCachedData]);
+
+  // Save current chat messages to cache when they change
+  useEffect(() => {
+    const saveCurrentChat = async () => {
+      if (activeChat && messages.length > 0) {
+        await setCachedData(`chat-${activeChat}`, messages);
+      }
+    };
+
+    saveCurrentChat();
+  }, [activeChat, messages, setCachedData]);
 
   const updateLoadingState = async (messageId) => {
     const states = [
@@ -251,13 +326,29 @@ const ChatContainer = ({
 
   const handleSend = async () => {
     if (inputValue.trim()) {
+      const messageId = Date.now();
+      
+      // Create a new chat if this is the first message
+      if (messages.length === 0 && !activeChat) {
+        const newChatId = messageId;
+        const newChat = {
+          id: newChatId,
+          title: inputValue.substring(0, 30) + (inputValue.length > 30 ? '...' : ''),
+          date: new Date().toISOString(),
+          preview: inputValue.substring(0, 50) + (inputValue.length > 50 ? '...' : '')
+        };
+        setLocalChatHistory(prev => [newChat, ...prev]);
+        setActiveChat(newChatId);
+      }
+
       // Add user message
-      console.log("handle send");
       const userMessage = {
         type: "user",
         content: inputValue,
-        id: Date.now()
+        id: messageId,
+        timestamp: new Date().toISOString()
       };
+      
       setMessages(prev => [...prev, userMessage]);
 
       // Add loading message
@@ -365,31 +456,57 @@ const ChatContainer = ({
     if (input) input.focus();
   };
 
-  const selectChat = (chatId) => {
-    setActiveChat(chatId);
-    // Here you would load the selected chat conversation
+  const selectChat = async (chatId) => {
+    try {
+      const chatMessages = await getCachedData(`chat-${chatId}`);
+      if (chatMessages) {
+        setMessages(chatMessages);
+      } else {
+        setMessages([]);
+      }
+      setActiveChat(chatId);
+    } catch (error) {
+      console.error('Error loading chat:', error);
+      setMessages([]);
+      setActiveChat(chatId);
+    }
   };
 
-  const deleteChat = (chatId, e) => {
+  const deleteChat = async (chatId, e) => {
     e.stopPropagation();
-    const updatedHistory = localChatHistory.filter(chat => chat.id !== chatId);
-    setLocalChatHistory(updatedHistory);
-    
-    // If we have an onSelectChat prop, use it to notify parent
-    if (onSelectChat) {
-      onSelectChat(null);
-    }
-    
-    if (activeChat === chatId) {
-      setActiveChat(null);
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.delete(`chat-${chatId}`);
+      
+      const updatedHistory = localChatHistory.filter(chat => chat.id !== chatId);
+      setLocalChatHistory(updatedHistory);
+      
+      if (onSelectChat) {
+        onSelectChat(null);
+      }
+      
+      if (activeChat === chatId) {
+        setActiveChat(null);
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error('Error deleting chat from cache:', error);
     }
   };
 
   const startNewChat = () => {
-    setActiveChat(null);
+    const newChatId = Date.now();
+    const newChat = {
+      id: newChatId,
+      title: `Chat ${new Date().toLocaleDateString()}`,
+      date: new Date().toISOString(),
+      preview: 'New conversation started...'
+    };
+
+    setActiveChat(newChatId);
     setMessages([]);
+    setLocalChatHistory(prev => [newChat, ...prev]);
     
-    // If we have the toggle prop, use it, otherwise just clear the chat
     if (onToggleChatHistory) {
       onToggleChatHistory();
     }
@@ -648,7 +765,12 @@ const ChatContainer = ({
         </div>
       )} */}
 
-      <QuestionPanel onQuestionClick={handleQuestionClick} />
+      {showQuickStart && (
+        <QuestionPanel 
+          onQuestionClick={handleQuestionClick} 
+          onClose={() => setShowQuickStart(false)}
+        />
+      )}
       <div className="chat-input">
         <input
           type="text"
