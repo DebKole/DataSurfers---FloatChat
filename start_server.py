@@ -7,6 +7,7 @@ This script starts the FastAPI server with proper configuration.
 import uvicorn
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 def main():
     """Start the FloatChat server."""
@@ -20,11 +21,25 @@ def main():
         print("⚠️  Warning: argo_demo.csv not found!")
         print("Some legacy demo features depending on this file may not work.")
     
-    # Check if .env file exists
+    # Check if .env file exists and load it
     env_file = Path(".env")
     if not env_file.exists():
         print("⚠️  Warning: .env file not found!")
         print("Some features may not work without GEMINI_API_KEY")
+    else:
+        # Load .env file
+        load_dotenv()
+        print("✅ .env file found and loaded")
+        
+        # Check if API key is loaded
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            # Show first 10 and last 4 characters for verification (mask the middle)
+            masked_key = f"{api_key[:10]}...{api_key[-4:]}" if len(api_key) > 14 else "***"
+            print(f"✅ GEMINI_API_KEY is loaded: {masked_key}")
+        else:
+            print("❌ ERROR: GEMINI_API_KEY is NOT loaded!")
+            print("   Please check your .env file contains: GEMINI_API_KEY=your_key_here")
     
     if data_file.exists():
         print("✅ Data file found")

@@ -44,12 +44,14 @@ function ChatInterface() {
   ]);
   const [activeChatId, setActiveChatId] = useState(null);
 
+  // Keep BOTH versions of the handler
   const handleSelectChat = (chat) => {
     setActiveChatId(chat.id);
     console.log('Selected chat from history:', chat);
+    // future: load messages for chat id
   };
 
-  // ---------------- STATE MANAGEMENT ----------------
+  // Keep BOTH: table data AND map/trajectory/demo features
   const [tableData, setTableData] = useState(null);
   const [mapData, setMapData] = useState(null);
   const [showMap, setShowMap] = useState(false);
@@ -77,6 +79,7 @@ function ChatInterface() {
 
   // ---------------- ACTION HANDLERS ----------------
   const handleMapRequest = () => {
+    // always navigate to full-page map view
     navigate('/map', { state: { source: 'chat' } });
   };
 
@@ -165,6 +168,10 @@ function ChatInterface() {
     setTableData(data);
   };
 
+  const toggleChatHistory = () => {
+    setShowChatHistory(prev => !prev);
+  };
+
   return (
     <div className="app-container">
 
@@ -172,9 +179,8 @@ function ChatInterface() {
         onMapRequest={handleMapRequest}
         onMapData={handleMapData}
         onTableData={handleTableData}
-        
         showChatHistory={showChatHistory}
-        onToggleChatHistory={() => setShowChatHistory(!showChatHistory)}
+        onToggleChatHistory={toggleChatHistory}
         chatHistory={chatHistory}
         onSelectChat={handleSelectChat}
       />

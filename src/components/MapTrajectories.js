@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Polyline, CircleMarker } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
 function MapTrajectories({
@@ -74,7 +74,7 @@ function MapTrajectories({
       arr.sort((a, b) => (a.cycleNumber || 0) - (b.cycleNumber || 0));
     });
     return byFloat;
-  }, [filteredPoints, center.lat, center.lon]);
+  }, [filteredPoints]);
 
   const allFloatIds = useMemo(
     () => Array.from(floats.keys()),
@@ -100,37 +100,50 @@ function MapTrajectories({
 
   const colors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628'];
 
+  const containerStyle = fullScreen
+    ? { width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }
+    : { width: '100%', height: '520px', display: 'flex', flexDirection: 'column' };
+
   return (
-    <div style={{ width: '100%', height: '400px' }}>
-      <div style={{ marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label style={{ color: fullScreen ? '#003366' : '#ffffff' }}>
-            Float ID:
+    <div style={containerStyle}>
+      <div className={`sidebar-input-panel ${fullScreen ? 'full-screen' : ''}`} style={{ flexShrink: 0 }}>
+        <div className="sidebar-input-container">
+          <div className="sidebar-input-group">
+            <label
+              className={`sidebar-input-label ${fullScreen ? 'dark' : ''}`}
+              htmlFor="sidebarFloatId"
+            >
+              Float ID
+            </label>
             <select
+              id="sidebarFloatId"
+              className="sidebar-input-field"
               value={localFloatId}
               onChange={(e) => setLocalFloatId(e.target.value)}
             >
               <option value="">All floats</option>
               {allFloatIds.map((fid) => (
-                <option key={fid} value={fid}>{fid}</option>
+                <option key={fid} value={fid}>
+                  {fid}
+                </option>
               ))}
             </select>
-          </label>
-          <div>
-            {loading && <span style={{ fontSize: '0.85rem', marginRight: '0.5rem' }}>Loading trajectories…</span>}
-            {error && !loading && (
-              <span style={{ fontSize: '0.85rem', color: 'red' }}>Error: {error}</span>
-            )}
           </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <label style={{ fontSize: '0.85rem', color: fullScreen ? '#003366' : '#ffffff' }}>Radius (km):</label>
+
+          <div className="sidebar-input-group sidebar-input-inline">
+            <label
+              className={`sidebar-input-label ${fullScreen ? 'dark' : ''}`}
+              htmlFor="sidebarRadiusKm"
+            >
+              Radius (km)
+            </label>
             <input
+              id="sidebarRadiusKm"
               type="number"
               min={10}
               max={2000}
               step={10}
+              className="sidebar-input-field sidebar-number-field"
               value={radius}
               onChange={(e) => {
                 const val = Number(e.target.value);
@@ -139,9 +152,16 @@ function MapTrajectories({
                   setRadius(clamped);
                 }
               }}
-              style={{ width: '80px' }}
             />
-            {fullScreen && (
+          </div>
+        </div>
+
+        {fullScreen && (
+          <>
+            <div className="sidebar-slider-group">
+              <label className={`sidebar-input-label ${fullScreen ? 'dark' : ''}`}>
+                Radius Range
+              </label>
               <input
                 type="range"
                 min={10}
@@ -149,44 +169,60 @@ function MapTrajectories({
                 step={10}
                 value={radius}
                 onChange={(e) => setRadius(Number(e.target.value))}
-                style={{ flexGrow: 1 }}
-              />
-            )}
-          </div>
-          {fullScreen && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.85rem', color: fullScreen ? '#003366' : '#ffffff' }}>Days (history):</label>
-              <input
-                type="number"
-                min={1}
-                max={30}
-                step={1}
-                value={daysWindow}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  if (!Number.isNaN(val)) {
-                    const clamped = Math.min(30, Math.max(1, val));
-                    setDaysWindow(clamped);
-                  }
-                }}
-                style={{ width: '80px' }}
-              />
-              <input
-                type="range"
-                min={1}
-                max={30}
-                step={1}
-                value={daysWindow}
-                onChange={(e) => setDaysWindow(Number(e.target.value))}
-                style={{ flexGrow: 1 }}
               />
             </div>
-          )}
+            <div className="sidebar-input-container">
+              <div className="sidebar-input-group sidebar-input-inline">
+                <label className="sidebar-input-label dark" htmlFor="sidebarDaysWindow">
+                  Days (history)
+                </label>
+                <input
+                  id="sidebarDaysWindow"
+                  type="number"
+                  min={1}
+                  max={30}
+                  step={1}
+                  className="sidebar-input-field sidebar-number-field"
+                  value={daysWindow}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (!Number.isNaN(val)) {
+                      const clamped = Math.min(30, Math.max(1, val));
+                      setDaysWindow(clamped);
+                    }
+                  }}
+                />
+              </div>
+              <div className="sidebar-slider-group">
+                <label className={`sidebar-input-label ${fullScreen ? 'dark' : ''}`}>
+                  Days Range
+                </label>
+                <input
+                  type="range"
+                  min={1}
+                  max={30}
+                  step={1}
+                  value={daysWindow}
+                  onChange={(e) => setDaysWindow(Number(e.target.value))}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="sidebar-status-line">
+          {loading && <span>Loading trajectories…</span>}
+          {error && !loading && <span className="sidebar-error">Error: {error}</span>}
         </div>
       </div>
-      <MapContainer center={centerPoint} zoom={2} scrollWheelZoom={true} style={{ width: '100%', height: '100%' }}>
+      <MapContainer
+        center={centerPoint}
+        zoom={2}
+        scrollWheelZoom={true}
+        style={{ width: '100%', height: '100%', flex: 1 }}
+      >
         <TileLayer
-          attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+          // attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
         />
         {visibleFloatIds.map((fid, idx) => {
@@ -217,7 +253,22 @@ function MapTrajectories({
                       }
                     },
                   }}
-                />
+                >
+                  <Popup>
+                    <div style={{ fontSize: '0.8rem' }}>
+                      <div><strong>Float ID:</strong> {p.floatId ?? 'N/A'}</div>
+                      <div><strong>Profile ID:</strong> {p.profileId ?? 'N/A'}</div>
+                      <div><strong>Cycle:</strong> {p.cycleNumber ?? 'N/A'}</div>
+                      <div>
+                        <strong>Position:</strong> {p.lat?.toFixed?.(2)}, {p.lon?.toFixed?.(2)}
+                      </div>
+                      <div>
+                        <strong>Time:</strong>{' '}
+                        {p.datetime ? new Date(p.datetime).toLocaleString() : 'N/A'}
+                      </div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
               ))}
               {lastPt && (
                 <CircleMarker
@@ -234,7 +285,22 @@ function MapTrajectories({
                       }
                     },
                   }}
-                />
+                >
+                  <Popup>
+                    <div style={{ fontSize: '0.8rem' }}>
+                      <div><strong>Float ID:</strong> {lastPt.floatId ?? 'N/A'}</div>
+                      <div><strong>Profile ID:</strong> {lastPt.profileId ?? 'N/A'}</div>
+                      <div><strong>Cycle:</strong> {lastPt.cycleNumber ?? 'N/A'}</div>
+                      <div>
+                        <strong>Position:</strong> {lastPt.lat?.toFixed?.(2)}, {lastPt.lon?.toFixed?.(2)}
+                      </div>
+                      <div>
+                        <strong>Time:</strong>{' '}
+                        {lastPt.datetime ? new Date(lastPt.datetime).toLocaleString() : 'N/A'}
+                      </div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
               )}
             </React.Fragment>
           );
@@ -245,4 +311,6 @@ function MapTrajectories({
 }
 
 export default MapTrajectories;
+
+
 

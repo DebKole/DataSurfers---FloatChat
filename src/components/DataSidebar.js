@@ -165,22 +165,23 @@ const DataSidebar = ({
         >
           <option value="map">Map</option>
           <option value="table">Table</option>
-          <option value="updates">Latest Updates</option>
+          {/* <option value="updates">Latest Updates</option> */}
         </select>
       </div>
 
       {/* Collapsed Icons */}
       {collapsed && (
         <div className="collapsed-view-icons">
-          <div className="collapsed-icon" title="Table">
-            <i className="fas fa-table"></i>
-          </div>
           <div className="collapsed-icon" title="Map">
             <i className="fas fa-map"></i>
           </div>
-          <div className="collapsed-icon" title="Latest Updates">
-            <i className="fas fa-clock"></i>
+          <div className="collapsed-icon" title="Table">
+            <i className="fas fa-table"></i>
           </div>
+          
+          {/* <div className="collapsed-icon" title="Latest Updates">
+            <i className="fas fa-clock"></i>
+          </div> */}
         </div>
       )}
 
@@ -265,8 +266,8 @@ const DataSidebar = ({
           </h3>
           <div className="map-preview">
             <div className="map-placeholder">
-              <i className="fas fa-globe"></i>
-              <p>Interactive Ocean Map</p>
+              {/* <i className="fas fa-globe"></i>
+              <p>Interactive Ocean Map</p> */}
               <div className="map-stats">
                 {mapData ? (
                   <>
@@ -286,8 +287,8 @@ const DataSidebar = ({
                   </>
                 ) : (
                   <>
-                    <span>No map data</span>
-                    <span>Ocean Region</span>
+                    {/* <span>No map data</span>
+                    <span>Ocean Region</span> */}
                   </>
                 )}
               </div>
@@ -302,16 +303,17 @@ const DataSidebar = ({
 
           <div className="view-more" style={{ marginTop: "0.5rem" }}>
             <button className="view-more-btn" onClick={onOpenTrajectoryOverlay}>
-              Open Trajectory Map (Full Screen)
+              Open Trajectory Map
             </button>
           </div>
 
           <div
             style={{
               marginTop: "1rem",
-              height: 300,
+              minHeight: 520,
               border: "1px solid #333",
               borderRadius: 8,
+              overflow: "hidden",
             }}
           >
             <MapTrajectories />
@@ -320,24 +322,24 @@ const DataSidebar = ({
       )}
 
       {/* Updates View */}
-      {selectedView === "updates" && (
+      {/* {selectedView === "updates" && (
         <div className="data-card">
           <h3>
             <i className="fas fa-clock"></i> Latest Updates
           </h3>
-          <div className="update-list">
+          <div className="update-list"> */}
             {/* Your update items here */}
-            <div className="update-item">
+            {/* <div className="update-item">
               <div className="update-time">2 min ago</div>
               <div className="update-text">New data from Float 4902916</div>
-            </div>
+            </div> */}
             {/* ... more items */}
-          </div>
+          {/* </div>
           <div className="view-more">
             <button className="view-more-btn">View All Updates</button>
           </div>
-        </div>
-      )}
+        </div> */}
+      {/* )}  */}
 
       {/* Inline Map Modal */}
       <MapVisualization
