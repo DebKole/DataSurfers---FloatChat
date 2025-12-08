@@ -1,97 +1,115 @@
-  * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }
-  
-  html, body, #root {
-    height: 100%;
-  }
-  
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    color: #ffffff;
-    height: 100vh;
-    overflow: hidden;
-    background: linear-gradient(135deg, #efefef 0%, #2c5282 30%, #2b6cb0 60%, #3182ce 100%);
-    background-size: 400% 400%;
-    animation: gradientBG 18s ease infinite;
-  }
-  
-  @keyframes gradientBG {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
-  .container {
-    display: flex;
-    height: 100vh;
-    max-width: 1800px;
-    margin: 0 auto;
-    padding: 20px;
-    gap: 20px;
-  }
+html, body, #root {
+  height: 100%;
+}
 
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  
-  /* Scrollbar styling */
-  ::-webkit-scrollbar { width: 8px; }
-  ::-webkit-scrollbar-track { background: rgba(26,54,93,0.3); border-radius: 4px; }
-  ::-webkit-scrollbar-thumb { background: rgba(49,130,206,0.6); border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(49,130,206,0.8); }
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #ffffff;
+  height: 100vh;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 30%, #1e40af 60%, #1d4ed8 100%);
+  background-size: 400% 400%;
+  animation: gradientBG 18s ease infinite;
+  position: relative;
+}
 
-  /* Responsive */
-  @media (max-width: 880px) {
-    .container { padding: 12px; gap: 12px; }
-    .sidebar, .data-sidebar { display: none; }
-    .chat-container { flex: 1; }
-  }
+@keyframes gradientBG {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
 
-/* Add to index.css */
-.dashboard-button {
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Trajectory Overlay */
+.trajectory-overlay {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trajectory-modal {
+  background-color: #1e293b;
+  padding: 1.5rem;
+  border-radius: 8px;
+  width: 90%;
+  height: 85%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+.trajectory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #334155;
+}
+
+.trajectory-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #f8fafc;
+}
+
+.close-button {
+  background: #3b82f6;
   color: white;
   border: none;
-  padding: 12px 20px;
-  border-radius: 25px;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-  z-index: 100;
-  transition: all 0.3s ease;
+  font-weight: 500;
+  transition: background-color 0.2s;
 }
 
-.dashboard-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+.close-button:hover {
+  background: #2563eb;
 }
 
-.dashboard-button {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 12px 20px;
-  border-radius: 25px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-  z-index: 100;
-  transition: all 0.3s ease;
+.trajectory-content {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
 }
 
-.dashboard-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+  }
+  
+  .trajectory-modal {
+    width: 95%;
+    height: 90%;
+    padding: 1rem;
+  }
 }

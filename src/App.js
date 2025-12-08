@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import Sidebar from './components/Sidebar';
 import ChatContainer from './components/ChatContainer';
@@ -10,11 +10,10 @@ import PlotProfileTool from './components/PlotProfile';
 import CompareProfilesTool from './components/CompareProfilesTool';
 import './index.css';
 
-//Main chat interface
+// Main chat interface
 function ChatInterface() {
   const [dataSidebarView, setDataSidebarView] = useState('table');
   const navigate = useNavigate();
-  // Keep BOTH: table data AND map/trajectory/demo features
   const [tableData, setTableData] = useState(null);
   const [mapData, setMapData] = useState(null);
   const [showMap, setShowMap] = useState(false);
@@ -36,7 +35,6 @@ function ChatInterface() {
   const [compareTsError, setCompareTsError] = useState(null);
 
   const handleMapRequest = () => {
-    // Open the full-page Map view directly when chat requests the map
     navigate('/map', { state: { source: 'chat' } });
   };
 
@@ -48,13 +46,12 @@ function ChatInterface() {
   const handleMapClose = () => {
     setShowMap(false);
   };
+
   const handleTestTsCurve = async () => {
     setTsLoading(true);
     setTsError(null);
-
     try {
       const res = await fetch(`http://127.0.0.1:8000/api/ts_curve?float_id=${demoFloatId}`);
-
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -63,7 +60,6 @@ function ChatInterface() {
     } catch (err) {
       setTsError(err.message || String(err));
       setTsProfiles([]);
-
     } finally {
       setTsLoading(false);
     }
@@ -74,7 +70,6 @@ function ChatInterface() {
     setTdError(null);
     try {
       const res = await fetch(`http://127.0.0.1:8000/api/td_curve?float_id=${demoFloatId}`);
-
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -133,9 +128,13 @@ function ChatInterface() {
   };
 
   return (
-    <div className="container">
+    <div className="app-container">
       <Sidebar />
-      <ChatContainer onMapRequest={handleMapRequest} onMapData={handleMapData} onTableData={handleTableData} />
+      <ChatContainer 
+        onMapRequest={handleMapRequest} 
+        onMapData={handleMapData} 
+        onTableData={handleTableData} 
+      />
       <DataSidebar
         selectedView={dataSidebarView}
         onViewChange={setDataSidebarView}
@@ -146,41 +145,19 @@ function ChatInterface() {
         onOpenTrajectoryOverlay={() => setShowTrajectoryOverlay(true)}
       />
 
-
       {showTrajectoryOverlay && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#fff',
-              padding: '1rem',
-              borderRadius: '8px',
-              width: '90%',
-              height: '80%',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <h2 style={{ margin: 0 }}>Trajectory Map</h2>
-              <button className="view-more-btn" onClick={() => setShowTrajectoryOverlay(false)}>
+        <div className="trajectory-overlay">
+          <div className="trajectory-modal">
+            <div className="trajectory-header">
+              <h2>Trajectory Map</h2>
+              <button 
+                className="close-button" 
+                onClick={() => setShowTrajectoryOverlay(false)}
+              >
                 Close
               </button>
             </div>
-            <div style={{ flex: 1 }}>
+            <div className="trajectory-content">
               <MapTrajectories fullScreen={true} />
             </div>
           </div>
@@ -189,19 +166,17 @@ function ChatInterface() {
     </div>
   );
 }
+
 function App() {
-  const [showFAQ, setShowFAQ] = useState(false); //Add state
   return (
-    
-    
+    <div className="app">
+      
       <Routes>
         <Route path="/" element={<ChatInterface />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/map" element={<MapPage />} />
-
       </Routes>
-
-    
+    </div>
   );
 }
 
