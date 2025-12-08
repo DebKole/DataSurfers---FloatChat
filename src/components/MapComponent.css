@@ -96,11 +96,12 @@
 
 /* Circle marker styling */
 .leaflet-marker-pane .leaflet-marker-icon {
-  transition: transform 0.2s ease, fill-opacity 0.2s ease;
+  transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .leaflet-marker-pane .leaflet-marker-icon:hover {
-  transform: scale(1.2);
+  transform: scale(1.4);
   z-index: 1000 !important;
 }
 

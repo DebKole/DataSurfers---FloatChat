@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { MapContainer, TileLayer, Polyline, CircleMarker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, Tooltip } from 'react-leaflet';
 import "./MapComponent.css";
 import "leaflet/dist/leaflet.css";
-// import L from "leaflet";
+import L from "leaflet";
 
 const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) => {
   const mapContainerRef = useRef(null);
@@ -16,6 +16,8 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
   const [radiusKm, setRadiusKm] = useState(2000);
   const [daysWindow, setDaysWindow] = useState(10);
   const [localFloatId, setLocalFloatId] = useState('');
+  const [showTrajectories, setShowTrajectories] = useState({});
+  const [hoveredFloat, setHoveredFloat] = useState(null);
 
   // Colors for different trajectory lines
   const colors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628'];
@@ -119,13 +121,15 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
 
             return (
               <React.Fragment key={fid}>
-                <Polyline 
-                  positions={latlngs} 
-                  color={color} 
-                  weight={2} 
-                  dashArray="4 8" 
-                />
-                {prevPts.map((p) => (
+                {showTrajectories[fid] && (
+                  <Polyline 
+                    positions={latlngs} 
+                    color={color} 
+                    weight={2}
+                    dashArray="4 8"
+                  />
+                )}
+                {prevPts.map((p, idx) => (
                   <CircleMarker
                     key={p.profileId}
                     center={[p.lat, p.lon]}
@@ -133,16 +137,26 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
                     color={color}
                     opacity={0.5}
                     fillOpacity={0.4}
+                    eventHandlers={{
+                      click: () => {
+                        setShowTrajectories(prev => ({
+                          ...prev,
+                          [fid]: !prev[fid]
+                        }));
+                      },
+                      mouseover: () => setHoveredFloat({ id: fid, point: p }),
+                      mouseout: () => setHoveredFloat(null)
+                    }}
                   >
-                    <Popup>
-                      <div style={{ fontSize: '0.8rem', color: '#000' }}>
-                        <div><strong>Float ID:</strong> {p.floatId ?? 'N/A'}</div>
-                        <div><strong>Profile ID:</strong> {p.profileId ?? 'N/A'}</div>
-                        <div><strong>Cycle:</strong> {p.cycleNumber ?? 'N/A'}</div>
-                        <div><strong>Position:</strong> {p.lat?.toFixed?.(2)}, {p.lon?.toFixed?.(2)}</div>
-                        <div><strong>Time:</strong> {p.datetime ? new Date(p.datetime).toLocaleString() : 'N/A'}</div>
-                      </div>
-                    </Popup>
+                    {(hoveredFloat?.id === fid && hoveredFloat?.point.profileId === p.profileId) && (
+                      <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent>
+                        <div style={{ fontSize: '0.8rem' }}>
+                          <div><strong>Float ID:</strong> {p.floatId ?? 'N/A'}</div>
+                          <div><strong>Cycle:</strong> {p.cycleNumber ?? 'N/A'}</div>
+                          <div><em>Click to {showTrajectories[fid] ? 'hide' : 'show'} trajectory</em></div>
+                        </div>
+                      </Tooltip>
+                    )}
                   </CircleMarker>
                 ))}
                 {lastPt && (
@@ -153,7 +167,28 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
                     color={color}
                     opacity={1}
                     fillOpacity={0.9}
+                    eventHandlers={{
+                      click: () => {
+                        setShowTrajectories(prev => ({
+                          ...prev,
+                          [fid]: !prev[fid]
+                        }));
+                      },
+                      mouseover: () => setHoveredFloat({ id: fid, point: lastPt }),
+                      mouseout: () => setHoveredFloat(null)
+                    }}
                   >
+                    {(hoveredFloat?.id === fid && hoveredFloat?.point.profileId === lastPt.profileId) && (
+                      <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent>
+                        <div style={{ fontSize: '0.8rem' }}>
+                          <div><strong>Float ID:</strong> {lastPt.floatId ?? 'N/A'}</div>
+                          <div><strong>Cycle:</strong> {lastPt.cycleNumber ?? 'N/A'}</div>
+                          <div><strong>Position:</strong> {lastPt.lat?.toFixed?.(2)}, {lastPt.lon?.toFixed?.(2)}</div>
+                          <div><strong>Time:</strong> {lastPt.datetime ? new Date(lastPt.datetime).toLocaleString() : 'N/A'}</div>
+                          <div><em>Click to {showTrajectories[fid] ? 'hide' : 'show'} trajectory</em></div>
+                        </div>
+                      </Tooltip>
+                    )}
                     <Popup>
                       <div style={{ fontSize: '0.8rem', color: '#000' }}>
                         <div><strong>Float ID:</strong> {lastPt.floatId ?? 'N/A'}</div>
@@ -161,6 +196,28 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
                         <div><strong>Cycle:</strong> {lastPt.cycleNumber ?? 'N/A'}</div>
                         <div><strong>Position:</strong> {lastPt.lat?.toFixed?.(2)}, {lastPt.lon?.toFixed?.(2)}</div>
                         <div><strong>Time:</strong> {lastPt.datetime ? new Date(lastPt.datetime).toLocaleString() : 'N/A'}</div>
+                        <div style={{ marginTop: '8px' }}>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowTrajectories(prev => ({
+                                ...prev,
+                                [fid]: !prev[fid]
+                              }));
+                            }}
+                            style={{
+                              background: color,
+                              color: 'white',
+                              border: 'none',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.8rem'
+                            }}
+                          >
+                            {showTrajectories[fid] ? 'Hide' : 'Show'} Trajectory
+                          </button>
+                        </div>
                       </div>
                     </Popup>
                   </CircleMarker>
@@ -182,6 +239,9 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
           </span>
           <span>
             <i className="fas fa-ruler"></i> Radius: {radiusKm} km
+          </span>
+          <span>
+            <i className="fas fa-info-circle"></i> Click on any point to {Object.values(showTrajectories).some(v => v) ? 'hide' : 'show'} its trajectory
           </span>
         </div>
       </div>
