@@ -173,6 +173,10 @@ async def query_answer(req: QueryRequest):
     if result.get("table_data") and result["table_data"].get("rows"):
         response_data["table_data"] = result["table_data"]
     
+    # Add chart data if available
+    if result.get("chart_data"):
+        response_data["chart_data"] = result["chart_data"]
+    
     # Add map data if available AND non-empty; otherwise, do not trigger map
     if result.get("show_map", False):
         raw_map = result.get("map_data", {})

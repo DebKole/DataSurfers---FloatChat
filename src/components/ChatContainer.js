@@ -309,7 +309,7 @@ const ChatContainer = ({
             newMessages[messageIndex] = {
               ...newMessages[messageIndex],
               content: response.data.message,
-              chartData: response.data.chart_data,
+              chartData: response.data.chart_data || response.data.chartData, // Handle both formats
               tableData: response.data.table_data,
               hasData: response.data.has_data,
               isLoading: false,
@@ -540,7 +540,9 @@ const ChatContainer = ({
 
               {/* Chart renderer, if available */}
               {message.chartData && message.type === "bot" && !message.isLoading && (
-                <ChartRenderer chartData={message.chartData} />
+                <div className="chart-container" style={{ width: '100%', marginTop: '20px' }}>
+                  <ChartRenderer chartData={message.chartData} />
+                </div>
               )}
             </React.Fragment>
           ))
