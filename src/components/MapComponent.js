@@ -19,8 +19,8 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
   const [showTrajectories, setShowTrajectories] = useState({});
   const [hoveredFloat, setHoveredFloat] = useState(null);
 
-  // Colors for different trajectory lines
-  const colors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628'];
+  // Colors for different trajectory lines (using yellow for all markers)
+  const colors = ['#ffeb3b', '#ffeb3b', '#ffeb3b', '#ffeb3b', '#ffeb3b', '#ffeb3b'];
 
   // Fetch trajectory data
   useEffect(() => {
@@ -133,10 +133,12 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
                   <CircleMarker
                     key={p.profileId}
                     center={[p.lat, p.lon]}
-                    radius={3}
-                    color={color}
-                    opacity={0.5}
-                    fillOpacity={0.4}
+                    radius={4}
+                    color="#ffeb3b"
+                    fillColor="#ffeb3b"
+                    weight={1}
+                    opacity={0.9}
+                    fillOpacity={0.7}
                     eventHandlers={{
                       click: () => {
                         setShowTrajectories(prev => ({
@@ -163,8 +165,10 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
                   <CircleMarker
                     key={`${fid}-current`}
                     center={[lastPt.lat, lastPt.lon]}
-                    radius={6}
-                    color={color}
+                    radius={8}
+                    color="#ffeb3b"
+                    fillColor="#ffeb3b"
+                    weight={1.5}
                     opacity={1}
                     fillOpacity={0.9}
                     eventHandlers={{
@@ -206,13 +210,14 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
                               }));
                             }}
                             style={{
-                              background: color,
-                              color: 'white',
+                              background: '#ffeb3b',
+                              color: '#1a202c',
                               border: 'none',
                               padding: '4px 8px',
                               borderRadius: '4px',
                               cursor: 'pointer',
-                              fontSize: '0.8rem'
+                              fontSize: '0.8rem',
+                              fontWeight: 'bold'
                             }}
                           >
                             {showTrajectories[fid] ? 'Hide' : 'Show'} Trajectory
