@@ -9,7 +9,7 @@
 .env.production.local
 *.key
 *.pem
-
+density_maps/
 Landing_page/
 # ===== PYTHON =====
 __pycache__/
