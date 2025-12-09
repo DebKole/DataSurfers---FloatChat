@@ -1,5 +1,6 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, Tooltip } from 'react-leaflet';
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import "./MapComponent.css";
 
@@ -7,9 +8,10 @@ function MapTrajectories({
   center = { lat: 10, lon: 70 }, // Default to Indian Ocean
   radiusKm = 2000,
   limit = 100,
-  selectedFloatIds,
+  selectedFloatIds = [],
   onProfileClick,
   fullScreen = false,
+  tableData = null,
 }) {
   const [points, setPoints] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -19,9 +21,12 @@ function MapTrajectories({
   const [localFloatId, setLocalFloatId] = useState('');
   const [showTrajectories, setShowTrajectories] = useState({});
   const [hoveredFloat, setHoveredFloat] = useState(null);
+  const mapRef = useRef(null);
+  const [initialLoad, setInitialLoad] = useState(true);
 
-  // Use yellow for all markers as requested
+  // Use yellow for all markers as requested, with a highlight color for selected floats
   const colors = ['#ffeb3b', '#ffeb3b', '#ffeb3b', '#ffeb3b', '#ffeb3b', '#ffeb3b'];
+  const highlightColor = '#ff5722'; // Orange color for highlighted trajectory
 
   useEffect(() => {
     const fetchTrajectories = async () => {
@@ -73,15 +78,24 @@ function MapTrajectories({
 
   const floats = useMemo(() => {
     const byFloat = new Map();
-    filteredPoints.forEach((p) => {
-      if (p.floatId == null || p.lat == null || p.lon == null) return;
-      const fid = String(p.floatId);
+
+    // Process points
+    filteredPoints.forEach((point) => {
+      if (point.floatId == null || point.lat == null || point.lon == null) return;
+
+      const fid = String(point.floatId);
       if (!byFloat.has(fid)) byFloat.set(fid, []);
-      byFloat.get(fid).push(p);
+      byFloat.get(fid).push({
+        ...point,
+        floatId: fid
+      });
     });
-    byFloat.forEach((arr, key) => {
+
+    // Sort points by cycle number for each float
+    byFloat.forEach((arr) => {
       arr.sort((a, b) => (a.cycleNumber || 0) - (b.cycleNumber || 0));
     });
+
     return byFloat;
   }, [filteredPoints]);
 
@@ -90,7 +104,36 @@ function MapTrajectories({
     [floats]
   );
 
+  // Extract float IDs from table data if available
+  const tableFloatIds = useMemo(() => {
+    if (!tableData?.rows?.length) return null;
+
+    // Try to find a column that contains float IDs
+    const floatIdColumn = tableData.columns.find(col =>
+      col.toLowerCase().includes('float') ||
+      col.toLowerCase().includes('id')
+    );
+
+    if (!floatIdColumn) return null;
+
+    // Get unique float IDs from the table
+    const ids = new Set();
+    tableData.rows.forEach(row => {
+      const id = row[floatIdColumn];
+      if (id !== undefined && id !== null) {
+        ids.add(String(id));
+      }
+    });
+
+    return ids.size > 0 ? Array.from(ids) : null;
+  }, [tableData]);
+
   const visibleFloatIds = useMemo(() => {
+    // If we have table data with float IDs, use those
+    if (tableFloatIds) {
+      return tableFloatIds;
+    }
+    // Otherwise fall back to the original logic
     if (selectedFloatIds && selectedFloatIds.length > 0) {
       return selectedFloatIds.map((id) => String(id));
     }
@@ -98,11 +141,18 @@ function MapTrajectories({
       return [String(localFloatId)];
     }
     return allFloatIds;
-  }, [selectedFloatIds, localFloatId, allFloatIds]);
+  }, [selectedFloatIds, localFloatId, allFloatIds, tableFloatIds]);
 
   const containerStyle = fullScreen
     ? { width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }
     : { width: '100%', height: '520px', display: 'flex', flexDirection: 'column' };
+
+  // Get the color for a float's trajectory
+  const getTrajectoryColor = (floatId) => {
+    // Use the default color based on index
+    const index = allFloatIds.indexOf(floatId) % colors.length;
+    return colors[index];
+  };
 
   return (
     <div style={containerStyle} className="map-component">
@@ -172,15 +222,16 @@ function MapTrajectories({
           zoom={3}
           scrollWheelZoom={true}
           style={{ width: '100%', height: '100%' }}
+          whenCreated={(map) => { mapRef.current = map; }}
         >
           <TileLayer
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            attribution="Tiles © Esri"
+            attribution="Tiles &copy; Esri"
           />
           {visibleFloatIds.map((fid, idx) => {
             const pts = floats.get(fid) || [];
             if (pts.length === 0) return null;
-            const color = colors[idx % colors.length];
+            const color = getTrajectoryColor(fid);
             const latlngs = pts.map((p) => [p.lat, p.lon]);
 
             const lastIndex = pts.length - 1;

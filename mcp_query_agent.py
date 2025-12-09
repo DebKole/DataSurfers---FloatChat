@@ -616,6 +616,8 @@ For general information about Argo floats or the system, try asking "What are Ar
             'enabled': False  # Frontend can check this flag
         }
         
+        points_requiring_lookup = []
+        
         for res in result.get('results', []):
             if isinstance(res, dict) and 'result' in res:
                 inner = res['result']
@@ -626,18 +628,72 @@ For general information about Argo floats or the system, try asking "What are Ar
                     for point in data[:100]:
                         if 'latitude' in point and 'longitude' in point:
                             try:
+                                lat = float(point['latitude'])
+                                lng = float(point['longitude'])
+                                float_id = point.get('float_id')
+
                                 map_point = {
-                                    'lat': float(point['latitude']),
-                                    'lng': float(point['longitude']),
+                                    'lat': lat,
+                                    'lng': lng,
                                     'temperature': point.get('temperature'),
                                     'salinity': point.get('salinity'),
-                                    'float_id': point.get('float_id'),
+                                    'float_id': float_id,
                                     'datetime': str(point.get('datetime', ''))
                                 }
+                                
+                                # If float_id is missing, mark for lookup
+                                if not float_id:
+                                    points_requiring_lookup.append(map_point)
+                                
                                 map_data['points'].append(map_point)
                             except (ValueError, TypeError):
                                 # Skip points with invalid lat/lon
                                 continue
+        
+        # Perform batched lookup for missing float IDs
+        if points_requiring_lookup:
+            try:
+                # We need to find float IDs that match these lat/lon coordinates
+                # This is a bit tricky as coordinates might slightly vary, but we'll try exact match first
+                
+                # Gather all unique coordinates to lookup
+                unique_coords = {(p['lat'], p['lng']) for p in points_requiring_lookup}
+                
+                # We'll use the orchestrator's db_tool to execute a custom query
+                if unique_coords:
+                    # Create a temporary table representation for values
+                    values_list = ", ".join([f"({lat}, {lng})" for lat, lng in unique_coords])
+                    
+                    lookup_query = f"""
+                    SELECT DISTINCT p.float_id, m.latitude, m.longitude
+                    FROM argo_measurements m
+                    JOIN argo_profiles p ON m.global_profile_id = p.global_profile_id
+                    WHERE (m.latitude, m.longitude) IN ({values_list})
+                    LIMIT {len(unique_coords) * 2}
+                    """
+                    
+                    import pandas as pd
+                    # Access the engine from the db_tool
+                    engine = self.orchestrator.db_tool.engine
+                    
+                    with engine.connect() as conn:
+                        df = pd.read_sql(lookup_query, conn)
+                        
+                        # measurements floats map
+                        coord_float_map = {}
+                        for _, row in df.iterrows():
+                            # Create a key
+                            key = (float(row['latitude']), float(row['longitude']))
+                            coord_float_map[key] = str(row['float_id'])
+                        
+                        # Update points
+                        for p in map_data['points']:
+                            key = (p['lat'], p['lng'])
+                            if not p['float_id'] and key in coord_float_map:
+                                p['float_id'] = coord_float_map[key]
+                                
+            except Exception as e:
+                print(f"Error performing float ID lookup: {e}")
         
         # Only enable map if we have valid points
         if len(map_data['points']) > 0:
