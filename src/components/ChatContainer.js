@@ -62,6 +62,7 @@ const ChatContainer = ({
   const [showQuickStart, setShowQuickStart] = useState(true);
   const [showHistoryBox, setShowHistoryBox] = useState(false);
   const [currentFloatIds, setCurrentFloatIds] = useState(null);
+  const [messageFeedbacks, setMessageFeedbacks] = useState({});
 
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
@@ -344,9 +345,9 @@ const ChatContainer = ({
         const newChatId = messageId;
         const newChat = {
           id: newChatId,
-          title: userMessageText.substring(0, 30) + (userMessageText.length > 30 ? '...' : ''),
+          title: inputValue.substring(0, 30) + (inputValue.length > 30 ? '...' : ''),
           date: new Date().toISOString(),
-          preview: userMessageText.substring(0, 50) + (userMessageText.length > 50 ? '...' : '')
+          preview: inputValue.substring(0, 50) + (inputValue.length > 50 ? '...' : '')
         };
         setLocalChatHistory(prev => [newChat, ...prev]);
         setActiveChat(newChatId);
@@ -355,7 +356,7 @@ const ChatContainer = ({
       // Add user message
       const userMessage = {
         type: "user",
-        content: userMessageText,
+        content: inputValue,
         id: messageId,
         timestamp: new Date().toISOString()
       };
