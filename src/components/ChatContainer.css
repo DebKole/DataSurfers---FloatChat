@@ -125,6 +125,9 @@
   border-bottom-left-radius: 5px;
   border: 1px solid rgba(49, 130, 206, 0.2);
   color: #ffffff;
+  position: relative;
+  padding: 10px 40px 15px 10px;
+  margin-bottom: 10px;
 }
 
 .message-header {
@@ -146,6 +149,76 @@
 
 .bot-header {
   color: #ffffff;
+}
+
+.message-content {
+  position: relative;
+  padding-bottom: 5px;
+}
+
+.feedback-buttons-container {
+  position: relative;
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 8px;
+  margin-left: 0;
+  padding-left: 0;
+  margin-bottom: 10px;
+  padding-top: 20px;
+}
+
+.feedback-buttons {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  gap: 8px;
+  opacity: 0.7;
+  transition: all 0.2s ease;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 4px 8px;
+  border-radius: 16px;
+}
+
+.feedback-buttons:hover,
+.feedback-buttons-container:hover .feedback-buttons,
+.feedback-btn.active {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.feedback-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  font-size: 10px;
+}
+
+.feedback-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.feedback-btn.active {
+  background: #3182ce;
+  border-color: #3182ce;
+  color: white;
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.feedback-btn i {
+  font-size: 10px;
 }
 
 /* ---------- Chat Input ------------------*/

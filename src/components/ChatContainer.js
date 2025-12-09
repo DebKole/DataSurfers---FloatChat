@@ -61,6 +61,7 @@ const ChatContainer = ({
   const [isLoading, setIsLoading] = useState(false);
   const [showQuickStart, setShowQuickStart] = useState(true);
   const [showHistoryBox, setShowHistoryBox] = useState(false);
+  const [messageFeedbacks, setMessageFeedbacks] = useState({});
   
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
@@ -324,18 +325,29 @@ const ChatContainer = ({
     };
   };
 
+  const handleFeedback = (messageId, feedback) => {
+    setMessageFeedbacks(prev => ({
+      ...prev,
+      [messageId]: feedback
+    }));
+    
+    // Here you can add code to send the feedback to your backend
+    console.log(`Feedback for message ${messageId}:`, feedback);
+  };
+
   const handleSend = async () => {
     if (inputValue.trim()) {
       const messageId = Date.now();
+      const userMessageText = inputValue.trim();
       
       // Create a new chat if this is the first message
       if (messages.length === 0 && !activeChat) {
         const newChatId = messageId;
         const newChat = {
           id: newChatId,
-          title: inputValue.substring(0, 30) + (inputValue.length > 30 ? '...' : ''),
+          title: userMessageText.substring(0, 30) + (userMessageText.length > 30 ? '...' : ''),
           date: new Date().toISOString(),
-          preview: inputValue.substring(0, 50) + (inputValue.length > 50 ? '...' : '')
+          preview: userMessageText.substring(0, 50) + (userMessageText.length > 50 ? '...' : '')
         };
         setLocalChatHistory(prev => [newChat, ...prev]);
         setActiveChat(newChatId);
@@ -344,7 +356,7 @@ const ChatContainer = ({
       // Add user message
       const userMessage = {
         type: "user",
-        content: inputValue,
+        content: userMessageText,
         id: messageId,
         timestamp: new Date().toISOString()
       };
@@ -649,9 +661,33 @@ const ChatContainer = ({
                     <span>{message.loadingText || 'Processing...'}</span>
                   </div>
                 ) : (
-                  <div className="message-content">
-                    {message.content}
-                  </div>
+                  <>
+                    <div className="message-content">
+                      {message.content}
+                    </div>
+                    {message.type === 'bot' && !message.isLoading && (
+                      <div className="feedback-buttons-container">
+                        <div className="feedback-buttons">
+                          <button 
+                            className={`feedback-btn ${messageFeedbacks[message.id] === 'thumbsUp' ? 'active' : ''}`}
+                            onClick={() => handleFeedback(message.id, 'thumbsUp')}
+                            aria-label="Helpful response"
+                            title="Helpful response"
+                          >
+                            <i className="fas fa-thumbs-up"></i>
+                          </button>
+                          <button 
+                            className={`feedback-btn ${messageFeedbacks[message.id] === 'thumbsDown' ? 'active' : ''}`}
+                            onClick={() => handleFeedback(message.id, 'thumbsDown')}
+                            aria-label="Not helpful"
+                            title="Not helpful"
+                          >
+                            <i className="fas fa-thumbs-down"></i>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 

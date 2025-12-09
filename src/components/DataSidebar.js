@@ -320,7 +320,7 @@ const DataSidebar = ({
               overflow: "hidden",
             }}
           >
-            <MapTrajectories />
+            <MapTrajectories tableData={tableData} />
           </div>
         </div>
       )}
@@ -363,6 +363,7 @@ const DataSidebar = ({
         queryType={mapData?.query_type || "general"}
         parameter={mapData?.parameter || "temperature"}
       />
+      
 
       {/* Full Table Modal via Portal */}
       {showFullTable &&
