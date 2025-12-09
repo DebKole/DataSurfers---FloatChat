@@ -248,10 +248,22 @@ DATABASE SELECTION RULES (with Foreign Data Wrapper):
    - Use specific year database: argo_indian_ocean_YY (e.g., argo_indian_ocean_16 for 2016)
    - Use regular tables: argo_profiles and argo_measurements
    - Example: "January 2020" → Use argo_indian_ocean_20 with argo_profiles
-4. **NEAREST NEIGHBOR SEARCH (CRITICAL)**
+4. **SPECIFIC FLOAT ID LOOKUP**:
+   - If the user asks about a specific **Float ID** (e.g., "Float 2902403"):
+   - **USE FDW VIEWS** (all_years_argo_profiles/measurements) to ensure data is found regardless of year.
+   - Database: argo_indian_ocean_25
+   - **CRITICAL**: Filter specifically by the ID: `WHERE float_id = '...'`
+
+5. **NEAREST NEIGHBOR SEARCH (CRITICAL)**
    - If the user asks for "near" a location or coordinate:
    - Use a **BROAD** bounding box (e.g., +/- 5 degrees).
    - **CRITICAL**: Sort by distance: `ORDER BY ((latitude - target_lat)^2 + (longitude - target_lon)^2) ASC LIMIT 50`
+
+6. **COMPARISON QUERIES (CRITICAL)**:
+   - If asking to compare floats: Use `WHERE float_id IN ('id1', 'id2')`
+   - If asking to compare regions: Use `WHERE (lat/lon condition 1) OR (lat/lon condition 2)`
+   - **ALWAYS** include the distinguishing column (e.g., `float_id`, `latitude`, `longitude`) in the SELECT clause.
+   - **ORDER BY** datetime DESC, float_id ASC (to group results).
    
 IMPORTANT RULES:
 1. Always use proper JOIN syntax when accessing both tables
@@ -264,6 +276,7 @@ IMPORTANT RULES:
 8. **SELECT ONLY RELEVANT COLUMNS** (Strict Column Rule):
    - **ALWAYS INCLUDE**: global_profile_id, float_id, latitude, longitude, datetime
    - **IF USER ASKS FOR PARAMETER** (e.g., temperature): Include the parameter AND its QC column (e.g., temperature, temperature_adjusted_qc) and pressure.
+   - **IF USER ASKS FOR TRAJECTORY/MAP**: SELECT global_profile_id, float_id, cycle_number, latitude, longitude, datetime. **MUST FILTER BY FLOAT ID**. ORDER BY datetime ASC.
    - **Example**: SELECT global_profile_id, float_id, latitude, longitude, datetime, pressure, temperature, temperature_adjusted_qc FROM ...
    - **DO NOT** use SELECT * unless explicitly asked.
 9. Return ONLY the SQL query with database comment. NO explanations, NO markdown formatting.
@@ -291,11 +304,13 @@ Generate the SQL query now.
                 temperature=0.1,
             )
             
-            generated_sql = chat_completion.choices[0].message.content.strip()
+            # Extract float IDs from user query to validate presence in SQL
+            import re
+            requested_float_ids = re.findall(r'\b(\d{7})\b', user_query)
             
             # Clean up response
+            generated_sql = chat_completion.choices[0].message.content.strip()
             generated_sql = generated_sql.replace('```sql', '').replace('```', '').strip()
-            # Remove trailing semicolon
             generated_sql = generated_sql.rstrip().rstrip(';').strip()
             
             # Extract DB
@@ -303,6 +318,14 @@ Generate the SQL query now.
             
             # Validate
             validation_result = self._validate_sql(cleaned_sql)
+            
+            # CRITICAL CHECK: If user asked for a float ID, did the SQL include it?
+            if requested_float_ids:
+                for fid in requested_float_ids:
+                    if fid not in cleaned_sql:
+                        validation_result["is_safe"] = False
+                        validation_result["warnings"].append(f"CRITICAL: Requested Float ID {fid} missing from SQL query!")
+                        print(f"❌ Safety Check Failed: Requested Float {fid} not found in generated SQL.")
             
             return {
                 "status": "success",
@@ -388,6 +411,18 @@ Generate the SQL query now.
         """Use Groq to analyze query results and provide insights"""
         if results["status"] != "success" or results["row_count"] == 0:
             return "No data found for your query."
+            
+        # HARD CHECK: Skip AI analysis for retrieval queries
+        user_query_lower = user_query.lower()
+        retrieval_starts = ["list", "show", "get", "find", "retrieve", "display", "search"]
+        # Allow analysis if these are present
+        explicit_analysis_requests = ["statistic", "stat", "trend", "analy", "summar", "average", "mean", "median", "plot", "graph"]
+        
+        is_retrieval = any(user_query_lower.startswith(k) or f" {k} " in user_query_lower for k in retrieval_starts)
+        wants_analysis = any(k in user_query_lower for k in explicit_analysis_requests)
+        
+        if is_retrieval and not wants_analysis:
+             return f"Here are the {results['row_count']} records matching your request."
         
         data_summary = self._prepare_data_summary(results)
         
@@ -403,11 +438,17 @@ DATA SUMMARY:
 {data_summary}
 
 ANALYSIS GUIDELINES:
-1. Start with a direct answer to the user's question
-2. Mention number of records found, date range, and key parameter trends (temperature, salinity) if available.
-3. Keep it concise (2-4 sentences).
-4. Use plain text only - NO markdown formatting.
-5. Provide your analysis:
+1. **CRITICAL**: If the user asked to "list", "show", "get", or "find" data (without asking for "stats", "trends", "analysis"), **DO NOT** provide a statistical summary.
+   - CORRECT Response: "Here are the {results['row_count']} Argo floats active in the Arabian Sea for February 2021."
+   - INCORRECT Response: "I computed statistical summaries for temperature..."
+2. **COMPARISON MODE**: If the data contains multiple floats or regions, explicitly COMPARE them.
+   - Use phrases like "Float A is warmer than Float B on average" or "Region X shows higher salinity variance".
+   - Highlight significant differences.
+3. Start with a direct answer confirming what data was found.
+4. Mention the number of records found.
+5. ONLY provide parameter trends if the user *specifically* asked for them or if the data is a complex measurement set (not just a list of floats).
+6. Use plain text only - NO markdown formatting.
+7. Provide your response:
 """
         try:
             chat_completion = self.client.chat.completions.create(
@@ -440,6 +481,27 @@ ANALYSIS GUIDELINES:
                     summary_parts.append(f"- {col}: min={min_val:.2f}, max={max_val:.2f}, avg={avg_val:.2f}")
         
         if len(data) > 0:
+            # CHECK FOR COMPARISON DATA (Multiple Float IDs)
+            float_ids = set()
+            for row in data:
+                if 'float_id' in row and row['float_id']:
+                    float_ids.add(row['float_id'])
+            
+            if len(float_ids) > 1:
+                summary_parts.append(f"\nCOMPARISON DATA (Found {len(float_ids)} unique floats):")
+                import pandas as pd
+                df_temp = pd.DataFrame(data)
+                
+                # Group by float_id and calculate basic stats for numeric columns
+                for col in numeric_cols:
+                    if col in df_temp.columns and pd.api.types.is_numeric_dtype(df_temp[col]):
+                        try:
+                            grouped = df_temp.groupby('float_id')[col].agg(['mean', 'min', 'max'])
+                            summary_parts.append(f"\nStats for {col} by Float ID:")
+                            for fid, stats in grouped.iterrows():
+                                summary_parts.append(f"  - Float {fid}: avg={stats['mean']:.2f}, range=[{stats['min']:.2f}, {stats['max']:.2f}]")
+                        except: pass
+            
             try:
                 summary_parts.append(f"\nSample data (first row): {json.dumps(data[0], default=str)}")
             except: pass
