@@ -1,0 +1,30 @@
+CONNECTING TO GROQ...
+
+✅ AVAILABLE GROQ MODELS:
+========================================
+- openai/gpt-oss-safeguard-20b
+  *** POTENTIAL MATCH: openai/gpt-oss-safeguard-20b ***
+- playai-tts-arabic
+- whisper-large-v3-turbo
+- moonshotai/kimi-k2-instruct-0905
+- llama-3.3-70b-versatile
+- whisper-large-v3
+- groq/compound-mini
+- groq/compound
+- llama-3.1-8b-instant
+- playai-tts
+- meta-llama/llama-prompt-guard-2-86m
+- meta-llama/llama-4-maverick-17b-128e-instruct
+- meta-llama/llama-4-scout-17b-16e-instruct
+- meta-llama/llama-prompt-guard-2-22m
+- meta-llama/llama-guard-4-12b
+- moonshotai/kimi-k2-instruct
+- allam-2-7b
+- openai/gpt-oss-120b
+  *** POTENTIAL MATCH: openai/gpt-oss-120b ***
+- openai/gpt-oss-20b
+  *** POTENTIAL MATCH: openai/gpt-oss-20b ***
+- qwen/qwen3-32b
+========================================
+
+✨ Found models that might match 'GPT-OSS'.
