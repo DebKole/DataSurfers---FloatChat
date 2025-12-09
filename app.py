@@ -195,6 +195,10 @@ async def query_answer(req: QueryRequest):
         else:
             response_data["show_map"] = False
     
+    # Add float_ids if available
+    if result.get("data_response", {}).get("float_ids"):
+        response_data["float_ids"] = result["data_response"]["float_ids"]
+    
     # Ensure JSON serializable
     return _to_jsonable(response_data)
 
@@ -419,7 +423,8 @@ async def list_floats(limit: int = Query(default=1000, ge=1, le=5000), database:
 @app.get("/api/floats/{float_id}/profiles")
 async def list_profiles(float_id: str, limit: int = Query(default=200, ge=1, le=2000), database: str = Query(default="argo_indian_ocean_25")):
     try:
-        res = db_executor.get_profiles_list_by_float_id(float_id=float_id, database=database, limit=limit)
+        # Use multi-db query to get full history
+        res = db_executor.get_all_profiles_list_by_float_id(float_id=float_id, limit=limit)
         return _to_jsonable({"status": 200, "profiles": res.get("data", [])})
     except Exception as e:
         return {"status": 500, "error": str(e), "profiles": []}

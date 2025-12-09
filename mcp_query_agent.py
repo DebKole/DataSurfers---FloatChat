@@ -123,13 +123,16 @@ class MCPQueryAgent:
                     'response': response,
                     'query_type': result.get('strategy', 'unknown'),
                     'has_data': True,
+
                     'table_data': table_data,  # Add structured table data
                     'chart_data': self._extract_chart_data(result),  # Add chart data
                     'show_map': show_map,
                     'map_data': map_data,
+                    'float_ids': self._extract_float_ids(result), # Add float IDs
                     'raw_result': result,
                     'gemini_powered': self._is_gemini_powered(result),
-                    'cache_hit': self._is_cache_hit(result)
+                    'cache_hit': self._is_cache_hit(result),
+                    'analysis_type': result.get('analysis_type')
                 }
             else:
                 return {
@@ -321,7 +324,7 @@ For general information about Argo floats or the system, try asking "What are Ar
             profiles = analysis_result.get('profiles', [])
             if profiles and profiles[0].get('measurements'):
                 count = len(profiles[0]['measurements'])
-                return f"I generated a Temperature-Salinity (T-S) curve with {count} data points. This curve shows the relationship between temperature and salinity in the water column."
+                return f"I generated a Temperature-Salinity (T-S) curve with {count} data points. This chart visualizes the relationship between temperature and salinity for the requested float."
         
         elif analysis_type == 'td_curve':
             profiles = analysis_result.get('profiles', [])
@@ -380,13 +383,25 @@ For general information about Argo floats or the system, try asking "What are Ar
             analysis_result = result.get('analysis_result', {})
             profiles = analysis_result.get('profiles', [])
             
-            if profiles and profiles[0].get('measurements'):
-                measurements = profiles[0]['measurements']
-                if measurements and len(measurements) > 0:
-                    table_data['columns'] = list(measurements[0].keys())
-                    table_data['rows'] = measurements
-                    table_data['total_rows'] = len(measurements)
-                    return table_data
+            all_measurements = []
+            for profile in profiles:
+                if profile.get('measurements'):
+                    # Add profile metadata to measurements if missing
+                    measurements = profile['measurements']
+                    for m in measurements:
+                        # Ensure float_id and cycle_number are present for grouping
+                        if 'float_id' not in m and 'float_id' in profile:
+                            m['float_id'] = profile['float_id']
+                        if 'cycle_number' not in m and 'cycle_number' in profile:
+                            m['cycle_number'] = profile['cycle_number']
+                    
+                    all_measurements.extend(measurements)
+            
+            if all_measurements:
+                table_data['columns'] = list(all_measurements[0].keys())
+                table_data['rows'] = all_measurements
+                table_data['total_rows'] = len(all_measurements)
+                return table_data
         
         # Handle regular data results
         for res in result.get('results', []):
@@ -509,6 +524,30 @@ For general information about Argo floats or the system, try asking "What are Ar
         
         return map_data
     
+    def _extract_float_ids(self, result: dict) -> list:
+        """Extract unique float IDs from result data"""
+        float_ids = set()
+        
+        # Check intent entities first
+        if 'query_metadata' in result:
+            entities = result['query_metadata'].get('intent_analysis', {}).get('entities', {})
+            if entities.get('float_ids'):
+                float_ids.update(str(f) for f in entities['float_ids'])
+        
+        # Check actual data results
+        for res in result.get('results', []):
+            if isinstance(res, dict) and 'result' in res:
+                inner = res['result']
+                if isinstance(inner, dict) and 'data' in inner:
+                    data = inner['data']
+                    for item in data:
+                        if 'float_id' in item:
+                            float_ids.add(str(item['float_id']))
+                        elif 'FLOAT_ID' in item:
+                            float_ids.add(str(item['FLOAT_ID']))
+                            
+        return list(float_ids)
+
     def _is_gemini_powered(self, result: dict) -> bool:
         """Check if query used Gemini AI"""
         for res in result.get('results', []):

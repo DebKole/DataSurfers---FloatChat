@@ -199,6 +199,15 @@ class QueryBuilderTool:
         year_matches = re.findall(r'\b(20\d{2})\b', query_lower)
         temporal_info["years"] = [int(year) for year in year_matches]
         
+        # Extract months
+        months_map = {
+            "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+            "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12
+        }
+        for month, num in months_map.items():
+            if month in query_lower:
+                temporal_info["months"].append(num)
+        
         # Extract relative time
         if any(word in query_lower for word in ["latest", "recent", "current", "now"]):
             temporal_info["relative_time"] = "recent"
@@ -359,7 +368,7 @@ class QueryBuilderTool:
         # NEW: Check for analysis keywords first
         analysis_keywords = {
             'trend': ['trend', 'trending', 'time series', 'over time'],
-            'curve': ['curve', 't-s', 'ts', 't-d', 'td', 'temperature-salinity', 'temperature-depth', 'vertical profile'],
+            'curve': ['curve', 't-s', 'ts', 't-d', 'td', 'temperature-salinity', 'temperature-depth', 'vertical profile', 'chart', 'plot', 'graph'],
             'comparison': ['compare', 'comparison', 'versus', 'vs', 'difference between'],
             'statistics': ['statistics', 'stats', 'summary', 'summarize', 'average', 'mean']
         }
@@ -413,7 +422,7 @@ class QueryBuilderTool:
         
         # Hybrid for complex spatial-temporal queries
         if query_type == "spatial_temporal":
-            return "hybrid"
+            return "sql_only"  # Prefer SQL for specific region + time queries
         
         # SQL for simple spatial/temporal queries
         if query_type in ["spatial", "temporal"]:
@@ -665,7 +674,7 @@ class QueryBuilderTool:
             for float_id in entities["float_ids"]:
                 q = {
                     "type": "float_lookup",
-                    "method": "get_profiles_by_float_id",
+                    "method": "get_all_profiles_by_float_id",
                     "params": {"float_id": float_id, "include_measurements": True}
                 }
                 plan["queries"].append(q)
@@ -673,14 +682,43 @@ class QueryBuilderTool:
         
         # Regional queries
         elif entities["regions"]:
+            # Determine database based on year if present
+            database = "argo_indian_ocean_25"  # Default
+            start_date = None
+            end_date = None
+            
+            if entities["temporal"]["years"]:
+                year = entities["temporal"]["years"][0]
+                if 2015 <= year <= 2025:
+                    database = f"argo_indian_ocean_{year % 100:02d}"
+                
+                # If month is also present, calculate date range
+                if entities["temporal"]["months"]:
+                    month = entities["temporal"]["months"][0]
+                    start_date = f"{year}-{month:02d}-01"
+                    # Simple end date calculation (handle December)
+                    if month == 12:
+                        end_date = f"{year+1}-01-01"
+                    else:
+                        end_date = f"{year}-{month+1:02d}-01"
+            
+            # Update plan database
+            plan["database"] = database
+            
             for region in entities["regions"]:
+                params = {"region": region, "limit": 50}
+                if start_date:
+                    params["start_date"] = start_date
+                if end_date:
+                    params["end_date"] = end_date
+                    
                 q = {
                     "type": "regional_search",
                     "method": "get_profiles_by_region", 
-                    "params": {"region": region, "limit": 50}
+                    "params": params
                 }
                 plan["queries"].append(q)
-                self.logger.info("➡️ Fallback executing: %s params=%s", q["method"], q["params"])
+                self.logger.info("➡️ Fallback executing: %s params=%s db=%s", q["method"], q["params"], database)
         
         # Temporal queries
         elif entities["temporal"]["relative_time"] == "recent":
@@ -760,7 +798,17 @@ class QueryBuilderTool:
         query_lower = intent["query_text"].lower()
         
         # Determine specific analysis type
-        analysis_type = self._determine_analysis_type(query_lower, entities)
+        # First check if LLM already determined the type
+        analysis_type = intent.get("analysis_type")
+        
+        # If not, try to determine from keywords
+        if not analysis_type:
+            analysis_type = self._determine_analysis_type(query_lower, entities)
+            
+        # If still undetermined, default to statistics but log warning
+        if not analysis_type:
+            self.logger.warning("⚠️ Analysis type undetermined, defaulting to statistics")
+            analysis_type = "statistics"
         
         # Extract analysis parameters
         parameters = self._extract_analysis_parameters(query_lower)
@@ -784,7 +832,7 @@ class QueryBuilderTool:
             "database": database
         }
     
-    def _determine_analysis_type(self, query_lower: str, entities: Dict[str, Any]) -> str:
+    def _determine_analysis_type(self, query_lower: str, entities: Dict[str, Any]) -> Optional[str]:
         """Determine specific analysis type from query"""
         
         # Temperature trend
@@ -803,8 +851,10 @@ class QueryBuilderTool:
         if any(word in query_lower for word in ['t-s', 'ts curve', 'temperature-salinity', 'temperature salinity']):
             return "ts_curve"
         
-        # T-D curve
+        # T-D curve (explicit or implied by temperature and depth)
         if any(word in query_lower for word in ['t-d', 'td curve', 'temperature-depth', 'vertical profile']):
+            return "td_curve"
+        if ('temperature' in query_lower or 'temp' in query_lower) and ('depth' in query_lower or 'pressure' in query_lower) and any(word in query_lower for word in ['chart', 'plot', 'graph', 'curve']):
             return "td_curve"
         
         # Comparison
@@ -818,9 +868,18 @@ class QueryBuilderTool:
         # Default: if "trend" is mentioned, assume temperature trend
         if 'trend' in query_lower:
             return "temp_trend"
+            
+        # Generic chart requests
+        if any(word in query_lower for word in ['chart', 'plot', 'graph']):
+            if 'salinity' in query_lower:
+                return "sal_trend"
+            if 'pressure' in query_lower:
+                return "pressure_trend"
+            # Default to temperature trend for generic charts
+            return "temp_trend"
         
-        # Default to statistics if unclear
-        return "statistics"
+        # Return None if no specific analysis type is found
+        return None
     
     def _extract_analysis_parameters(self, query_lower: str) -> Dict[str, Any]:
         """Extract analysis-specific parameters from query"""

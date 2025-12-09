@@ -19,41 +19,53 @@ function PlotProfileTool({
   yLabel,
   invertY = false,
 }) {
-  const profile = useMemo(
-    () => profiles.find((p) => p.profileId === profileId),
-    [profiles, profileId]
-  );
+  const visibleProfiles = useMemo(() => {
+    if (profileId) {
+      // Handle both string/number comparison loosely
+      return profiles.filter((p) =>
+        (p.profileId == profileId) ||
+        (p.cycle_number == profileId)
+      );
+    }
+    return profiles;
+  }, [profiles, profileId]);
 
-  if (!profile || !profile.measurements || profile.measurements.length === 0) {
-    return <div>No profile selected or no data.</div>;
+  if (!visibleProfiles || visibleProfiles.length === 0) {
+    return <div style={{ color: "#e2e8f0", padding: "10px" }}>No data available.</div>;
   }
-
-  const x = profile.measurements.map((m) => m[xKey]);
-  const y = profile.measurements.map((m) => m[yKey]);
 
   const resolvedXLabel = xLabel || xKey;
   const resolvedYLabel = yLabel || yKey;
 
+  const traces = visibleProfiles.map((profile, index) => {
+    const x = profile.measurements.map((m) => m[xKey]);
+    const y = profile.measurements.map((m) => m[yKey]);
+    const cycle = profile.cycle_number ?? profile.profileId ?? "Unknown";
+
+    return {
+      x,
+      y,
+      mode: "lines", // lines only for cleaner look with many profiles
+      type: "scatter",
+      name: `Cycle ${cycle}`,
+      line: {
+        width: visibleProfiles.length === 1 ? 3 : 1.5,
+        // Let Plotly assign colors automatically or use a scale if needed
+      },
+      // Add a subtle fill only if viewing a single profile
+      fill: visibleProfiles.length === 1 ? "tozeroy" : "none",
+      fillcolor: "rgba(183, 226, 200, 0.20)",
+      hovertemplate: `<b>Cycle ${cycle}</b><br>${resolvedXLabel}: %{x}<br>${resolvedYLabel}: %{y}<extra></extra>`,
+    };
+  });
+
   return (
     <Plot
-      data={[
-        {
-          x,
-          y,
-          mode: "lines",
-          type: "scatter",
-          name: `${resolvedYLabel} vs ${resolvedXLabel}`,
-          line: {
-            color: "#A0D6B4", // green
-            width: 2.5,
-          },
-          //Adding solid colors
-          fill: "tozeroy",
-          fillcolor: "rgba(183, 226, 200, 0.20)"
-        },
-      ]}
+      data={traces}
       layout={{
-        title: `Profile ${profileId} – ${resolvedYLabel} vs ${resolvedXLabel}`,
+        title: visibleProfiles.length === 1
+          ? `Cycle ${visibleProfiles[0].cycle_number ?? visibleProfiles[0].profileId}`
+          : `All Cycles (${visibleProfiles.length})`,
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         font: { color: "#e2e8f0" },
@@ -74,7 +86,12 @@ function PlotProfileTool({
           color: "#cbd5e1",
           ...(invertY ? { autorange: "reversed" } : {}),
         },
-        legend: { orientation: "h", bgcolor: "rgba(0,0,0,0)" },
+        legend: {
+          orientation: "h",
+          bgcolor: "rgba(0,0,0,0)",
+          // Hide legend if too many items to avoid clutter
+          visible: visibleProfiles.length < 10
+        },
         margin: {
           l: invertY ? 70 : 60,
           r: 30,
@@ -82,6 +99,7 @@ function PlotProfileTool({
           b: invertY ? 60 : 50,
         },
         autosize: true,
+        hovermode: "closest",
       }}
       style={{ width: "100%", height: "400px", minHeight: "400px" }}
       config={{

@@ -510,13 +510,13 @@ class DataAccessOrchestrator:
                 params = {
                     "float_id": float_id,
                     "include_measurements": True,
-                    "limit": 500
+                    "limit": 50000
                 }
                 if cycle_number is not None:
                     params["cycle_number"] = cycle_number
                 temp_plan["queries"].append({
                     "type": "float_lookup",
-                    "method": "get_profiles_by_float_id",
+                    "method": "get_all_profiles_by_float_id",
                     "params": params
                 })
         elif data_req["regions"]:
@@ -639,7 +639,7 @@ class DataAccessOrchestrator:
                 temp_plan["queries"].append({
                     "type": "float_lookup",
                     "method": "get_profiles_by_float_id",
-                    "params": {"float_id": entity, "include_measurements": True, "limit": 500}
+                    "params": {"float_id": entity, "include_measurements": True, "limit": 50000}
                 })
                 labels.append(entity)
             else:

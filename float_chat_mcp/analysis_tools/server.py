@@ -311,20 +311,66 @@ def argo_ts_curve(data, show_plot: bool = False) -> Dict[str, List]:
     # Get temperature and salinity columns
     temp_col = 'temperature' if 'temperature' in df.columns else 'TEMP'
     sal_col = 'salinity' if 'salinity' in df.columns else 'SAL'
+    pres_col = 'pressure' if 'pressure' in df.columns else ('PRES' if 'PRES' in df.columns else None)
     
     # Clean data - remove NaN values
-    df_clean = df[[temp_col, sal_col]].dropna().copy()
-    df_clean.columns = ['temperature', 'salinity']
+    cols_to_keep = [temp_col, sal_col]
+    if pres_col:
+        cols_to_keep.append(pres_col)
+        
+    if 'cycle_number' in df.columns:
+        cols_to_keep.append('cycle_number')
+        
+    df_clean = df[cols_to_keep].dropna().copy()
     
-    # Sort by salinity
-    df_clean = df_clean.sort_values('salinity')
+    # Rename columns for consistency
+    rename_map = {temp_col: 'temperature', sal_col: 'salinity'}
+    if pres_col:
+        rename_map[pres_col] = 'pressure'
+    df_clean = df_clean.rename(columns=rename_map)
     
-    # Create measurements list
-    measurements = []
-    for _, row in df_clean.iterrows():
-        measurements.append({
-            "salinity": float(row['salinity']),
-            "temperature": float(row['temperature'])
+    # Sort by pressure if available (for correct depth ordering of the line), otherwise salinity
+    if 'pressure' in df_clean.columns:
+        df_clean = df_clean.sort_values('pressure')
+    else:
+        df_clean = df_clean.sort_values('salinity')
+    
+    # Create profiles list (grouped by cycle_number if available)
+    profiles = []
+    
+    if 'cycle_number' in df_clean.columns:
+        # Group by cycle_number
+        for cycle, group in df_clean.groupby('cycle_number'):
+            measurements = []
+            # Sort by pressure for correct depth ordering if available
+            if 'pressure' in group.columns:
+                group = group.sort_values('pressure')
+            else:
+                group = group.sort_values('salinity')
+            
+            for _, row in group.iterrows():
+                measurements.append({
+                    "salinity": float(row['salinity']),
+                    "temperature": float(row['temperature'])
+                })
+            
+            profiles.append({
+                "profileId": int(cycle),
+                "cycle_number": int(cycle),
+                "measurements": measurements
+            })
+    else:
+        # Fallback to single profile
+        measurements = []
+        for _, row in df_clean.iterrows():
+            measurements.append({
+                "salinity": float(row['salinity']),
+                "temperature": float(row['temperature'])
+            })
+        
+        profiles.append({
+            "profileId": 1,
+            "measurements": measurements
         })
     
     if show_plot:
@@ -357,10 +403,7 @@ def argo_ts_curve(data, show_plot: bool = False) -> Dict[str, List]:
         plt.show()
 
     return {
-        "profiles": [{
-            "profileId": 1,
-            "measurements": measurements
-        }]
+        "profiles": profiles
     }
 @mcp.tool
 def argo_td_curve(data: List[Dict[str, Any]], show_plot: bool = False) -> Dict[str, List]:
@@ -385,8 +428,14 @@ def argo_td_curve(data: List[Dict[str, Any]], show_plot: bool = False) -> Dict[s
         raise ValueError(f"Required columns: '{temp_col}' and '{level_col}'")
     
     # Clean data - remove NaN values
-    df_clean = df[[level_col, temp_col]].dropna().copy()
-    df_clean.columns = ['level', 'temperature']
+    cols_to_keep = [level_col, temp_col]
+    if 'cycle_number' in df.columns:
+        cols_to_keep.append('cycle_number')
+        
+    df_clean = df[cols_to_keep].dropna().copy()
+    
+    rename_map = {level_col: 'level', temp_col: 'temperature'}
+    df_clean = df_clean.rename(columns=rename_map)
     
     # Convert level to pressure (dbar)
     pressure_levels = [5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 
@@ -409,13 +458,36 @@ def argo_td_curve(data: List[Dict[str, Any]], show_plot: bool = False) -> Dict[s
     # Sort by depth
     df_clean = df_clean.sort_values('depth')
     
-    # Create measurements list
-    measurements = []
-    for _, row in df_clean.iterrows():
-        measurements.append({
-            "depth": float(row['depth']),
-            "temperature": float(row['temperature']),
-            "pressure": float(row['pressure'])
+    # Create profiles list (grouped by cycle_number if available)
+    profiles = []
+    
+    if 'cycle_number' in df_clean.columns:
+        for cycle, group in df_clean.groupby('cycle_number'):
+            measurements = []
+            group = group.sort_values('depth')
+            for _, row in group.iterrows():
+                measurements.append({
+                    "depth": float(row['depth']),
+                    "temperature": float(row['temperature']),
+                    "pressure": float(row['pressure'])
+                })
+            profiles.append({
+                "profileId": int(cycle),
+                "cycle_number": int(cycle),
+                "measurements": measurements
+            })
+    else:
+        # Fallback to single profile
+        measurements = []
+        for _, row in df_clean.iterrows():
+            measurements.append({
+                "depth": float(row['depth']),
+                "temperature": float(row['temperature']),
+                "pressure": float(row['pressure'])
+            })
+        profiles.append({
+            "profileId": 1,
+            "measurements": measurements
         })
     
     if show_plot:
@@ -432,11 +504,93 @@ def argo_td_curve(data: List[Dict[str, Any]], show_plot: bool = False) -> Dict[s
         plt.show()
     
     return {
-        "profiles": [{
-            "profileId": 1,
-            "measurements": measurements
-        }]
+        "profiles": profiles
     }
 
 if __name__ == "__main__":
     mcp.run()
+
+@mcp.tool
+def argo_tp_curve(data: List[Dict[str, Any]], show_plot: bool = False) -> Dict[str, List]:
+    """
+    Generate Temperature-Pressure (T-P) profile from ARGO data.
+    
+    Args:
+        data: List of dictionaries with 'temperature' and 'pressure' keys
+        show_plot: Whether to display a plot (default: False)
+    
+    Returns:
+        Dictionary with profiles containing measurements (pressure and temperature)
+    """
+    # Convert to DataFrame
+    df = pd.DataFrame(data)
+    
+    # Get temperature and pressure columns
+    temp_col = 'temperature' if 'temperature' in df.columns else 'TEMP'
+    pres_col = 'pressure' if 'pressure' in df.columns else ('PRES' if 'PRES' in df.columns else None)
+    
+    if temp_col not in df.columns or not pres_col:
+        # If pressure not found, try to derive from level if available (similar to TD curve logic)
+        # But for now, let's assume pressure is available or fail
+        raise ValueError(f"Required columns: '{temp_col}' and 'pressure'")
+    
+    # Clean data - remove NaN values
+    cols_to_keep = [pres_col, temp_col]
+    if 'cycle_number' in df.columns:
+        cols_to_keep.append('cycle_number')
+        
+    df_clean = df[cols_to_keep].dropna().copy()
+    
+    rename_map = {pres_col: 'pressure', temp_col: 'temperature'}
+    df_clean = df_clean.rename(columns=rename_map)
+    
+    # Sort by pressure (depth)
+    df_clean = df_clean.sort_values('pressure')
+    
+    # Create profiles list (grouped by cycle_number if available)
+    profiles = []
+    
+    if 'cycle_number' in df_clean.columns:
+        for cycle, group in df_clean.groupby('cycle_number'):
+            measurements = []
+            group = group.sort_values('pressure')
+            for _, row in group.iterrows():
+                measurements.append({
+                    "pressure": float(row['pressure']),
+                    "temperature": float(row['temperature'])
+                })
+            profiles.append({
+                "profileId": int(cycle),
+                "cycle_number": int(cycle),
+                "measurements": measurements
+            })
+    else:
+        # Fallback to single profile
+        measurements = []
+        for _, row in df_clean.iterrows():
+            measurements.append({
+                "pressure": float(row['pressure']),
+                "temperature": float(row['temperature'])
+            })
+        profiles.append({
+            "profileId": 1,
+            "measurements": measurements
+        })
+    
+    if show_plot:
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.plot(df_clean['temperature'], df_clean['pressure'], 'g-', linewidth=2.5)
+        ax.set_xlabel('Temperature (°C)', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Pressure (dbar)', fontsize=12, fontweight='bold')
+        ax.set_title('Temperature-Pressure Profile', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.invert_yaxis() # Pressure increases with depth
+        ax.xaxis.set_major_locator(plt.MaxNLocator(10))
+        ax.yaxis.set_major_locator(plt.MaxNLocator(10))
+        ax.tick_params(axis='both', which='major', labelsize=10)
+        plt.tight_layout()
+        plt.show()
+    
+    return {
+        "profiles": profiles
+    }

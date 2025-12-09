@@ -22,8 +22,8 @@ export const QuestionPanel = ({ onQuestionClick, onClose }) => {
     <div className="question-panel">
       <div className="question-panel-title">
         Quick Start
-        <button 
-          className="close-quickstart" 
+        <button
+          className="close-quickstart"
           onClick={onClose}
           aria-label="Close quick start panel"
         >
@@ -46,13 +46,13 @@ export const QuestionPanel = ({ onQuestionClick, onClose }) => {
 };
 
 const ChatContainer = ({
-  onMapRequest = () => {},
-  onMapData = () => {},
-  onTableData = () => {},
+  onMapRequest = () => { },
+  onMapData = () => { },
+  onTableData = () => { },
   showChatHistory = false,
-  onToggleChatHistory = () => {},
+  onToggleChatHistory = () => { },
   chatHistory = [],
-  onSelectChat = () => {},
+  onSelectChat = () => { },
 }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
@@ -61,22 +61,23 @@ const ChatContainer = ({
   const [isLoading, setIsLoading] = useState(false);
   const [showQuickStart, setShowQuickStart] = useState(true);
   const [showHistoryBox, setShowHistoryBox] = useState(false);
-  
+  const [currentFloatIds, setCurrentFloatIds] = useState(null);
+
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
   const userRequestedMapRef = useRef(false);
-  
+
   // Chat history state
   const [activeChat, setActiveChat] = useState(null);
   const [localChatHistory, setLocalChatHistory] = useState(
-    chatHistory.length > 0 
-      ? chatHistory 
+    chatHistory.length > 0
+      ? chatHistory
       : [
-          { id: 1, title: 'Ocean Temperature Analysis', date: '2024-01-15', preview: 'Analyzing temperature trends in Pacific...' },
-          { id: 2, title: 'Salinity Data Query', date: '2024-01-14', preview: 'Looking at salinity levels in Arctic...' },
-          { id: 3, title: 'Deep Ocean Exploration', date: '2024-01-13', preview: 'Exploring abyssal zone characteristics...' },
-          { id: 4, title: 'Current Patterns Study', date: '2024-01-12', preview: 'Understanding ocean current patterns...' }
-        ]
+        { id: 1, title: 'Ocean Temperature Analysis', date: '2024-01-15', preview: 'Analyzing temperature trends in Pacific...' },
+        { id: 2, title: 'Salinity Data Query', date: '2024-01-14', preview: 'Looking at salinity levels in Arctic...' },
+        { id: 3, title: 'Deep Ocean Exploration', date: '2024-01-13', preview: 'Exploring abyssal zone characteristics...' },
+        { id: 4, title: 'Current Patterns Study', date: '2024-01-12', preview: 'Understanding ocean current patterns...' }
+      ]
   );
 
   // Update local chat history when prop changes
@@ -119,11 +120,11 @@ const ChatContainer = ({
     chat?.title || chat?.name || "Untitled chat";
 
   const getChatTime = (chat, withTime = false) => {
-  const ts = chat?.updatedAt || chat?.lastUpdated || chat?.date;
-  if (!ts) return "";
-  const d = new Date(ts);
-  return withTime ? d.toLocaleString() : d.toLocaleDateString();
-};
+    const ts = chat?.updatedAt || chat?.lastUpdated || chat?.date;
+    if (!ts) return "";
+    const d = new Date(ts);
+    return withTime ? d.toLocaleString() : d.toLocaleDateString();
+  };
 
 
   const scrollToBottom = () => {
@@ -257,8 +258,8 @@ const ChatContainer = ({
   };
 
   const handleOptionClick = async (option) => {
-    const userMessage = { 
-      type: "user", 
+    const userMessage = {
+      type: "user",
       content: option.prompt,
       id: Date.now()
     };
@@ -307,7 +308,7 @@ const ChatContainer = ({
       }
       // Handle table data if present
       if (response.data.table_data) {
-        onTableData(response.data.table_data);
+        onTableData(response.data.table_data, response.data.analysis_type);
       }
     } catch (error) {
       console.error("Error fetching response:", error);
@@ -327,7 +328,7 @@ const ChatContainer = ({
   const handleSend = async () => {
     if (inputValue.trim()) {
       const messageId = Date.now();
-      
+
       // Create a new chat if this is the first message
       if (messages.length === 0 && !activeChat) {
         const newChatId = messageId;
@@ -348,7 +349,7 @@ const ChatContainer = ({
         id: messageId,
         timestamp: new Date().toISOString()
       };
-      
+
       setMessages(prev => [...prev, userMessage]);
 
       // Add loading message
@@ -410,6 +411,17 @@ const ChatContainer = ({
           return newMessages;
         });
 
+        if (response.data.float_ids && response.data.float_ids.length > 0) {
+          setCurrentFloatIds(response.data.float_ids);
+        } else {
+          // Optional: Clear if no floats found, or keep previous context?
+          // User said "according to the user's query", implying immediate context.
+          // Let's clear it if the query didn't return specific floats, 
+          // unless we want to persist the "session" context.
+          // For now, let's clear it to be safe and explicit.
+          setCurrentFloatIds(null);
+        }
+
         // Open map overlay only if backend explicitly indicates AND there's no table view requested
         if (
           response.data.show_map &&
@@ -420,7 +432,7 @@ const ChatContainer = ({
         }
         // Handle table data if present
         if (response.data.table_data) {
-          onTableData(response.data.table_data);
+          onTableData(response.data.table_data, response.data.analysis_type);
         }
       } catch (error) {
         console.log("Error fetching response:", error);
@@ -477,14 +489,14 @@ const ChatContainer = ({
     try {
       const cache = await caches.open(CACHE_NAME);
       await cache.delete(`chat-${chatId}`);
-      
+
       const updatedHistory = localChatHistory.filter(chat => chat.id !== chatId);
       setLocalChatHistory(updatedHistory);
-      
+
       if (onSelectChat) {
         onSelectChat(null);
       }
-      
+
       if (activeChat === chatId) {
         setActiveChat(null);
         setMessages([]);
@@ -506,7 +518,7 @@ const ChatContainer = ({
     setActiveChat(newChatId);
     setMessages([]);
     setLocalChatHistory(prev => [newChat, ...prev]);
-    
+
     if (onToggleChatHistory) {
       onToggleChatHistory();
     }
@@ -526,14 +538,14 @@ const ChatContainer = ({
 
         <button
           className="dashboard-top-btn"
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate("/dashboard", { state: { floatIds: currentFloatIds } })}
           aria-label="Open Dashboard"
         >
           <i className="fas fa-chart-line"></i>
           Dashboard
         </button>
       </div>
-      
+
       {/* FAQ Button */}
       <button
         className={`faq-button ${highlightFAQ ? "highlight" : ""}`}
@@ -548,7 +560,7 @@ const ChatContainer = ({
       {showChatHistory && (
         <>
           <div
-          className="chat-history-overlay" onClick={onToggleChatHistory}></div>
+            className="chat-history-overlay" onClick={onToggleChatHistory}></div>
           <div className="chat-history-panel">
             <div className="chat-history-header">
               <h2>
@@ -559,7 +571,7 @@ const ChatContainer = ({
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            
+
             <button className="new-chat-btn" onClick={startNewChat}>
               <i className="fas fa-plus"></i>
               <span>New Chat</span>
@@ -637,9 +649,8 @@ const ChatContainer = ({
               <div className={`message ${message.type}-message`}>
                 <div className={`message-header ${message.type}-header`}>
                   <i
-                    className={`fas ${
-                      message.type === "user" ? "fa-user" : "fa-robot"
-                    }`}
+                    className={`fas ${message.type === "user" ? "fa-user" : "fa-robot"
+                      }`}
                   ></i>
                   {message.type === "user" ? "You" : "FloatChat"}
                 </div>
@@ -766,8 +777,8 @@ const ChatContainer = ({
       )} */}
 
       {showQuickStart && (
-        <QuestionPanel 
-          onQuestionClick={handleQuestionClick} 
+        <QuestionPanel
+          onQuestionClick={handleQuestionClick}
           onClose={() => setShowQuickStart(false)}
         />
       )}
