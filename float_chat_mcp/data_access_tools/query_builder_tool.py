@@ -16,13 +16,13 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-# Import Gemini SQL Generator
+# Import Groq SQL Generator
 try:
-    from gemini_sql_generator import GeminiSQLGenerator
-    GEMINI_AVAILABLE = True
+    from groq_sql_generator import GroqSQLGenerator
+    GEMINI_AVAILABLE = True # Keeping variable name for compatibility
 except ImportError:
     GEMINI_AVAILABLE = False
-    logging.warning("Gemini SQL Generator not available, falling back to hardcoded patterns")
+    logging.warning("Groq SQL Generator not available, falling back to hardcoded patterns")
 
 class QueryBuilderTool:
     """Intelligent query builder and router for Argo data access"""
@@ -32,18 +32,18 @@ class QueryBuilderTool:
         Initialize query builder with patterns and mappings
         
         Args:
-            use_gemini: Whether to use Gemini AI for SQL generation (default: True)
+            use_gemini: Whether to use AI for SQL generation (default: True)
         """
         self.logger = logging.getLogger(__name__)
         self.use_gemini = use_gemini and GEMINI_AVAILABLE
         
-        # Initialize Gemini SQL Generator if available
+        # Initialize Groq SQL Generator if available
         if self.use_gemini:
             try:
-                self.gemini_generator = GeminiSQLGenerator()
-                self.logger.info("✅ Gemini SQL Generator initialized")
+                self.gemini_generator = GroqSQLGenerator()
+                self.logger.info("✅ Groq SQL Generator initialized")
             except Exception as e:
-                self.logger.warning(f"Failed to initialize Gemini: {e}. Falling back to hardcoded patterns")
+                self.logger.warning(f"Failed to initialize Groq: {e}. Falling back to hardcoded patterns")
                 self.use_gemini = False
                 self.gemini_generator = None
         else:
@@ -454,6 +454,7 @@ class QueryBuilderTool:
                 "Rules:\n- If the user asks for a graph/plot/chart/curve/profile, set analysis=true.\n"
                 "- Map 'temperature salinity' to 'ts_curve', 'temperature depth' or 'vertical profile' to 'td_curve'.\n"
                 "- If 'trend' with temperature/salinity, choose 'temp_trend' or 'sal_trend'. If 'compare', choose 'comparison'.\n"
+                "- If the user asks to 'show', 'get', 'find', 'retrieve' data WITHOUT explicit analysis keywords (trend, plot, graph, compare, statistics, mean, average), set analysis=false. This is CRITICAL.\n" 
                 "- If unsure, set analysis=false. Return minimal JSON."
             )
             resp = model.generate_content(prompt)

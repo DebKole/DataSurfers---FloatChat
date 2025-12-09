@@ -17,7 +17,7 @@ from float_chat_mcp.data_access_tools.query_builder_tool import QueryBuilderTool
 from float_chat_mcp.data_access_tools.vector_retrieval_tool import VectorRetrievalTool
 from float_chat_mcp.data_access_tools.db_executor_tool import DatabaseExecutorTool
 from float_chat_mcp.data_access_tools.analysis_tools_wrapper import AnalysisToolsWrapper
-from gemini_sql_generator import GeminiSQLGenerator
+from groq_sql_generator import GroqSQLGenerator
 
 class DataAccessOrchestrator:
     """Orchestrates all data access tools for intelligent query execution"""
@@ -27,16 +27,16 @@ class DataAccessOrchestrator:
         Initialize all data access tools
         
         Args:
-            use_gemini: Whether to use Gemini AI for SQL generation
+            use_gemini: Whether to use AI (Groq) for SQL generation (legacy param name)
             enable_cache: Whether to enable caching
         """
         self.query_builder = QueryBuilderTool(use_gemini=use_gemini)
         self.vector_tool = VectorRetrievalTool()
         self.db_tool = DatabaseExecutorTool(enable_cache=enable_cache)
         self.analysis_wrapper = AnalysisToolsWrapper()
-        # Initialize Gemini for summarization (reuse same generator)
+        # Initialize Groq for summarization (reuse same generator)
         self.use_gemini = use_gemini
-        self.gemini_generator = GeminiSQLGenerator() if use_gemini else None
+        self.gemini_generator = GroqSQLGenerator() if use_gemini else None
     
     def execute_query(self, user_query: str) -> Dict[str, Any]:
         """
