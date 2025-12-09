@@ -1,0 +1,318 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    BGC-ARGO JSONB INTEGRATION ARCHITECTURE                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                           1. DATA INGESTION FLOW                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    NetCDF Files (data/bgc_downloads/)
+    ├── Float_A.nc (DOXY only)
+    ├── Float_B.nc (DOXY + CHLA)
+    └── Float_C.nc (DOXY + CHLA + NITRATE)
+            │
+            ▼
+    ┌─────────────────────────┐
+    │  NetCDFProcessor        │
+    │  extract_bgc_parameters │
+    └───────────┬─────────────┘
+                │
+                ├─→ DOXY_ADJUSTED → {"DOXY": {"value": 245.3, "qc": 1}}
+                ├─→ CHLA_ADJUSTED → {"CHLA": {"value": 0.52, "qc": 2}}
+                └─→ NITRATE_ADJUSTED → {"NITRATE": {"value": 5.2, "qc": 1}}
+                │
+                ▼
+    ┌─────────────────────────┐
+    │  Combine into JSONB     │
+    │  {                      │
+    │    "DOXY": {...},       │
+    │    "CHLA": {...},       │
+    │    "NITRATE": {...}     │
+    │  }                      │
+    └───────────┬─────────────┘
+                │
+                ▼
+    ┌─────────────────────────┐
+    │  PostgreSQL Insert      │
+    │  bgc_parameters JSONB   │
+    └─────────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         2. DATABASE SCHEMA                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    ┌─────────────────────────────────────────────────────────────┐
+    │  argo_bgc_profiles                                          │
+    ├─────────────────────────────────────────────────────────────┤
+    │  global_profile_id (PK)                                     │
+    │  float_id                                                   │
+    │  cycle_number                                               │
+    │  datetime                                                   │
+    │  latitude, longitude                                        │
+    │  min_pressure, max_pressure                                 │
+    └────────────────────────┬────────────────────────────────────┘
+                             │ 1:N
+                             ▼
+    ┌─────────────────────────────────────────────────────────────┐
+    │  argo_bgc_measurements                                      │
+    ├─────────────────────────────────────────────────────────────┤
+    │  id (PK)                                                    │
+    │  global_profile_id (FK)                                     │
+    │  level                                                      │
+    │  ┌────────────────────────────────────────────────────┐    │
+    │  │ Core Argo (always present)                         │    │
+    │  │  - pressure_adjusted                               │    │
+    │  │  - temperature_adjusted                            │    │
+    │  │  - salinity_adjusted                               │    │
+    │  │  - pressure_adjusted_qc                            │    │
+    │  │  - temperature_adjusted_qc                         │    │
+    │  │  - salinity_adjusted_qc                            │    │
+    │  └────────────────────────────────────────────────────┘    │
+    │  ┌────────────────────────────────────────────────────┐    │
+    │  │ BGC Parameters (flexible JSONB)                    │    │
+    │  │  bgc_parameters JSONB                              │    │
+    │  │  {                                                 │    │
+    │  │    "DOXY": {"value": 245.3, "qc": 1},             │    │
+    │  │    "CHLA": {"value": 0.52, "qc": 2},              │    │
+    │  │    "NITRATE": {"value": 5.2, "qc": 1}             │    │
+    │  │  }                                                 │    │
+    │  └────────────────────────────────────────────────────┘    │
+    │  latitude, longitude, datetime                              │
+    └─────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+    ┌─────────────────────────────────────────────────────────────┐
+    │  GIN Index (idx_bgc_parameters_gin)                         │
+    │  Fast queries: ?, ?&, ?|, ->, ->>                           │
+    └─────────────────────────────────────────────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         3. QUERY PATTERNS                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    User Query: "List floats with oxygen in Arabian Sea"
+            │
+            ▼
+    ┌─────────────────────────┐
+    │  Groq SQL Generator     │
+    │  - Recognize "oxygen"   │
+    │  - Map to DOXY          │
+    │  - Detect spatial query │
+    └───────────┬─────────────┘
+                │
+                ▼
+    ┌─────────────────────────────────────────────────────────────┐
+    │  Generated SQL:                                             │
+    │  SELECT DISTINCT p.float_id                                 │
+    │  FROM argo_bgc_profiles p                                   │
+    │  JOIN argo_bgc_measurements m                               │
+    │    ON p.global_profile_id = m.global_profile_id             │
+    │  WHERE m.bgc_parameters ? 'DOXY'  ← JSONB existence check  │
+    │    AND p.latitude BETWEEN 10 AND 25                         │
+    │    AND p.longitude BETWEEN 50 AND 75                        │
+    │    AND (m.bgc_parameters->'DOXY'->>'qc')::int <= 2          │
+    └───────────┬─────────────────────────────────────────────────┘
+                │
+                ▼
+    ┌─────────────────────────┐
+    │  PostgreSQL Execution   │
+    │  Uses GIN index         │
+    │  Fast lookup            │
+    └───────────┬─────────────┘
+                │
+                ▼
+    ┌─────────────────────────┐
+    │  Results:               │
+    │  - Float 5906527        │
+    │  - Float 5906528        │
+    │  - Float 5906529        │
+    └─────────────────────────┘
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    4. JSONB OPERATORS REFERENCE                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    Operator │ Description              │ Example
+    ─────────┼──────────────────────────┼────────────────────────────────────
+       ?     │ Key exists?              │ bgc_parameters ? 'DOXY'
+       ?&    │ All keys exist?          │ bgc_parameters ?& ARRAY['DOXY','CHLA']
+       ?|    │ Any key exists?          │ bgc_parameters ?| ARRAY['DOXY','CHLA']
+       ->    │ Get JSON object          │ bgc_parameters->'DOXY'
+       ->>   │ Get value as text        │ bgc_parameters->'DOXY'->>'value'
+       #>    │ Get nested object        │ bgc_parameters#>'{DOXY,value}'
+       #>>   │ Get nested value as text │ bgc_parameters#>>'{DOXY,value}'
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    5. SENSOR CONFIGURATION EXAMPLES                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    Float Type A (Basic BGC)
+    ┌────────────────────────┐
+    │ Core: PRES, TEMP, PSAL │
+    │ BGC:  DOXY             │
+    └────────────────────────┘
+    JSONB: {"DOXY": {"value": 245.3, "qc": 1}}
+
+
+    Float Type B (Enhanced BGC)
+    ┌────────────────────────┐
+    │ Core: PRES, TEMP, PSAL │
+    │ BGC:  DOXY, CHLA       │
+    └────────────────────────┘
+    JSONB: {
+      "DOXY": {"value": 245.3, "qc": 1},
+      "CHLA": {"value": 0.52, "qc": 2}
+    }
+
+
+    Float Type C (Full BGC Suite)
+    ┌────────────────────────────────────┐
+    │ Core: PRES, TEMP, PSAL             │
+    │ BGC:  DOXY, CHLA, NITRATE, PH      │
+    └────────────────────────────────────┘
+    JSONB: {
+      "DOXY": {"value": 245.3, "qc": 1},
+      "CHLA": {"value": 0.52, "qc": 2},
+      "NITRATE": {"value": 5.2, "qc": 1},
+      "PH_IN_SITU_TOTAL": {"value": 8.1, "qc": 1}
+    }
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    6. PERFORMANCE CHARACTERISTICS                             │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    Query Type                    │ Performance │ Index Used
+    ──────────────────────────────┼─────────────┼─────────────────
+    Existence check (?)           │ O(log n)    │ GIN index
+    Multiple keys (?&, ?|)        │ O(log n)    │ GIN index
+    Value extraction (->)         │ O(1)        │ After key lookup
+    Full table scan               │ O(n)        │ Avoided with index
+    JOIN with profiles            │ O(log n)    │ FK index + GIN
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    7. COMPARISON WITH ALTERNATIVES                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    Approach          │ Flexibility │ Performance │ Storage │ Complexity
+    ──────────────────┼─────────────┼─────────────┼─────────┼────────────
+    JSONB (chosen)    │     ★★★★★   │    ★★★★★    │  ★★★★★  │   ★★★★★
+    Separate columns  │     ★☆☆☆☆   │    ★★★★★    │  ★★☆☆☆  │   ★★★★☆
+    Normalized table  │     ★★★★★   │    ★★★☆☆    │  ★★★★★  │   ★★☆☆☆
+    XML/Text          │     ★★★☆☆   │    ★☆☆☆☆    │  ★★☆☆☆  │   ★☆☆☆☆
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    8. INTEGRATION WITH FLOATCHAT                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    User Input (Natural Language)
+            │
+            ▼
+    ┌─────────────────────────┐
+    │  MCP Query Agent        │
+    │  - Classify query type  │
+    │  - Detect BGC intent    │
+    └───────────┬─────────────┘
+                │
+                ▼
+    ┌─────────────────────────┐
+    │  Groq SQL Generator     │
+    │  - Map terms to params  │
+    │  - Generate JSONB SQL   │
+    └───────────┬─────────────┘
+                │
+                ▼
+    ┌─────────────────────────┐
+    │  Database Executor      │
+    │  - Execute query        │
+    │  - Return results       │
+    └───────────┬─────────────┘
+                │
+                ▼
+    ┌─────────────────────────┐
+    │  Gemini Analysis        │
+    │  - Interpret results    │
+    │  - Generate response    │
+    └───────────┬─────────────┘
+                │
+                ▼
+    Natural Language Response to User
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    9. FILE STRUCTURE                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    BGC Integration Files
+    ├── bgc_ingest.py                    (Main ingestion script)
+    ├── process_netcdf_to_postgres.py    (NetCDF processor with BGC)
+    ├── inspect_bgc_files.py             (File inspector)
+    ├── migrate_bgc_to_jsonb.py          (Migration script)
+    ├── test_bgc_integration.py          (Test suite)
+    ├── BGC_INTEGRATION_GUIDE.md         (Complete documentation)
+    ├── BGC_SQL_EXAMPLES.sql             (50+ query examples)
+    ├── BGC_QUICKSTART.md                (Quick start guide)
+    ├── BGC_IMPLEMENTATION_SUMMARY.md    (Technical summary)
+    └── BGC_ARCHITECTURE_DIAGRAM.txt     (This file)
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    10. WORKFLOW SUMMARY                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    Step 1: Inspect Files
+    ┌────────────────────────────────────────┐
+    │ python inspect_bgc_files.py            │
+    │ → See what BGC parameters are available│
+    └────────────────────────────────────────┘
+                    │
+                    ▼
+    Step 2: Migrate (if needed)
+    ┌────────────────────────────────────────┐
+    │ python migrate_bgc_to_jsonb.py         │
+    │ → Add JSONB column to existing DB      │
+    └────────────────────────────────────────┘
+                    │
+                    ▼
+    Step 3: Ingest Data
+    ┌────────────────────────────────────────┐
+    │ python bgc_ingest.py                   │
+    │ → Process NetCDF files                 │
+    │ → Extract BGC parameters               │
+    │ → Store in JSONB format                │
+    └────────────────────────────────────────┘
+                    │
+                    ▼
+    Step 4: Test
+    ┌────────────────────────────────────────┐
+    │ python test_bgc_integration.py         │
+    │ → Verify schema                        │
+    │ → Test queries                         │
+    │ → Check data structure                 │
+    └────────────────────────────────────────┘
+                    │
+                    ▼
+    Step 5: Query
+    ┌────────────────────────────────────────┐
+    │ Natural language queries via FloatChat │
+    │ OR                                     │
+    │ Direct SQL queries                     │
+    └────────────────────────────────────────┘
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                              KEY BENEFITS                                     ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  ✓ Handles variable sensor configurations automatically                      ║
+║  ✓ No schema changes needed for new BGC parameters                           ║
+║  ✓ Fast queries with GIN indexing                                            ║
+║  ✓ Efficient storage (only stores what exists)                               ║
+║  ✓ Clean, simple query patterns for AI generation                            ║
+║  ✓ Future-proof for unknown sensors                                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝

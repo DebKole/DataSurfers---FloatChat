@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import "./Dashboard.css";
 import PlotProfileTool from "./PlotProfile";
 import CompareProfilesTool from "./CompareProfilesTool";
+import FilterSidebar from "./FilterSidebar";
+import FloatMetadata from "./FloatMetadata";
 
 const Dashboard = ({ onClose }) => {
   const navigate = useNavigate();
@@ -23,51 +25,84 @@ const Dashboard = ({ onClose }) => {
   const [loadingProfiles, setLoadingProfiles] = useState(false);
   const [error, setError] = useState(null);
   const [renderProfiles, setRenderProfiles] = useState({ ts: [], td: [], tp: [] });
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState({});
+  const [showMetadata, setShowMetadata] = useState(false);
 
   const location = useLocation();
   const initialFloatIds = location.state?.floatIds;
 
   useEffect(() => {
-    const loadFloats = async () => {
-      setLoadingFloats(true);
-      try {
-        const res = await fetch(`http://127.0.0.1:8000/api/floats`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        let allFloats = data.floats || [];
-
-        // Filter if initialFloatIds provided
-        if (initialFloatIds && initialFloatIds.length > 0) {
-          // Convert both to strings for comparison
-          const allowed = new Set(initialFloatIds.map(String));
-          allFloats = allFloats.filter(f => allowed.has(String(f)));
-
-          // If we have filtered floats, automatically select the first one
-          if (allFloats.length > 0) {
-            // We can't call onSelectFloat here directly because it's defined below.
-            // But we can set selectedFloat state.
-            // However, onSelectFloat does more than just setting state (fetches profiles).
-            // So we might need a separate effect or move onSelectFloat up.
-            // For now, let's just filter the list. The user can click.
-          }
-        }
-
-        setFloats(allFloats);
-      } catch (e) {
-        setError(e.message || String(e));
-      } finally {
-        setLoadingFloats(false);
-      }
-    };
     loadFloats();
-  }, [initialFloatIds]);
+  }, [initialFloatIds, activeFilters]);
+
+  const loadFloats = async () => {
+    setLoadingFloats(true);
+    try {
+      // Build query params from filters
+      const params = new URLSearchParams();
+      params.append('limit', '5000');
+      
+      // Apply active filters
+      if (activeFilters.yearOfDeployment && activeFilters.yearOfDeployment.length > 0) {
+        // For now, use the first selected year
+        params.append('year', activeFilters.yearOfDeployment[0]);
+      }
+      
+      if (activeFilters.basin && activeFilters.basin.length > 0) {
+        params.append('basin', activeFilters.basin[0]);
+      }
+      
+      if (activeFilters.dataMode && activeFilters.dataMode.length > 0) {
+        params.append('data_mode', activeFilters.dataMode[0]);
+      }
+
+      if (activeFilters.startDate) {
+        params.append('start_date', activeFilters.startDate);
+      }
+
+      if (activeFilters.endDate) {
+        params.append('end_date', activeFilters.endDate);
+      }
+
+      const res = await fetch(`http://127.0.0.1:8000/api/floats?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      let allFloats = data.floats || [];
+
+      // Filter if initialFloatIds provided
+      if (initialFloatIds && initialFloatIds.length > 0) {
+        const allowed = new Set(initialFloatIds.map(String));
+        allFloats = allFloats.filter(f => allowed.has(String(f)));
+      }
+
+      setFloats(allFloats);
+    } catch (e) {
+      setError(e.message || String(e));
+    } finally {
+      setLoadingFloats(false);
+    }
+  };
 
   const filteredFloats = useMemo(() => {
-    if (!floatSearch) return floats;
-    return floats.filter((f) =>
-      String(f).toLowerCase().includes(floatSearch.toLowerCase())
-    );
-  }, [floats, floatSearch]);
+    let result = floats;
+    
+    // Apply search filter
+    if (floatSearch) {
+      result = result.filter((f) =>
+        String(f).toLowerCase().includes(floatSearch.toLowerCase())
+      );
+    }
+    
+    // Apply metadata filters (would need backend support)
+    // For now, just return search-filtered results
+    return result;
+  }, [floats, floatSearch, activeFilters]);
+
+  const handleFilterChange = (newFilters) => {
+    setActiveFilters(newFilters);
+    // Floats will be reloaded via useEffect
+  };
 
   const onSelectFloat = async (fid) => {
     setSelectedFloat(fid);
@@ -137,6 +172,7 @@ const Dashboard = ({ onClose }) => {
         yKey="temperature"
         xLabel="Salinity (PSU)"
         yLabel="Temperature (°C)"
+        title={`Float_${selectedFloat}_TS_Curve`}
       />
     </div>
   );
@@ -154,6 +190,7 @@ const Dashboard = ({ onClose }) => {
         xLabel="Depth (m)"
         yLabel="Temperature (°C)"
         invertY={true}
+        title={`Float_${selectedFloat}_TD_Profile`}
       />
     </div>
   );
@@ -171,19 +208,27 @@ const Dashboard = ({ onClose }) => {
         xLabel="Temperature (°C)"
         yLabel="Pressure (dbar)"
         invertY={true}
+        title={`Float_${selectedFloat}_TP_Curve`}
       />
     </div>
   );
 
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        width: "100vw",
-        overflow: "hidden",
-      }}
-    >
+    <>
+      <FilterSidebar
+        onFilterChange={handleFilterChange}
+        isOpen={filterOpen}
+        onToggle={() => setFilterOpen(!filterOpen)}
+      />
+      
+      <div
+        style={{
+          display: "flex",
+          height: "100vh",
+          width: "100vw",
+          overflow: "hidden",
+        }}
+      >
       <div
         style={{
           width: 320,
@@ -257,6 +302,24 @@ const Dashboard = ({ onClose }) => {
         </div>
       </div>
       <div style={{ flex: 1, padding: 12, overflowY: "auto" }}>
+        {selectedFloat && (
+          <div style={{ marginBottom: 16, display: "flex", gap: 8 }}>
+            <button
+              className="view-more-btn"
+              onClick={() => setShowMetadata(!showMetadata)}
+              style={{ width: "auto", padding: "8px 16px" }}
+            >
+              {showMetadata ? "Hide" : "Show"} Metadata
+            </button>
+          </div>
+        )}
+
+        {showMetadata && selectedFloat && (
+          <div style={{ marginBottom: 16 }}>
+            <FloatMetadata floatId={selectedFloat} />
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           {renderProfiles.ts?.length > 0 && tsCard}
           {renderProfiles.td?.length > 0 && tdCard}
@@ -272,6 +335,7 @@ const Dashboard = ({ onClose }) => {
           )}
       </div>
     </div>
+    </>
   );
 };
 

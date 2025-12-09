@@ -294,6 +294,21 @@ class DataAccessOrchestrator:
 
     def _summarize_vector_results(self, user_query: str, vector_result: Dict[str, Any], collection: str = "january") -> Optional[str]:
         """Use Gemini to synthesize a concise answer from vector search results."""
+        
+        # CRITICAL: Check for general knowledge questions FIRST, before calling AI
+        q_lower = user_query.lower()
+        if collection == "metadata":
+            # Handle general knowledge questions about Argo (no AI needed)
+            if "what variables" in q_lower or "what parameters" in q_lower or "what does argo measure" in q_lower or "what do argo" in q_lower:
+                print("📋 General knowledge question detected - using hardcoded answer")
+                return (
+                    "Argo floats typically measure the following core variables: "
+                    "Temperature (°C), Salinity (PSU), and Pressure (dbar) which is used to calculate depth. "
+                    "Some floats also carry additional sensors for dissolved oxygen, pH, nitrate, chlorophyll, "
+                    "and other biogeochemical parameters. Each profile captures these measurements from the surface "
+                    "down to depths of up to 2000 meters."
+                )
+        
         if not self.use_gemini or not self.gemini_generator:
             return None
         model = getattr(self.gemini_generator, "model", None)
@@ -303,15 +318,29 @@ class DataAccessOrchestrator:
         # Prepare a compact context from vector hits
         hits = []
         try:
-            for item in vector_result.get("results", [])[:20]:
+            # Limit to fewer results for metadata to avoid payload size issues
+            max_results = 5 if collection == "metadata" else 20
+            
+            for item in vector_result.get("results", [])[:max_results]:
                 # Keep small subset of fields to limit prompt size
                 # Different fields for metadata vs profiles
                 if collection == "metadata":
-                    # For metadata, we want the full document content which has the rich description
+                    # For metadata, truncate long descriptions to avoid payload issues
+                    description = item.get("description", "")
+                    if len(description) > 500:
+                        description = description[:500] + "..."
+                    
+                    # Only include essential metadata fields
+                    metadata = item.get("metadata", {})
+                    compact_metadata = {
+                        k: v for k, v in metadata.items() 
+                        if k in ["PI_NAME", "PROJECT_NAME", "SENSOR", "OPERATING_INSTITUTION", "DATA_CENTRE"]
+                    }
+                    
                     compact = {
-                        "description": item.get("description"),
+                        "description": description,
                         "float_id": item.get("float_id"),
-                        "metadata": item.get("metadata")
+                        "metadata": compact_metadata
                     }
                 else:
                     compact = {
@@ -328,6 +357,12 @@ class DataAccessOrchestrator:
             pass
             
         context_json = json.dumps({"hits": hits}, default=str)
+        
+        # Additional safety check: if context is too large, truncate further
+        if len(context_json) > 8000:  # Groq has token limits
+            print(f"⚠️ Context too large ({len(context_json)} chars), truncating to first 2 hits...")
+            hits = hits[:2]
+            context_json = json.dumps({"hits": hits}, default=str)
         
         if collection == "metadata":
             prompt = (
@@ -360,12 +395,13 @@ class DataAccessOrchestrator:
             if collection == "metadata" and hits:
                 try:
                     print("📋 Attempting deterministic fallback for metadata...")
-                    # Try to find the answer in the top hit
-                    top_hit = hits[0]
-                    meta = top_hit.get("metadata", {})
                     
                     # Check for common fields based on query keywords
                     q_lower = user_query.lower()
+                    
+                    # Try to find the answer in the top hit for specific float queries
+                    top_hit = hits[0]
+                    meta = top_hit.get("metadata", {})
                     
                     fallback_response = ""
                     
@@ -391,11 +427,14 @@ class DataAccessOrchestrator:
                             
                     # If we found a specific answer, return it
                     if fallback_response:
-                        return f"{fallback_response} (Note: AI summary unavailable, showing raw metadata)"
+                        return fallback_response
                         
                     # Generic fallback if specific field not found but we have a description
                     if top_hit.get("description"):
-                        return f"Here is the metadata I found: {top_hit['description']}. (Note: AI summary unavailable)"
+                        desc = top_hit['description']
+                        if len(desc) > 300:
+                            desc = desc[:300] + "..."
+                        return f"Here is what I found: {desc}"
                         
                 except Exception as fallback_e:
                     print(f"❌ Deterministic fallback failed: {fallback_e}")

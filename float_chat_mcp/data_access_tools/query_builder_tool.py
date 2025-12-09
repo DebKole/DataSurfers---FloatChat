@@ -122,10 +122,21 @@ class QueryBuilderTool:
         analysis_llm = self._classify_analysis_llm(query_text, entities)
         analysis_type = None
         analysis_decider = "none"
+        
+        # Debug: log what LLM returned
+        if analysis_llm:
+            self.logger.info(f"🤖 LLM analysis classification: {analysis_llm}")
+        
         if analysis_llm and analysis_llm.get("analysis") is True and analysis_llm.get("type"):
             query_type = "analysis_query"
             analysis_type = analysis_llm.get("type")
             analysis_decider = "llm"
+            self.logger.info(f"✅ LLM classified as analysis: {analysis_type}")
+        elif analysis_llm and analysis_llm.get("analysis") is False:
+            # LLM explicitly said this is NOT analysis - trust it and override heuristics
+            if query_type == "analysis_query":
+                self.logger.info(f"🔄 LLM overriding heuristic: NOT analysis")
+                query_type = "spatial_temporal" if entities["regions"] and entities["temporal"]["years"] else "spatial"
         elif query_type == "analysis_query":
             analysis_decider = "heuristic"
 
@@ -371,6 +382,18 @@ class QueryBuilderTool:
         """Classify the type of query based on entities"""
         
         # NEW: Check for analysis keywords first
+        # BUT: Exclude data retrieval keywords that might be confused with analysis
+        data_retrieval_keywords = [
+            'list', 'list the', 'list all',
+            'show', 'show me', 'show all', 'show the',
+            'get', 'get me', 'get all', 'get the',
+            'give', 'give me', 'give all',
+            'which floats', 'what floats', 'float ids',
+            'find', 'find me', 'find all',
+            'retrieve', 'fetch', 'return'
+        ]
+        is_data_retrieval = any(keyword in query_lower for keyword in data_retrieval_keywords)
+        
         analysis_keywords = {
             'trend': ['trend', 'trending', 'time series', 'over time'],
             'curve': ['curve', 't-s', 'ts', 't-d', 'td', 'temperature-salinity', 'temperature-depth', 'vertical profile', 'chart', 'plot', 'graph'],
@@ -378,9 +401,16 @@ class QueryBuilderTool:
             'statistics': ['statistics', 'stats', 'summary', 'summarize', 'average', 'mean']
         }
         
-        for category, keywords in analysis_keywords.items():
-            if any(keyword in query_lower for keyword in keywords):
-                return "analysis_query"
+        # Only classify as analysis if NOT a data retrieval query
+        if not is_data_retrieval:
+            for category, keywords in analysis_keywords.items():
+                if any(keyword in query_lower for keyword in keywords):
+                    return "analysis_query"
+        
+        # General knowledge questions about Argo (should use metadata collection but with general answer)
+        general_knowledge_keywords = ['what variables', 'what parameters', 'what does argo measure', 'what do argo floats measure', 'what data']
+        if any(keyword in query_lower for keyword in general_knowledge_keywords):
+            return "metadata_lookup"  # Will trigger general knowledge fallback
         
         # Metadata queries (sensors, PI, project, etc.) - route to vector DB
         metadata_keywords = ['sensor', 'sensors', 'pi', 'principal investigator', 'project', 'deployed by', 'institution', 'who is', 'what is float', 'metadata', 'carry', 'carrying']
@@ -474,11 +504,24 @@ class QueryBuilderTool:
             }
             prompt = (
                 f"{guidance}\n\nQUERY: {query_text}\nHINT: {json.dumps(hint)}\n"
-                "Rules:\n- If the user asks for a graph/plot/chart/curve/profile, set analysis=true.\n"
+                "Rules:\n"
+                "- **CRITICAL DATA RETRIEVAL RULE**: If the user asks to 'list', 'show', 'get', 'find', 'retrieve', 'give', 'fetch', 'return' "
+                "data/floats/profiles WITHOUT explicit analysis keywords (trend, plot, graph, chart, compare, statistics, mean, average, summarize), "
+                "set analysis=false. These are DATA RETRIEVAL queries.\n"
+                "- **EXAMPLES OF DATA RETRIEVAL** (analysis=false):\n"
+                "  * 'Show floats in region X'\n"
+                "  * 'List floats from time Y'\n"
+                "  * 'Get profiles near location Z'\n"
+                "  * 'Find floats within distance D'\n"
+                "- **EXAMPLES OF ANALYSIS** (analysis=true):\n"
+                "  * 'Plot temperature vs salinity' → ts_curve\n"
+                "  * 'Show temperature trend' → temp_trend\n"
+                "  * 'Calculate statistics' → statistics\n"
+                "  * 'Compare two floats' → comparison\n"
+                "- If the user asks for a graph/plot/chart/curve/profile, set analysis=true.\n"
                 "- Map 'temperature salinity' to 'ts_curve', 'temperature depth' or 'vertical profile' to 'td_curve'.\n"
                 "- If 'trend' with temperature/salinity, choose 'temp_trend' or 'sal_trend'. If 'compare', choose 'comparison'.\n"
-                "- If the user asks to 'show', 'get', 'find', 'retrieve' data WITHOUT explicit analysis keywords (trend, plot, graph, compare, statistics, mean, average), set analysis=false. This is CRITICAL.\n" 
-                "- If unsure, set analysis=false. Return minimal JSON."
+                "- **DEFAULT**: If unsure, set analysis=false. Return minimal JSON."
             )
             resp = model.generate_content(prompt)
             text = (resp.text or "").strip()

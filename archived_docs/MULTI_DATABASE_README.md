@@ -24,9 +24,9 @@ The system automatically:
 ### For Developers
 
 ```python
-from gemini_sql_generator import GeminiSQLGenerator
+from groq_sql_generator import GroqSQLGenerator
 
-generator = GeminiSQLGenerator()
+generator = GroqSQLGenerator()
 result = generator.query_and_execute("Show me data from 2023")
 
 print(f"Database: {result['database']}")  # argo_indian_ocean_23
@@ -216,11 +216,11 @@ python3 historical_data_ingestion_v2.py --year 2023
 ### API Usage
 
 ```python
-from gemini_sql_generator import GeminiSQLGenerator
+from groq_sql_generator import GroqSQLGenerator
 from float_chat_mcp.data_access_tools.db_executor_tool import DatabaseExecutorTool
 
 # SQL Generation
-generator = GeminiSQLGenerator()
+generator = GroqSQLGenerator()
 result = generator.query_and_execute("Show me data from 2023")
 
 # Direct Database Access
@@ -263,7 +263,7 @@ result = executor.execute_multi_database_query(
 ## 📄 Files Modified
 
 ### Core Files
-- `gemini_sql_generator.py` - Enhanced with year extraction and QC awareness
+- `groq_sql_generator.py` - Enhanced with year extraction and QC awareness (using Groq AI)
 - `float_chat_mcp/data_access_tools/db_executor_tool.py` - Multi-database support
 - `historical_data_ingestion_v2.py` - Year-based ingestion
 

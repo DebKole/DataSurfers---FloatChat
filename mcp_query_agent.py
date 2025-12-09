@@ -97,7 +97,7 @@ class MCPQueryAgent:
             Dictionary with response and metadata
         """
         try:
-            # Use MCP orchestrator (Gemini AI + Redis + PostgreSQL)
+            # Use MCP orchestrator (Groq AI + Redis + PostgreSQL)
             result = self.orchestrator.execute_query(query)
             
             if result['status'] == 'success':
@@ -188,31 +188,58 @@ class MCPQueryAgent:
                      print(f"   ✅ Using Gemini analysis from result.analysis")
                      return res['analysis']
         
-        # Check for explicit Gemini errors in the result
-        if result.get('status') == 'error' and 'gemini' in str(result.get('error', '')).lower():
-            return "I'm currently experiencing high traffic with my AI brain (Gemini rate limit reached). 🧠💤 I've switched to my standard data retrieval mode to still get you the data you need, but my responses might be a bit less conversational for a moment."
+        # Check for explicit AI errors in the result
+        if result.get('status') == 'error' and any(word in str(result.get('error', '')).lower() for word in ['gemini', 'groq', 'rate limit']):
+            return "I'm currently experiencing high traffic with my AI brain (rate limit reached). 🧠💤 I've switched to my standard data retrieval mode to still get you the data you need, but my responses might be a bit less conversational for a moment."
         
         # Check for vector search results with LLM summary
         if result.get('strategy') == 'vector_only':
+            # Debug: log what we have
+            print(f"   🔍 Vector result keys: {result.keys()}")
+            print(f"   🔍 Has llm_summary: {bool(result.get('llm_summary'))}")
+            if result.get('llm_summary'):
+                print(f"   🔍 LLM summary preview: {result['llm_summary'][:100]}...")
+            
+            # First check for top-level llm_summary (correct location)
+            if result.get('llm_summary'):
+                print(f"   ✅ Using LLM summary from vector search (top-level)")
+                return result['llm_summary']
+            
+            # Legacy check: look in results array (shouldn't be needed but kept for safety)
             for res in result.get('results', []):
                 if isinstance(res, dict) and res.get('llm_summary'):
-                    print(f"   ✅ Using LLM summary from vector search")
+                    print(f"   ✅ Using LLM summary from vector search (results array)")
                     return res['llm_summary']
                 
                 # Fallback: if we have vector results but no summary, try to use the first result
+                # BUT ONLY if the query is specifically about a float (has float ID or specific metadata keywords)
                 if isinstance(res, dict) and res.get('results') and len(res['results']) > 0:
+                    # Only use metadata fallback for specific float queries
+                    query_lower = query.lower()
+                    is_specific_float_query = (
+                        'float' in query_lower and any(char.isdigit() for char in query) or
+                        ('pi' in query_lower and 'for' in query_lower) or
+                        ('sensor' in query_lower and 'float' in query_lower) or
+                        ('project' in query_lower and 'float' in query_lower)
+                    )
+                    
+                    if not is_specific_float_query:
+                        # This is a general question, don't use metadata fallback
+                        print(f"   ⚠️ General question detected, skipping metadata fallback")
+                        continue
+                    
                     top_hit = res['results'][0]
                     # Check if this looks like metadata
                     meta = top_hit.get('metadata', {})
                     if meta:
                         # Construct a simple answer from metadata if relevant keys exist
-                        if 'PI_NAME' in meta and ('pi' in query.lower() or 'investigator' in query.lower()):
+                        if 'PI_NAME' in meta and ('pi' in query_lower or 'investigator' in query_lower):
                             return f"The Principal Investigator (PI) for this float is {meta['PI_NAME']}."
-                        if 'PROJECT_NAME' in meta and 'project' in query.lower():
+                        if 'PROJECT_NAME' in meta and 'project' in query_lower:
                             return f"This float belongs to the {meta['PROJECT_NAME']} project."
-                        if 'SENSOR' in meta and 'sensor' in query.lower():
+                        if 'SENSOR' in meta and 'sensor' in query_lower:
                              return f"This float carries: {meta['SENSOR']}."
-                        if 'DEPLOYMENT_PLATFORM' in meta and 'deployed' in query.lower():
+                        if 'DEPLOYMENT_PLATFORM' in meta and 'deployed' in query_lower:
                              return f"This float was deployed by {meta['DEPLOYMENT_PLATFORM']}."
                     
                     # Generic fallback

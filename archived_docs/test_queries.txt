@@ -1,0 +1,41 @@
+Basic Queries
+What is an Argo float, and how is it different from satellite observations?
+Is there any Argo data available in the Bay of Bengal during May 2020?
+# Which region generally has more Argo data — the Arabian Sea or the Bay of Bengal?
+# Show me a time-series plot of temperature from the Argo float nearest to 15°N, 90°E.
+# Compare that temperature time series with the Argo float nearest to 15°N, 65°E.
+Give me a time–depth (Hovmöller) plot of temperature for the same location near 15°N,90°E.
+What variables does an Argo profile typically measure?
+How frequently does an Argo float collect data?
+What is the typical depth range sampled by Argo floats?
+What is the difference between Core-Argo and BGC-Argo floats?
+How accurate is Argo temperature and salinity data?
+
+Data analytics
+Do we have any Argo data in the Indian Ocean in 2022?
+List the Argo floats that were active in the Arabian Sea in February 2019.
+How many profiles were collected globally in January 2020?
+# Show me all BGC-Argo profiles available near 5°N–10°N and 70°E–80°E.
+Are there any floats within 100 km of Sri Lanka in 2021?
+
+Metadata Queries
+Show me the trajectory map of Float ID 2902403.
+What sensors does float 2902604 carry?
+When did float 2902266 last report?
+Give me the parking depth and cycle time of float 2902746.
+
+Visualization Requests
+Plot the temperature–salinity (T–S) diagram for float 2902123 in 2023.
+# Plot a vertical profile of oxygen for a BGC-Argo float near 10°N, 65°E.
+# Show a map of all floats currently reporting in the North Indian Ocean.
+Create a depth-time (Hovmöller) plot of salinity for float 2902401
+
+Comparison Queries
+Compare temperature profiles between two floats: 2902403 and 2902266.
+Compare salinity at 100 m depth between Arabian Sea and Bay of Bengal for 2020.
+Compare seasonal cycle of SST at 5°N–10°N, 85°E vs 15°N–20°N, 65°E.
+
+Additional
+Show floats within 200 km of the equator in the Indian Ocean.
+List floats south of 20°S in the Indian Ocean in 2023.
+Export the Argo profiles near 15°N, 90°E in 2023 as NetCDF

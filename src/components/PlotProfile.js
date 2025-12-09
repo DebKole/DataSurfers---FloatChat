@@ -18,7 +18,11 @@ function PlotProfileTool({
   xLabel,
   yLabel,
   invertY = false,
+  title = "",
 }) {
+  // Hooks must be at the top level
+  const plotRef = React.useRef(null);
+  
   const visibleProfiles = useMemo(() => {
     if (profileId) {
       // Handle both string/number comparison loosely
@@ -30,12 +34,13 @@ function PlotProfileTool({
     return profiles;
   }, [profiles, profileId]);
 
+  const resolvedXLabel = xLabel || xKey;
+  const resolvedYLabel = yLabel || yKey;
+
+  // Early return after all hooks
   if (!visibleProfiles || visibleProfiles.length === 0) {
     return <div style={{ color: "#e2e8f0", padding: "10px" }}>No data available.</div>;
   }
-
-  const resolvedXLabel = xLabel || xKey;
-  const resolvedYLabel = yLabel || yKey;
 
   const traces = visibleProfiles.map((profile, index) => {
     const x = profile.measurements.map((m) => m[xKey]);
@@ -59,54 +64,100 @@ function PlotProfileTool({
     };
   });
 
+  const downloadChart = () => {
+    // Use Plotly's built-in download functionality
+    if (plotRef.current && plotRef.current.el) {
+      const gd = plotRef.current.el;
+      
+      // Use Plotly's downloadImage function
+      window.Plotly.downloadImage(gd, {
+        format: 'png',
+        width: 1200,
+        height: 800,
+        filename: title.replace(/\s+/g, '_')
+      });
+    }
+  };
+
   return (
-    <Plot
-      data={traces}
-      layout={{
-        title: visibleProfiles.length === 1
-          ? `Cycle ${visibleProfiles[0].cycle_number ?? visibleProfiles[0].profileId}`
-          : `All Cycles (${visibleProfiles.length})`,
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(0,0,0,0)",
-        font: { color: "#e2e8f0" },
-        xaxis: {
-          title: {
-            text: resolvedXLabel,
-            font: { color: "#e2e8f0", size: 12 },
-            standoff: 8,
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={downloadChart}
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          zIndex: 10,
+          background: 'rgba(49, 130, 206, 0.9)',
+          color: 'white',
+          border: 'none',
+          padding: '6px 12px',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          fontSize: '12px',
+          fontWeight: 600,
+          transition: 'all 0.2s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.background = 'rgba(49, 130, 206, 1)';
+          e.target.style.transform = 'translateY(-2px)';
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.background = 'rgba(49, 130, 206, 0.9)';
+          e.target.style.transform = 'translateY(0)';
+        }}
+      >
+        📥 Download PNG
+      </button>
+      <Plot
+        ref={plotRef}
+        data={traces}
+        layout={{
+          title: visibleProfiles.length === 1
+            ? `Cycle ${visibleProfiles[0].cycle_number ?? visibleProfiles[0].profileId}`
+            : `All Cycles (${visibleProfiles.length})`,
+          paper_bgcolor: "rgba(0,0,0,0)",
+          plot_bgcolor: "rgba(0,0,0,0)",
+          font: { color: "#e2e8f0" },
+          xaxis: {
+            title: {
+              text: resolvedXLabel,
+              font: { color: "#e2e8f0", size: 12 },
+              standoff: 8,
+            },
+            gridcolor: "rgba(226,232,240,0.12)",
+            zerolinecolor: "#94a3b8",
+            color: "#cbd5e1",
           },
-          gridcolor: "rgba(226,232,240,0.12)",
-          zerolinecolor: "#94a3b8",
-          color: "#cbd5e1",
-        },
-        yaxis: {
-          title: { text: resolvedYLabel, font: { color: "#e2e8f0", size: 12 } },
-          gridcolor: "rgba(226,232,240,0.12)",
-          zerolinecolor: "#94a3b8",
-          color: "#cbd5e1",
-          ...(invertY ? { autorange: "reversed" } : {}),
-        },
-        legend: {
-          orientation: "h",
-          bgcolor: "rgba(0,0,0,0)",
-          // Hide legend if too many items to avoid clutter
-          visible: visibleProfiles.length < 10
-        },
-        margin: {
-          l: invertY ? 70 : 60,
-          r: 30,
-          t: 40,
-          b: invertY ? 60 : 50,
-        },
-        autosize: true,
-        hovermode: "closest",
-      }}
-      style={{ width: "100%", height: "400px", minHeight: "400px" }}
-      config={{
-        displayModeBar: false,
-        responsive: true,
-      }}
-    />
+          yaxis: {
+            title: { text: resolvedYLabel, font: { color: "#e2e8f0", size: 12 } },
+            gridcolor: "rgba(226,232,240,0.12)",
+            zerolinecolor: "#94a3b8",
+            color: "#cbd5e1",
+            ...(invertY ? { autorange: "reversed" } : {}),
+          },
+          legend: {
+            orientation: "h",
+            bgcolor: "rgba(0,0,0,0)",
+            // Hide legend if too many items to avoid clutter
+            visible: visibleProfiles.length < 10
+          },
+          margin: {
+            l: invertY ? 70 : 60,
+            r: 30,
+            t: 40,
+            b: invertY ? 60 : 50,
+          },
+          autosize: true,
+          hovermode: "closest",
+        }}
+        style={{ width: "100%", height: "400px", minHeight: "400px" }}
+        config={{
+          displayModeBar: false,
+          responsive: true,
+        }}
+      />
+    </div>
   );
 }
 

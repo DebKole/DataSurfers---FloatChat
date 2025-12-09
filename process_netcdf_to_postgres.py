@@ -17,6 +17,9 @@ class NetCDFProcessor:
         self.db_config = db_config
         self.global_profile_counter = self._get_next_profile_id()
         self.processed_files = []
+        
+        # BGC parameters to extract
+        self.bgc_params = ['DOXY', 'CHLA', 'NITRATE', 'PH_IN_SITU_TOTAL', 'BBP700', 'CDOM']
     
     def _get_next_profile_id(self):
         """Get the next available global profile ID from database"""
@@ -121,6 +124,58 @@ class NetCDFProcessor:
             print(f"Warning: Could not extract datetime for profile {profile_idx}: {e}")
             return None
     
+    def extract_bgc_parameters(self, ds, profile_idx, level):
+        """Extract BGC parameters (DOXY, CHLA, NITRATE, etc.) for a specific measurement level"""
+        bgc_data = {}
+        
+        for param in self.bgc_params:
+            try:
+                # Check for adjusted value
+                adjusted_var = f"{param}_ADJUSTED"
+                qc_var = f"{param}_ADJUSTED_QC"
+                
+                if adjusted_var in ds.variables:
+                    value = ds[adjusted_var][profile_idx, level].values
+                    
+                    # Get QC flag if available
+                    qc_flag = None
+                    if qc_var in ds.variables:
+                        qc_raw = ds[qc_var][profile_idx, level].values
+                        qc_flag = self._convert_qc_to_int(qc_raw)
+                    
+                    # Only include if value is valid (not NaN) and QC is acceptable
+                    if not np.isnan(value):
+                        param_data = {
+                            "value": float(value),
+                            "qc": int(qc_flag) if qc_flag is not None and not np.isnan(qc_flag) else None
+                        }
+                        
+                        # Only add if QC is good (<=3) or if no QC flag exists
+                        if param_data["qc"] is None or param_data["qc"] <= 3:
+                            bgc_data[param] = param_data
+                            
+            except Exception as e:
+                # Silently skip parameters that don't exist or have issues
+                continue
+        
+        return bgc_data if bgc_data else None
+    
+    def _convert_qc_to_int(self, qc_value):
+        """Convert QC flag to integer, handling various formats"""
+        try:
+            if isinstance(qc_value, (bytes, np.bytes_)):
+                qc_str = qc_value.decode('utf-8').strip()
+            elif isinstance(qc_value, str):
+                qc_str = qc_value.strip()
+            else:
+                qc_str = str(qc_value).strip()
+            
+            if qc_str and qc_str.isdigit():
+                return int(qc_str)
+            return np.nan
+        except:
+            return np.nan
+    
     def process_single_file(self, filename):
         """Process a single NetCDF file"""
         file_path = os.path.join(self.data_dir, filename)
@@ -143,15 +198,49 @@ class NetCDFProcessor:
         
         # Extract adjusted variables and QC flags
         try:
-            # Use adjusted values instead of raw values
-            pres = ds["PRES_ADJUSTED"].values if "PRES_ADJUSTED" in ds.variables else np.full((n_prof, n_levels), np.nan)
-            temp = ds["TEMP_ADJUSTED"].values if "TEMP_ADJUSTED" in ds.variables else np.full((n_prof, n_levels), np.nan)
-            psal = ds["PSAL_ADJUSTED"].values if "PSAL_ADJUSTED" in ds.variables else np.full((n_prof, n_levels), np.nan)
+            # Use adjusted values instead of raw values, fallback to raw if adjusted not available
+            if "PRES_ADJUSTED" in ds.variables:
+                pres = ds["PRES_ADJUSTED"].values
+            elif "PRES" in ds.variables:
+                pres = ds["PRES"].values
+            else:
+                pres = np.full((n_prof, n_levels), np.nan)
             
-            # Extract QC flags
-            pres_qc = ds["PRES_ADJUSTED_QC"].values if "PRES_ADJUSTED_QC" in ds.variables else np.full((n_prof, n_levels), np.nan)
-            temp_qc = ds["TEMP_ADJUSTED_QC"].values if "TEMP_ADJUSTED_QC" in ds.variables else np.full((n_prof, n_levels), np.nan)
-            psal_qc = ds["PSAL_ADJUSTED_QC"].values if "PSAL_ADJUSTED_QC" in ds.variables else np.full((n_prof, n_levels), np.nan)
+            if "TEMP_ADJUSTED" in ds.variables:
+                temp = ds["TEMP_ADJUSTED"].values
+            elif "TEMP" in ds.variables:
+                temp = ds["TEMP"].values
+            else:
+                temp = np.full((n_prof, n_levels), np.nan)
+            
+            if "PSAL_ADJUSTED" in ds.variables:
+                psal = ds["PSAL_ADJUSTED"].values
+            elif "PSAL" in ds.variables:
+                psal = ds["PSAL"].values
+            else:
+                psal = np.full((n_prof, n_levels), np.nan)
+            
+            # Extract QC flags (fallback to raw QC if adjusted QC not available)
+            if "PRES_ADJUSTED_QC" in ds.variables:
+                pres_qc = ds["PRES_ADJUSTED_QC"].values
+            elif "PRES_QC" in ds.variables:
+                pres_qc = ds["PRES_QC"].values
+            else:
+                pres_qc = np.full((n_prof, n_levels), 1)  # Assume good quality if no QC
+            
+            if "TEMP_ADJUSTED_QC" in ds.variables:
+                temp_qc = ds["TEMP_ADJUSTED_QC"].values
+            elif "TEMP_QC" in ds.variables:
+                temp_qc = ds["TEMP_QC"].values
+            else:
+                temp_qc = np.full((n_prof, n_levels), 1)
+            
+            if "PSAL_ADJUSTED_QC" in ds.variables:
+                psal_qc = ds["PSAL_ADJUSTED_QC"].values
+            elif "PSAL_QC" in ds.variables:
+                psal_qc = ds["PSAL_QC"].values
+            else:
+                psal_qc = np.full((n_prof, n_levels), 1)
             
             # Convert QC flags from bytes to integers if needed
             def qc_to_int(qc_array):
@@ -240,25 +329,41 @@ class NetCDFProcessor:
                 temp_qc_val = temp_qc[local_profile_id, level]
                 psal_qc_val = psal_qc[local_profile_id, level]
                 
-                # Only include measurements where:
-                # 1. All values are not NaN
-                # 2. All QC flags are <= 3 and not NaN
-                if (not np.isnan(pres[local_profile_id, level]) and 
-                    not np.isnan(temp[local_profile_id, level]) and 
-                    not np.isnan(psal[local_profile_id, level]) and
-                    not np.isnan(pres_qc_val) and pres_qc_val <= 3 and
-                    not np.isnan(temp_qc_val) and temp_qc_val <= 3 and
-                    not np.isnan(psal_qc_val) and psal_qc_val <= 3):
-                    
+                # Extract BGC parameters for this level (do this first to check if we have BGC data)
+                bgc_data = self.extract_bgc_parameters(ds, local_profile_id, level)
+                
+                # For BGC files: Include measurement if we have pressure AND (temp/psal OR BGC data)
+                # For core Argo files: Include if we have all three core parameters
+                has_pressure = not np.isnan(pres[local_profile_id, level])
+                has_temp = not np.isnan(temp[local_profile_id, level])
+                has_psal = not np.isnan(psal[local_profile_id, level])
+                has_bgc = bgc_data is not None and len(bgc_data) > 0
+                
+                # Include if: (pressure + temp + psal) OR (pressure + BGC data)
+                include_measurement = False
+                if has_pressure:
+                    if (has_temp and has_psal):
+                        # Core Argo data - check QC
+                        if (not np.isnan(pres_qc_val) and pres_qc_val <= 3 and
+                            not np.isnan(temp_qc_val) and temp_qc_val <= 3 and
+                            not np.isnan(psal_qc_val) and psal_qc_val <= 3):
+                            include_measurement = True
+                    elif has_bgc:
+                        # BGC-only data - just check pressure QC
+                        if not np.isnan(pres_qc_val) and pres_qc_val <= 3:
+                            include_measurement = True
+                
+                if include_measurement:
                     measurement_record = {
                         'global_profile_id': global_profile_id,
                         'level': level,
-                        'pressure_adjusted': float(pres[local_profile_id, level]),
-                        'temperature_adjusted': float(temp[local_profile_id, level]),
-                        'salinity_adjusted': float(psal[local_profile_id, level]),
-                        'pressure_adjusted_qc': int(pres_qc_val),
-                        'temperature_adjusted_qc': int(temp_qc_val),
-                        'salinity_adjusted_qc': int(psal_qc_val),
+                        'pressure_adjusted': float(pres[local_profile_id, level]) if has_pressure else None,
+                        'temperature_adjusted': float(temp[local_profile_id, level]) if has_temp else None,
+                        'salinity_adjusted': float(psal[local_profile_id, level]) if has_psal else None,
+                        'pressure_adjusted_qc': int(pres_qc_val) if not np.isnan(pres_qc_val) else None,
+                        'temperature_adjusted_qc': int(temp_qc_val) if not np.isnan(temp_qc_val) else None,
+                        'salinity_adjusted_qc': int(psal_qc_val) if not np.isnan(psal_qc_val) else None,
+                        'bgc_parameters': bgc_data if bgc_data else None,
                         'latitude': float(lat[local_profile_id]) if not np.isnan(lat[local_profile_id]) else None,
                         'longitude': float(lon[local_profile_id]) if not np.isnan(lon[local_profile_id]) else None,
                         'datetime': datetime_val

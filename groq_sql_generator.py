@@ -263,10 +263,12 @@ IMPORTANT RULES:
 7. **ALWAYS specify database** as first line comment: -- DATABASE: argo_indian_ocean_YY
 8. **SELECT ONLY RELEVANT COLUMNS** (Strict Column Rule):
    - **ALWAYS INCLUDE**: global_profile_id, float_id, latitude, longitude, datetime
+   - **IF USER ASKS FOR "LIST" or "WHICH FLOATS"**: Return DISTINCT float_id, latitude, longitude, datetime (one row per float)
    - **IF USER ASKS FOR PARAMETER** (e.g., temperature): Include the parameter AND its QC column (e.g., temperature, temperature_adjusted_qc) and pressure.
    - **Example**: SELECT global_profile_id, float_id, latitude, longitude, datetime, pressure, temperature, temperature_adjusted_qc FROM ...
    - **DO NOT** use SELECT * unless explicitly asked.
-9. Return ONLY the SQL query with database comment. NO explanations, NO markdown formatting.
+9. **FOR "LIST" QUERIES**: Use SELECT DISTINCT float_id to avoid duplicates, and include location/date for context
+10. Return ONLY the SQL query with database comment. NO explanations, NO markdown formatting.
 
 USER QUERY: "{user_query}"
 QUERY TYPE: {"CROSS-YEAR (use FDW views)" if is_cross_year else "SINGLE-YEAR"}

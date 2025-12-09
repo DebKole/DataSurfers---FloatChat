@@ -492,7 +492,7 @@ def argo_td_curve(data: List[Dict[str, Any]], show_plot: bool = False) -> Dict[s
     
     if show_plot:
         fig, ax = plt.subplots(figsize=(12, 6))
-        ax.plot(df_clean['depth'], df_clean['temperature'], 'r-', linewidth=2.5)
+        ax.plot( df_clean['temperature'],df_clean['depth'], 'r-', linewidth=2.5)
         ax.set_xlabel('Depth (m)', fontsize=12, fontweight='bold')
         ax.set_ylabel('Temperature (°C)', fontsize=12, fontweight='bold')
         ax.set_title('Temperature-Depth Profile', fontsize=14, fontweight='bold')
