@@ -42,12 +42,18 @@ class VectorRetrievalTool:
         """
         try:
             # Perform vector search
-            results = self.vector_db.search_profiles(
-                query=query_text,
-                collection_name=collection,
-                n_results=n_results,
-                filters=filters
-            )
+            if collection == "metadata":
+                results = self.vector_db.search_float_metadata(
+                    query=query_text,
+                    n_results=n_results
+                )
+            else:
+                results = self.vector_db.search_profiles(
+                    query=query_text,
+                    collection_name=collection,
+                    n_results=n_results,
+                    filters=filters
+                )
             
             # Format results for MCP
             formatted_results = {

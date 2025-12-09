@@ -338,15 +338,20 @@ class QueryBuilderTool:
                 "Example: {'lat_bounds': [18.0, 20.0], 'lng_bounds': [72.0, 73.5], 'center': [19.07, 72.87]}"
             )
             
-            resp = model.generate_content(prompt)
-            text = (resp.text or "").strip()
-            
-            # Clean and parse JSON
-            cleaned = text.replace("```json", "").replace("```", "").strip()
-            if not cleaned: 
-                return None
+            try:
+                resp = model.generate_content(prompt)
+                text = (resp.text or "").strip()
                 
-            data = json.loads(cleaned)
+                # Clean and parse JSON
+                cleaned = text.replace("```json", "").replace("```", "").strip()
+                if not cleaned: 
+                    return None
+                    
+                data = json.loads(cleaned)
+                return data
+            except Exception as e:
+                print(f"⚠️ Gemini location resolution failed: {e}")
+                return None
             
             if data and 'lat_bounds' in data and 'lng_bounds' in data:
                 result = {
@@ -376,6 +381,11 @@ class QueryBuilderTool:
         for category, keywords in analysis_keywords.items():
             if any(keyword in query_lower for keyword in keywords):
                 return "analysis_query"
+        
+        # Metadata queries (sensors, PI, project, etc.) - route to vector DB
+        metadata_keywords = ['sensor', 'sensors', 'pi', 'principal investigator', 'project', 'deployed by', 'institution', 'who is', 'what is float', 'metadata', 'carry', 'carrying']
+        if any(keyword in query_lower for keyword in metadata_keywords):
+            return "metadata_lookup"
         
         # Specific float lookup
         if entities["float_ids"]:
@@ -415,6 +425,10 @@ class QueryBuilderTool:
         # Direct SQL for simple lookups
         if query_type == "float_lookup":
             return "sql_only"
+            
+        # Vector search for metadata queries
+        if query_type == "metadata_lookup":
+            return "vector_only"
         
         # Vector search for semantic queries
         if query_type == "semantic_analysis":
@@ -527,7 +541,7 @@ class QueryBuilderTool:
                 f"ENTITIES_HINT: {json.dumps(entities_hint)}\n"
                 "Rules:\n"
                 "- Prefer 'sql' when the user asks to show/get/find data, float IDs, profiles, measurements, specific regions or time windows.\n"
-                "- Prefer 'general' when the user asks conceptual/overview questions or free-form discovery where structured SQL is unclear.\n"
+                "- Prefer 'general' when the user asks conceptual/overview questions, free-form discovery, or metadata questions about floats (e.g., sensors, PI, project, deployment details) that are not in the standard data tables.\n"
                 "- If unsure, choose 'general'.\n"
             )
 
@@ -674,8 +688,11 @@ class QueryBuilderTool:
             for float_id in entities["float_ids"]:
                 q = {
                     "type": "float_lookup",
-                    "method": "get_all_profiles_by_float_id",
-                    "params": {"float_id": float_id, "include_measurements": True}
+                    "method": "execute_query", # Changed to generic execute_query
+                    "params": {
+                        "sql": f"SELECT * FROM all_argo_profiles WHERE float_id = '{float_id}' ORDER BY datetime DESC LIMIT 100",
+                        "return_format": "dict"
+                    }
                 }
                 plan["queries"].append(q)
                 self.logger.info("➡️ Fallback executing: %s params=%s", q["method"], q["params"])
@@ -753,9 +770,13 @@ class QueryBuilderTool:
         
         semantic_query = " ".join(query_parts) if query_parts else intent["query_text"]
         
+        collection = "january"
+        if intent.get("query_type") == "metadata_lookup":
+            collection = "metadata"
+        
         return {
             "strategy": "vector_only",
-            "collection": "january",
+            "collection": collection,
             "query": semantic_query,
             "n_results": 20,
             "filters": self._build_vector_filters(entities)

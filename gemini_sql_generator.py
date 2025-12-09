@@ -66,7 +66,7 @@ class GeminiSQLGenerator:
                     is_nullable
                 FROM information_schema.columns 
                 WHERE table_schema = 'public' 
-                  AND table_name IN ('argo_profiles', 'argo_measurements')
+                  AND table_name IN ('argo_profiles', 'argo_measurements', 'all_argo_profiles')
                 ORDER BY table_name, ordinal_position;
                 """
                 
@@ -75,13 +75,14 @@ class GeminiSQLGenerator:
                 # Format schema for Gemini
                 schema_text = "DATABASE SCHEMA:\n\n"
                 
-                for table in ['argo_profiles', 'argo_measurements']:
+                for table in ['argo_profiles', 'argo_measurements', 'all_argo_profiles']:
                     table_cols = df[df['table_name'] == table]
-                    schema_text += f"Table: {table}\n"
-                    for _, row in table_cols.iterrows():
-                        nullable = "NULL" if row['is_nullable'] == 'YES' else "NOT NULL"
-                        schema_text += f"  - {row['column_name']}: {row['data_type']} ({nullable})\n"
-                    schema_text += "\n"
+                    if not table_cols.empty:
+                        schema_text += f"Table: {table}\n"
+                        for _, row in table_cols.iterrows():
+                            nullable = "NULL" if row['is_nullable'] == 'YES' else "NOT NULL"
+                            schema_text += f"  - {row['column_name']}: {row['data_type']} ({nullable})\n"
+                        schema_text += "\n"
                 
                 # Add sample data context
                 sample_query = """
@@ -133,6 +134,14 @@ class GeminiSQLGenerator:
                 schema_text += "- Southern Indian Ocean: longitude 20-120, latitude -40-0\n"
                 schema_text += "- Northern Indian Ocean: longitude 20-120, latitude >30\n\n"
                 
+                # Add specific instructions for the unified view
+                schema_text += """
+IMPORTANT NOTES:
+1. 'all_argo_profiles' is a unified view covering data from 2015 to 2025.
+2. ALWAYS use 'all_argo_profiles' when searching for a specific float_id, as it might exist in any year.
+3. Use 'argo_profiles' only when you are sure the data is from 2025 or when specifically asked for 2025 data.
+4. The 'source_year' column in 'all_argo_profiles' indicates which year database the record came from.
+"""
                 return schema_text
                 
         except Exception as e:

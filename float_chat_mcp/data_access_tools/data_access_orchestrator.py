@@ -275,7 +275,7 @@ class DataAccessOrchestrator:
         llm_summary = None
         gemini_powered = False
         try:
-            llm_summary = self._summarize_vector_results(intent["query_text"], vector_result)
+            llm_summary = self._summarize_vector_results(intent["query_text"], vector_result, collection=plan.get("collection"))
             gemini_powered = llm_summary is not None
         except Exception as e:
             print(f"⚠️ LLM summarization failed: {e}")
@@ -292,43 +292,115 @@ class DataAccessOrchestrator:
             "gemini_powered": gemini_powered
         }
 
-    def _summarize_vector_results(self, user_query: str, vector_result: Dict[str, Any]) -> Optional[str]:
+    def _summarize_vector_results(self, user_query: str, vector_result: Dict[str, Any], collection: str = "january") -> Optional[str]:
         """Use Gemini to synthesize a concise answer from vector search results."""
         if not self.use_gemini or not self.gemini_generator:
             return None
         model = getattr(self.gemini_generator, "model", None)
         if model is None:
             return None
+            
         # Prepare a compact context from vector hits
         hits = []
         try:
             for item in vector_result.get("results", [])[:20]:
                 # Keep small subset of fields to limit prompt size
-                compact = {
-                    k: item.get(k)
-                    for k in [
-                        "profile_id", "global_profile_id", "float_id", "datetime",
-                        "latitude", "longitude", "temperature", "salinity", "region"
-                    ]
-                    if k in item
-                }
+                # Different fields for metadata vs profiles
+                if collection == "metadata":
+                    # For metadata, we want the full document content which has the rich description
+                    compact = {
+                        "description": item.get("description"),
+                        "float_id": item.get("float_id"),
+                        "metadata": item.get("metadata")
+                    }
+                else:
+                    compact = {
+                        k: item.get(k)
+                        for k in [
+                            "profile_id", "global_profile_id", "float_id", "datetime",
+                            "latitude", "longitude", "temperature", "salinity", "region",
+                            "description", "metadata"
+                        ]
+                        if k in item
+                    }
                 hits.append(compact)
         except Exception:
             pass
+            
         context_json = json.dumps({"hits": hits}, default=str)
-        prompt = (
-            "You are an oceanography assistant. Given a user query and top vector search hits, "
-            "write a short, helpful answer (2-4 sentences) summarizing what the data suggests. "
-            "Avoid markdown, be concise, and mention that detailed rows are available in the table.\n\n"
-            f"USER QUERY: {user_query}\n"
-            f"TOP HITS (JSON): {context_json}\n\n"
-            "Answer:"
-        )
-        resp = model.generate_content(prompt)
-        summary = (resp.text or "").strip()
-        # Sanitize stray markdown
-        summary = summary.replace("**", "").replace("*", "").replace("#", "")
-        return summary or None
+        
+        if collection == "metadata":
+            prompt = (
+                "You are an oceanography assistant with access to Argo float metadata. "
+                "Answer the user's specific question about a float (e.g., PI, sensors, project) using the provided search hits. "
+                "If the answer is in the hits, state it clearly. If not, say you don't have that specific detail.\n\n"
+                f"USER QUERY: {user_query}\n"
+                f"METADATA HITS (JSON): {context_json}\n\n"
+                "Answer:"
+            )
+        else:
+            prompt = (
+                "You are an oceanography assistant. Given a user query and top vector search hits, "
+                "write a short, helpful answer (2-4 sentences) summarizing what the data suggests. "
+                "Avoid markdown, be concise, and mention that detailed rows are available in the table.\n\n"
+                f"USER QUERY: {user_query}\n"
+                f"TOP HITS (JSON): {context_json}\n\n"
+                "Answer:"
+            )
+        try:
+            resp = model.generate_content(prompt)
+            summary = (resp.text or "").strip()
+            # Sanitize stray markdown
+            summary = summary.replace("**", "").replace("*", "").replace("#", "")
+            return summary or None
+        except Exception as e:
+            print(f"⚠️ Gemini summarization failed: {e}")
+            
+            # Fallback: Deterministic summarization for metadata
+            if collection == "metadata" and hits:
+                try:
+                    print("📋 Attempting deterministic fallback for metadata...")
+                    # Try to find the answer in the top hit
+                    top_hit = hits[0]
+                    meta = top_hit.get("metadata", {})
+                    
+                    # Check for common fields based on query keywords
+                    q_lower = user_query.lower()
+                    
+                    fallback_response = ""
+                    
+                    if "pi" in q_lower or "principal investigator" in q_lower:
+                        pi = meta.get("PI_NAME")
+                        if pi:
+                            fallback_response = f"The Principal Investigator (PI) for this float is {pi}."
+                            
+                    elif "project" in q_lower:
+                        proj = meta.get("PROJECT_NAME")
+                        if proj:
+                            fallback_response = f"This float belongs to the {proj} project."
+                            
+                    elif "sensor" in q_lower:
+                        sensors = meta.get("SENSOR") or meta.get("SENSOR_MODEL")
+                        if sensors:
+                            fallback_response = f"This float carries the following sensors: {sensors}."
+                            
+                    elif "institution" in q_lower or "deployed" in q_lower:
+                        inst = meta.get("GLOBAL_institution") or meta.get("OPERATING_INSTITUTION")
+                        if inst:
+                            fallback_response = f"This float was deployed/operated by {inst}."
+                            
+                    # If we found a specific answer, return it
+                    if fallback_response:
+                        return f"{fallback_response} (Note: AI summary unavailable, showing raw metadata)"
+                        
+                    # Generic fallback if specific field not found but we have a description
+                    if top_hit.get("description"):
+                        return f"Here is the metadata I found: {top_hit['description']}. (Note: AI summary unavailable)"
+                        
+                except Exception as fallback_e:
+                    print(f"❌ Deterministic fallback failed: {fallback_e}")
+            
+            return None
     
     def _execute_hybrid_strategy(self, plan: Dict[str, Any], intent: Dict[str, Any]) -> Dict[str, Any]:
         """Execute hybrid strategy (vector + SQL)"""

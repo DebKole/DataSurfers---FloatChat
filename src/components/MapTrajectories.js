@@ -189,14 +189,14 @@ function MapTrajectories({
 
             return (
               <React.Fragment key={fid}>
-                {showTrajectories[fid] !== false && (
+                {showTrajectories[fid] && (
                   <Polyline
                     positions={latlngs}
                     color={color}
                     weight={2}
                   />
                 )}
-                {prevPts.map((p) => (
+                {showTrajectories[fid] && prevPts.map((p) => (
                   <CircleMarker
                     key={p.profileId}
                     center={[p.lat, p.lon]}
@@ -208,7 +208,7 @@ function MapTrajectories({
                       click: () => {
                         setShowTrajectories(prev => ({
                           ...prev,
-                          [fid]: prev[fid] === false ? true : false
+                          [fid]: !prev[fid]
                         }));
                         if (onProfileClick) onProfileClick(p.profileId);
                       },
@@ -239,7 +239,7 @@ function MapTrajectories({
                       click: () => {
                         setShowTrajectories(prev => ({
                           ...prev,
-                          [fid]: prev[fid] === false ? true : false
+                          [fid]: !prev[fid]
                         }));
                         if (onProfileClick) onProfileClick(lastPt.profileId);
                       },
@@ -270,7 +270,7 @@ function MapTrajectories({
                               e.stopPropagation();
                               setShowTrajectories(prev => ({
                                 ...prev,
-                                [fid]: prev[fid] === false ? true : false
+                                [fid]: !prev[fid]
                               }));
                             }}
                             style={{
@@ -283,7 +283,7 @@ function MapTrajectories({
                               fontWeight: 'bold'
                             }}
                           >
-                            {showTrajectories[fid] !== false ? 'Hide' : 'Show'} Trajectory
+                            {showTrajectories[fid] ? 'Hide' : 'Show'} Trajectory
                           </button>
                         </div>
                       </div>

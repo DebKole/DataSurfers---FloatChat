@@ -13,9 +13,9 @@ const CHAT_HISTORY_KEY = 'chat-history';
 // QuestionPanel component
 export const QuestionPanel = ({ onQuestionClick, onClose }) => {
   const questions = [
-    "Show me ocean temperature trends",
-    "What's the current sea level?",
-    "Analyze water quality data"
+    "Show me temperature data for float 5906527",
+    "Show me the T-S curve for float 5906527",
+    "Show me salinity profiles for float 5906527"
   ];
 
   return (
