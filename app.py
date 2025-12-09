@@ -2,22 +2,24 @@ from fastapi import FastAPI, Query, HTTPException, Response
 from fastapi.params import Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
-from main import AgentState,add_query,model
+from main import AgentState, add_query, model
 from float_location_service import FloatLocationService
 from float_chat_mcp.data_access_tools.data_access_orchestrator import DataAccessOrchestrator
 from float_chat_mcp.data_access_tools.db_executor_tool import DatabaseExecutorTool
+from float_chat_mcp.multi_year_routes import router as multi_year_router
 import warnings
 import os
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 import matplotlib.pyplot as plt
 from io import BytesIO
 from datetime import datetime, date
 import math
+import logging
 
 try:
     import numpy as np  # optional, if available we’ll use for type checks
@@ -27,30 +29,65 @@ except Exception:
 warnings.filterwarnings("ignore")
 load_dotenv()
 
-app=FastAPI()
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+app = FastAPI(
+    title="Argo Float Data API",
+    description="API for accessing and analyzing Argo float data across multiple years",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=["*"],  # In production, replace with specific origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include multi-year routes
+app.include_router(multi_year_router)
 
 # Initialize float location service
 float_service = FloatLocationService()
 orchestrator = DataAccessOrchestrator(use_gemini=True, enable_cache=True)
 db_executor = DatabaseExecutorTool(enable_cache=True)
 
-# Database setup for trend analysis
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_USERNAME = os.getenv("DB_USERNAME", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME", "argo_indian_ocean_25")
-DB_URL = f"postgresql+psycopg2://{DB_USERNAME}:{DB_PASSWORD}@localhost:{DB_PORT}/{DB_NAME}"
-print(DB_URL)
-engine = create_engine(DB_URL)
+# Database configuration for multi-year access
+DB_CONFIG = {
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'port': os.getenv('DB_PORT', '5432'),
+    'user': os.getenv('DB_USERNAME', 'postgres'),
+    'password': os.getenv('DB_PASSWORD', ''),
+    'databases': {
+        '2021': os.getenv('DB_NAME_2021', 'argo_indian_ocean_21'),
+        '2022': os.getenv('DB_NAME_2022', 'argo_indian_ocean_22'),
+        '2023': os.getenv('DB_NAME_2023', 'argo_indian_ocean_23'),
+        '2024': os.getenv('DB_NAME_2024', 'argo_indian_ocean_24'),
+        '2025': os.getenv('DB_NAME_2025', 'argo_indian_ocean_25')
+    }
+}
+
+# Create database URL for the default (latest) database
+DB_URL = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['databases']['2025']}"
+
+# SQLAlchemy engine for the default database
+try:
+    engine = create_engine(DB_URL)
+    # Test the connection
+    with engine.connect() as conn:
+        conn.execute(text('SELECT 1'))
+    logger.info("Successfully connected to the database")
+except Exception as e:
+    logger.error(f"Failed to connect to the database: {e}")
+    raise
+# The engine is already created above using DB_CONFIG
+# No need to redefine it here
 
 # Import MCP tool functions
 from float_chat_mcp.analysis_tools import server

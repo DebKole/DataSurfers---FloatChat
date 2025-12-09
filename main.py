@@ -1,14 +1,14 @@
 from typing import TypedDict, List
 from langgraph.graph import StateGraph, START, END
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain_core.messages import AIMessage, HumanMessage
 from dotenv import load_dotenv
 import os
 from mcp_query_agent import MCPQueryAgent
 
 load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=api_key)
+api_key = os.getenv("GROQ_API_KEY")
+llm = ChatGroq(model="openai/gpt-oss-120b", api_key=api_key)
 
 # Initialize MCP Query Agent (replaces old data processor)
 mcp_agent = MCPQueryAgent()

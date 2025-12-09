@@ -32,14 +32,14 @@ def main():
         print("✅ .env file found and loaded")
         
         # Check if API key is loaded
-        api_key = os.getenv("GEMINI_API_KEY")
-        if api_key:
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if groq_api_key:
             # Show first 10 and last 4 characters for verification (mask the middle)
-            masked_key = f"{api_key[:10]}...{api_key[-4:]}" if len(api_key) > 14 else "***"
-            print(f"✅ GEMINI_API_KEY is loaded: {masked_key}")
+            masked_key = f"{groq_api_key[:10]}...{groq_api_key[-4:]}" if len(groq_api_key) > 14 else "***"
+            print(f"✅ GROQ_API_KEY is loaded: {masked_key}")
         else:
-            print("❌ ERROR: GEMINI_API_KEY is NOT loaded!")
-            print("   Please check your .env file contains: GEMINI_API_KEY=your_key_here")
+            print("❌ ERROR: GROQ_API_KEY is NOT loaded!")
+            print("   Please check your .env file contains: GROQ_API_KEY=your_key_here")
     
     if data_file.exists():
         print("✅ Data file found")

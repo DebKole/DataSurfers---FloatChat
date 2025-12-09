@@ -1,0 +1,92 @@
+.ts-curve-container {
+  background: rgba(26, 40, 65, 0.8);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  color: #e2e8f0;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.ts-curve-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ts-curve-header h3 {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 1.2rem;
+}
+
+.ts-curve-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.download-button,
+.debug-toggle {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background-color 0.2s;
+}
+
+.download-button:hover {
+  background: #2563eb;
+}
+
+.download-button:disabled,
+.debug-toggle:disabled {
+  background: #64748b;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.debug-toggle {
+  background: #6b7280;
+}
+
+.debug-toggle:hover {
+  background: #4b5563;
+}
+
+.ts-curve-container img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.loading,
+.no-data {
+  color: #94a3b8;
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+}
+
+.error {
+  color: #f87171;
+  background-color: rgba(248, 113, 113, 0.1);
+  padding: 10px;
+  border-radius: 4px;
+  margin: 10px 0;
+  text-align: center;
+}
