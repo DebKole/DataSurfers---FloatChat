@@ -180,17 +180,17 @@ const Dashboard = ({ onClose }) => {
   const tdCard = (
     <div style={{ flex: "1 1 600px", minWidth: 400 }}>
       <div style={{ fontWeight: "bold", marginBottom: 4 }}>
-        TD Profile {activeCycle ? `(Cycle ${activeCycle})` : "(All Cycles)"}
+        Depth-Temperature Profile {activeCycle ? `(Cycle ${activeCycle})` : "(All Cycles)"}
       </div>
       <PlotProfileTool
         profiles={renderProfiles.td}
         profileId={activeCycle}
-        xKey="depth"
-        yKey="temperature"
-        xLabel="Depth (m)"
-        yLabel="Temperature (°C)"
+        xKey="temperature"
+        yKey="depth"
+        xLabel="Temperature (°C)"
+        yLabel="Depth (m)"
         invertY={true}
-        title={`Float_${selectedFloat}_TD_Profile`}
+        title={`Float_${selectedFloat}_Depth_Temperature_Profile`}
       />
     </div>
   );
