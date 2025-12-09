@@ -164,8 +164,17 @@ function ChatInterface() {
     }
   };
 
-  const handleTableData = (data) => {
+  const handleTableData = (data, analysisType) => {
     setTableData(data);
+
+    // Auto-switch to charts view if analysis type implies charting
+    const chartTypes = ['ts_curve', 'td_curve', 'tp_curve', 'temp_trend', 'sal_trend', 'comparison'];
+    if (analysisType && chartTypes.includes(analysisType)) {
+      setDataSidebarView('charts');
+    } else if (data) {
+      // Default to table for other data
+      setDataSidebarView('table');
+    }
   };
 
   const toggleChatHistory = () => {

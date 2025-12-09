@@ -25,7 +25,7 @@ def main():
     env_file = Path(".env")
     if not env_file.exists():
         print("⚠️  Warning: .env file not found!")
-        print("Some features may not work without GEMINI_API_KEY")
+        print("Some features may not work without GROQ_API_KEY")
     else:
         # Load .env file
         load_dotenv()

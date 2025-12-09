@@ -275,7 +275,7 @@ class DataAccessOrchestrator:
         llm_summary = None
         gemini_powered = False
         try:
-            llm_summary = self._summarize_vector_results(intent["query_text"], vector_result)
+            llm_summary = self._summarize_vector_results(intent["query_text"], vector_result, collection=plan.get("collection"))
             gemini_powered = llm_summary is not None
         except Exception as e:
             print(f"⚠️ LLM summarization failed: {e}")
@@ -292,43 +292,154 @@ class DataAccessOrchestrator:
             "gemini_powered": gemini_powered
         }
 
-    def _summarize_vector_results(self, user_query: str, vector_result: Dict[str, Any]) -> Optional[str]:
+    def _summarize_vector_results(self, user_query: str, vector_result: Dict[str, Any], collection: str = "january") -> Optional[str]:
         """Use Gemini to synthesize a concise answer from vector search results."""
+        
+        # CRITICAL: Check for general knowledge questions FIRST, before calling AI
+        q_lower = user_query.lower()
+        if collection == "metadata":
+            # Handle general knowledge questions about Argo (no AI needed)
+            if "what variables" in q_lower or "what parameters" in q_lower or "what does argo measure" in q_lower or "what do argo" in q_lower:
+                print("📋 General knowledge question detected - using hardcoded answer")
+                return (
+                    "Argo floats typically measure the following core variables: "
+                    "Temperature (°C), Salinity (PSU), and Pressure (dbar) which is used to calculate depth. "
+                    "Some floats also carry additional sensors for dissolved oxygen, pH, nitrate, chlorophyll, "
+                    "and other biogeochemical parameters. Each profile captures these measurements from the surface "
+                    "down to depths of up to 2000 meters."
+                )
+        
         if not self.use_gemini or not self.gemini_generator:
             return None
         model = getattr(self.gemini_generator, "model", None)
         if model is None:
             return None
+            
         # Prepare a compact context from vector hits
         hits = []
         try:
-            for item in vector_result.get("results", [])[:20]:
+            # Limit to fewer results for metadata to avoid payload size issues
+            max_results = 5 if collection == "metadata" else 20
+            
+            for item in vector_result.get("results", [])[:max_results]:
                 # Keep small subset of fields to limit prompt size
-                compact = {
-                    k: item.get(k)
-                    for k in [
-                        "profile_id", "global_profile_id", "float_id", "datetime",
-                        "latitude", "longitude", "temperature", "salinity", "region"
-                    ]
-                    if k in item
-                }
+                # Different fields for metadata vs profiles
+                if collection == "metadata":
+                    # For metadata, truncate long descriptions to avoid payload issues
+                    description = item.get("description", "")
+                    if len(description) > 500:
+                        description = description[:500] + "..."
+                    
+                    # Only include essential metadata fields
+                    metadata = item.get("metadata", {})
+                    compact_metadata = {
+                        k: v for k, v in metadata.items() 
+                        if k in ["PI_NAME", "PROJECT_NAME", "SENSOR", "OPERATING_INSTITUTION", "DATA_CENTRE"]
+                    }
+                    
+                    compact = {
+                        "description": description,
+                        "float_id": item.get("float_id"),
+                        "metadata": compact_metadata
+                    }
+                else:
+                    compact = {
+                        k: item.get(k)
+                        for k in [
+                            "profile_id", "global_profile_id", "float_id", "datetime",
+                            "latitude", "longitude", "temperature", "salinity", "region",
+                            "description", "metadata"
+                        ]
+                        if k in item
+                    }
                 hits.append(compact)
         except Exception:
             pass
+            
         context_json = json.dumps({"hits": hits}, default=str)
-        prompt = (
-            "You are an oceanography assistant. Given a user query and top vector search hits, "
-            "write a short, helpful answer (2-4 sentences) summarizing what the data suggests. "
-            "Avoid markdown, be concise, and mention that detailed rows are available in the table.\n\n"
-            f"USER QUERY: {user_query}\n"
-            f"TOP HITS (JSON): {context_json}\n\n"
-            "Answer:"
-        )
-        resp = model.generate_content(prompt)
-        summary = (resp.text or "").strip()
-        # Sanitize stray markdown
-        summary = summary.replace("**", "").replace("*", "").replace("#", "")
-        return summary or None
+        
+        # Additional safety check: if context is too large, truncate further
+        if len(context_json) > 8000:  # Groq has token limits
+            print(f"⚠️ Context too large ({len(context_json)} chars), truncating to first 2 hits...")
+            hits = hits[:2]
+            context_json = json.dumps({"hits": hits}, default=str)
+        
+        if collection == "metadata":
+            prompt = (
+                "You are an oceanography assistant with access to Argo float metadata. "
+                "Answer the user's specific question about a float (e.g., PI, sensors, project) using the provided search hits. "
+                "If the answer is in the hits, state it clearly. If not, say you don't have that specific detail.\n\n"
+                f"USER QUERY: {user_query}\n"
+                f"METADATA HITS (JSON): {context_json}\n\n"
+                "Answer:"
+            )
+        else:
+            prompt = (
+                "You are an oceanography assistant. Given a user query and top vector search hits, "
+                "write a short, helpful answer (2-4 sentences) summarizing what the data suggests. "
+                "Avoid markdown, be concise, and mention that detailed rows are available in the table.\n\n"
+                f"USER QUERY: {user_query}\n"
+                f"TOP HITS (JSON): {context_json}\n\n"
+                "Answer:"
+            )
+        try:
+            resp = model.generate_content(prompt)
+            summary = (resp.text or "").strip()
+            # Sanitize stray markdown
+            summary = summary.replace("**", "").replace("*", "").replace("#", "")
+            return summary or None
+        except Exception as e:
+            print(f"⚠️ Gemini summarization failed: {e}")
+            
+            # Fallback: Deterministic summarization for metadata
+            if collection == "metadata" and hits:
+                try:
+                    print("📋 Attempting deterministic fallback for metadata...")
+                    
+                    # Check for common fields based on query keywords
+                    q_lower = user_query.lower()
+                    
+                    # Try to find the answer in the top hit for specific float queries
+                    top_hit = hits[0]
+                    meta = top_hit.get("metadata", {})
+                    
+                    fallback_response = ""
+                    
+                    if "pi" in q_lower or "principal investigator" in q_lower:
+                        pi = meta.get("PI_NAME")
+                        if pi:
+                            fallback_response = f"The Principal Investigator (PI) for this float is {pi}."
+                            
+                    elif "project" in q_lower:
+                        proj = meta.get("PROJECT_NAME")
+                        if proj:
+                            fallback_response = f"This float belongs to the {proj} project."
+                            
+                    elif "sensor" in q_lower:
+                        sensors = meta.get("SENSOR") or meta.get("SENSOR_MODEL")
+                        if sensors:
+                            fallback_response = f"This float carries the following sensors: {sensors}."
+                            
+                    elif "institution" in q_lower or "deployed" in q_lower:
+                        inst = meta.get("GLOBAL_institution") or meta.get("OPERATING_INSTITUTION")
+                        if inst:
+                            fallback_response = f"This float was deployed/operated by {inst}."
+                            
+                    # If we found a specific answer, return it
+                    if fallback_response:
+                        return fallback_response
+                        
+                    # Generic fallback if specific field not found but we have a description
+                    if top_hit.get("description"):
+                        desc = top_hit['description']
+                        if len(desc) > 300:
+                            desc = desc[:300] + "..."
+                        return f"Here is what I found: {desc}"
+                        
+                except Exception as fallback_e:
+                    print(f"❌ Deterministic fallback failed: {fallback_e}")
+            
+            return None
     
     def _execute_hybrid_strategy(self, plan: Dict[str, Any], intent: Dict[str, Any]) -> Dict[str, Any]:
         """Execute hybrid strategy (vector + SQL)"""
@@ -510,13 +621,13 @@ class DataAccessOrchestrator:
                 params = {
                     "float_id": float_id,
                     "include_measurements": True,
-                    "limit": 500
+                    "limit": 50000
                 }
                 if cycle_number is not None:
                     params["cycle_number"] = cycle_number
                 temp_plan["queries"].append({
                     "type": "float_lookup",
-                    "method": "get_profiles_by_float_id",
+                    "method": "get_all_profiles_by_float_id",
                     "params": params
                 })
         elif data_req["regions"]:
@@ -639,7 +750,7 @@ class DataAccessOrchestrator:
                 temp_plan["queries"].append({
                     "type": "float_lookup",
                     "method": "get_profiles_by_float_id",
-                    "params": {"float_id": entity, "include_measurements": True, "limit": 500}
+                    "params": {"float_id": entity, "include_measurements": True, "limit": 50000}
                 })
                 labels.append(entity)
             else:

@@ -28,7 +28,7 @@ def add_query(query: str) -> AgentState:
     return state
 
 def data_query_node(state: AgentState) -> AgentState:
-    """Node that processes queries using MCP tools (Gemini AI + Redis + PostgreSQL)."""
+    """Node that processes queries using MCP tools (Groq AI + Redis + PostgreSQL)."""
     last_query = state["querys"][-1].content
     
     # Check if query is about oceanographic data

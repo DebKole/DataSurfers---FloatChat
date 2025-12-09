@@ -26,6 +26,12 @@ class FloatChatVectorDB:
         self.metadata_collection_name = "floatchat_float_metadata"
         self.metadata_collection = self._get_or_create_collection(self.metadata_collection_name)
         
+        self.january_collection_name = "floatchat_january_profiles"
+        self.january_collection = self._get_or_create_collection(self.january_collection_name)
+        
+        self.live_collection_name = "floatchat_live_profiles"
+        self.live_collection = self._get_or_create_collection(self.live_collection_name)
+        
         self.logger = logging.getLogger(__name__)
     
     def _get_or_create_collection(self, collection_name: str):

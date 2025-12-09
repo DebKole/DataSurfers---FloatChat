@@ -271,7 +271,9 @@ class DatabaseExecutorTool:
         self, 
         region: str,
         database: str = "main",
-        limit: int = 50
+        limit: int = 50,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get profiles by geographic region"""
         
@@ -292,6 +294,13 @@ class DatabaseExecutorTool:
         
         bounds = regions[region]
         
+        # Build date filter
+        date_filter = ""
+        if start_date:
+            date_filter += f" AND datetime >= '{start_date}'"
+        if end_date:
+            date_filter += f" AND datetime < '{end_date}'"
+        
         sql = f"""
         SELECT 
             global_profile_id,
@@ -308,6 +317,7 @@ class DatabaseExecutorTool:
         FROM argo_profiles
         WHERE latitude BETWEEN {bounds['lat'][0]} AND {bounds['lat'][1]}
           AND longitude BETWEEN {bounds['lng'][0]} AND {bounds['lng'][1]}
+          {date_filter}
         ORDER BY datetime DESC
         LIMIT {limit};
         """
@@ -385,6 +395,68 @@ class DatabaseExecutorTool:
         LIMIT {limit};
         """
         return self.execute_query(sql, database)
+
+    def get_all_profiles_list_by_float_id(self, float_id: str, limit: int = 2000) -> Dict[str, Any]:
+        """List profiles (metadata only) for a float across ALL year databases"""
+        sql = f"""
+        SELECT 
+            global_profile_id,
+            float_id,
+            cycle_number,
+            datetime,
+            latitude,
+            longitude,
+            min_pressure,
+            max_pressure,
+            measurement_count
+        FROM argo_profiles
+        WHERE float_id = '{float_id}'
+        ORDER BY datetime DESC
+        LIMIT {limit};
+        """
+        return self.execute_multi_database_query(sql, return_format="dict")
+
+    def get_all_profiles_by_float_id(
+        self,
+        float_id: str,
+        include_measurements: bool = False,
+        cycle_number: Optional[int] = None,
+        limit: int = 50000,
+        database: str = None # Ignored, kept for signature compatibility if needed
+    ) -> Dict[str, Any]:
+        """Get profiles for a specific float across ALL databases"""
+        
+        if include_measurements:
+            sql = f"""
+            SELECT 
+                ap.float_id,
+                ap.cycle_number,
+                ap.datetime AS profile_datetime,
+                ap.latitude AS profile_latitude,
+                ap.longitude AS profile_longitude,
+                am.level,
+                am.pressure_adjusted AS pressure,
+                am.temperature_adjusted AS temperature,
+                am.salinity_adjusted AS salinity,
+                am.datetime AS measurement_datetime
+            FROM argo_profiles ap
+            JOIN argo_measurements am ON ap.global_profile_id = am.global_profile_id
+            WHERE ap.float_id = '{float_id}'
+            {f"AND ap.cycle_number = {cycle_number}" if cycle_number is not None else ""}
+            ORDER BY ap.datetime DESC, am.level ASC
+            LIMIT {limit};
+            """
+        else:
+            sql = f"""
+            SELECT *
+            FROM argo_profiles
+            WHERE float_id = '{float_id}'
+            {f"AND cycle_number = {cycle_number}" if cycle_number is not None else ""}
+            ORDER BY datetime DESC
+            LIMIT {limit};
+            """
+        
+        return self.execute_multi_database_query(sql, return_format="dict")
     
     def get_database_stats(self, database: str = "main") -> Dict[str, Any]:
         """Get database statistics"""

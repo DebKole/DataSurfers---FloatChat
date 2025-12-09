@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from typing import Dict, Any, List, Tuple, Optional
 import logging
+import pandas as pd
+import numpy as np
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -19,25 +21,6 @@ class AnalysisToolsWrapper:
     def __init__(self):
         """Initialize wrapper and import MCP analysis tools"""
         self.logger = logging.getLogger(__name__)
-        
-        try:
-            # Import analysis tools from MCP server
-            from float_chat_mcp.analysis_tools import server
-            
-            # Store references to tool functions
-            self.temp_trend = server.argo_temp_trend.fn
-            self.sal_trend = server.argo_salinity_trend.fn
-            self.pressure_trend = server.argo_pressure_trend.fn
-            self.ts_curve = server.argo_ts_curve.fn
-            self.td_curve = server.argo_td_curve.fn
-            self.comparison = server.argo_comparison_tool.fn
-            self.statistics = server.argo_stat_summary.fn
-            
-            self.logger.info("✅ Analysis tools wrapper initialized")
-            
-        except Exception as e:
-            self.logger.error(f"❌ Failed to initialize analysis tools: {e}")
-            raise
         
         # Column name mappings for normalization
         self.column_mappings = {
@@ -52,9 +35,11 @@ class AnalysisToolsWrapper:
             'profile_datetime': 'datetime',
             'measurement_datetime': 'datetime',
             'profile_latitude': 'latitude',
-            'profile_longitude': 'longitude'
+            'profile_longitude': 'longitude',
+            'CYCLE_NUMBER': 'cycle_number',
+            'cycle': 'cycle_number'
         }
-        
+
         # Minimum data requirements for each analysis type
         self.min_data_requirements = {
             'temp_trend': {'columns': ['datetime', 'temperature'], 'min_rows': 3},
@@ -62,9 +47,49 @@ class AnalysisToolsWrapper:
             'pressure_trend': {'columns': ['datetime', 'pressure'], 'min_rows': 3},
             'ts_curve': {'columns': ['temperature', 'salinity'], 'min_rows': 2},
             'td_curve': {'columns': ['temperature', 'level'], 'min_rows': 2},
+            'tp_curve': {'columns': ['temperature', 'pressure'], 'min_rows': 2},
             'comparison': {'columns': ['temperature'], 'min_rows': 1},  # Per dataset
             'statistics': {'columns': ['temperature', 'salinity', 'pressure'], 'min_rows': 1}
         }
+
+        try:
+            # Import analysis tools from MCP server
+            from float_chat_mcp.analysis_tools import server
+            
+            # Store references to tool functions
+            self.temp_trend = server.argo_temp_trend.fn
+            self.sal_trend = server.argo_salinity_trend.fn
+            self.pressure_trend = server.argo_pressure_trend.fn
+            self.ts_curve = server.argo_ts_curve.fn
+            self.td_curve = server.argo_td_curve.fn
+            self.tp_curve = server.argo_tp_curve.fn
+            self.comparison = server.argo_comparison_tool.fn
+            self.statistics = server.argo_stat_summary.fn
+            
+            self.logger.info("✅ Analysis tools wrapper initialized (using MCP server)")
+            
+        except ImportError:
+            self.logger.warning("⚠️ MCP server import failed (fastmcp missing?), using fallback implementation")
+            self._setup_fallback_tools()
+        except Exception as e:
+            self.logger.error(f"❌ Failed to initialize analysis tools: {e}")
+            self._setup_fallback_tools() # Try fallback anyway
+
+    def _setup_fallback_tools(self):
+        """Setup fallback implementations for analysis tools"""
+        self.temp_trend = self._fallback_temp_trend
+        self.sal_trend = self._fallback_sal_trend
+        self.pressure_trend = self._fallback_pressure_trend
+        self.ts_curve = self._fallback_ts_curve
+        self.td_curve = self._fallback_td_curve
+        self.tp_curve = self._fallback_tp_curve
+        self.comparison = self._fallback_comparison
+        self.statistics = self._fallback_statistics
+        self.logger.info("✅ Fallback analysis tools initialized")
+        
+
+        
+
     
     def execute_analysis(
         self,
@@ -231,6 +256,9 @@ class AnalysisToolsWrapper:
         elif analysis_type == 'td_curve':
             return self.td_curve(data, show_plot=False)
         
+        elif analysis_type == 'tp_curve':
+            return self.tp_curve(data, show_plot=False)
+        
         elif analysis_type == 'comparison':
             # Comparison requires multiple datasets
             if not datasets or len(datasets) < 2:
@@ -298,6 +326,11 @@ class AnalysisToolsWrapper:
                 "KeyError": "Missing required columns 'temperature' and 'level' for T-D profile.",
                 "default": "T-D profile generation failed."
             },
+            "tp_curve": {
+                "ValueError": "Unable to generate T-P profile. Please ensure the data contains valid temperature and pressure values.",
+                "KeyError": "Missing required columns 'temperature' and 'pressure' for T-P profile.",
+                "default": "T-P profile generation failed."
+            },
             "comparison": {
                 "ValueError": "Unable to compare datasets. Please ensure all datasets contain the comparison variable.",
                 "default": "Dataset comparison failed."
@@ -319,6 +352,185 @@ class AnalysisToolsWrapper:
             "technical_error": str(error),
             "analysis_type": analysis_type
         }
+
+
+    # Fallback Implementations
+    
+    def _fallback_temp_trend(self, data: List[Dict[str, Any]], show_plot: bool = False, window: int = 20) -> Dict[str, List]:
+        df = pd.DataFrame(data)
+        if 'datetime' not in df.columns or 'temperature' not in df.columns:
+            raise ValueError("Required columns: 'datetime', 'temperature'")
+        
+        df_clean = df[['datetime', 'temperature']].dropna().copy()
+        df_clean['datetime'] = pd.to_datetime(df_clean['datetime'])
+        df_clean = df_clean.sort_values('datetime').set_index('datetime')
+        df_clean['temp_smooth'] = df_clean['temperature'].rolling(window=window, center=True, min_periods=1).mean()
+        df_clean = df_clean.reset_index()
+        
+        measurements = []
+        for _, row in df_clean.iterrows():
+            measurements.append({
+                "datetime": row['datetime'].isoformat(),
+                "temperature": float(row['temp_smooth'])
+            })
+            
+        return {"profiles": [{"profileId": 1, "measurements": measurements}]}
+
+    def _fallback_sal_trend(self, data: List[Dict[str, Any]], show_plot: bool = False, window: int = 20) -> Dict[str, List]:
+        df = pd.DataFrame(data)
+        if 'datetime' not in df.columns or 'salinity' not in df.columns:
+            raise ValueError("Required columns: 'datetime', 'salinity'")
+            
+        df_clean = df[['datetime', 'salinity']].dropna().copy()
+        df_clean['datetime'] = pd.to_datetime(df_clean['datetime'])
+        df_clean = df_clean.sort_values('datetime').set_index('datetime')
+        df_clean['sal_smooth'] = df_clean['salinity'].rolling(window=window, center=True, min_periods=1).mean()
+        df_clean = df_clean.reset_index()
+        
+        measurements = []
+        for _, row in df_clean.iterrows():
+            measurements.append({
+                "datetime": row['datetime'].isoformat(),
+                "salinity": float(row['sal_smooth'])
+            })
+            
+        return {"profiles": [{"profileId": 1, "measurements": measurements}]}
+
+    def _fallback_pressure_trend(self, data: List[Dict[str, Any]], show_plot: bool = False, window: int = 20) -> Dict[str, List]:
+        df = pd.DataFrame(data)
+        if 'datetime' not in df.columns or 'pressure' not in df.columns:
+            raise ValueError("Required columns: 'datetime', 'pressure'")
+            
+        df_clean = df[['datetime', 'pressure']].dropna().copy()
+        df_clean['datetime'] = pd.to_datetime(df_clean['datetime'])
+        df_clean = df_clean.sort_values('datetime').set_index('datetime')
+        df_clean['press_smooth'] = df_clean['pressure'].rolling(window=window, center=True, min_periods=1).mean()
+        df_clean = df_clean.reset_index()
+        
+        measurements = []
+        for _, row in df_clean.iterrows():
+            measurements.append({
+                "datetime": row['datetime'].isoformat(),
+                "pressure": float(row['press_smooth'])
+            })
+            
+        return {"profiles": [{"profileId": 1, "measurements": measurements}]}
+
+    def _fallback_ts_curve(self, data: List[Dict[str, Any]], show_plot: bool = False) -> Dict[str, List]:
+        df = pd.DataFrame(data)
+        cols_to_keep = ['temperature', 'salinity']
+        if 'cycle_number' in df.columns:
+            cols_to_keep.append('cycle_number')
+            
+        df_clean = df[cols_to_keep].dropna().copy()
+        df_clean = df_clean.sort_values('salinity')
+        
+        profiles = []
+        if 'cycle_number' in df_clean.columns:
+            for cycle, group in df_clean.groupby('cycle_number'):
+                measurements = [{"salinity": float(r['salinity']), "temperature": float(r['temperature'])} for _, r in group.iterrows()]
+                profiles.append({"profileId": int(cycle), "cycle_number": int(cycle), "measurements": measurements})
+        else:
+            measurements = [{"salinity": float(r['salinity']), "temperature": float(r['temperature'])} for _, r in df_clean.iterrows()]
+            profiles.append({"profileId": 1, "measurements": measurements})
+            
+        return {"profiles": profiles}
+
+    def _fallback_td_curve(self, data: List[Dict[str, Any]], show_plot: bool = False) -> Dict[str, List]:
+        df = pd.DataFrame(data)
+        cols_to_keep = ['temperature', 'level']
+        if 'cycle_number' in df.columns:
+            cols_to_keep.append('cycle_number')
+            
+        df_clean = df[cols_to_keep].dropna().copy()
+        
+        # Simple level to pressure/depth approximation
+        pressure_levels = [5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 
+                          600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1750, 2000]
+        
+        def level_to_pressure(level):
+            level_int = int(level)
+            if level_int < len(pressure_levels):
+                return pressure_levels[level_int]
+            return pressure_levels[-1] + (level_int - len(pressure_levels) + 1) * 250
+            
+        df_clean['pressure'] = df_clean['level'].apply(level_to_pressure)
+        df_clean['depth'] = df_clean['pressure'] * 10000 / (1025 * 9.81)
+        df_clean = df_clean.sort_values('depth')
+        
+        profiles = []
+        if 'cycle_number' in df_clean.columns:
+            for cycle, group in df_clean.groupby('cycle_number'):
+                measurements = [{"depth": float(r['depth']), "temperature": float(r['temperature']), "pressure": float(r['pressure'])} for _, r in group.iterrows()]
+                profiles.append({"profileId": int(cycle), "cycle_number": int(cycle), "measurements": measurements})
+        else:
+            measurements = [{"depth": float(r['depth']), "temperature": float(r['temperature']), "pressure": float(r['pressure'])} for _, r in df_clean.iterrows()]
+            profiles.append({"profileId": 1, "measurements": measurements})
+            
+        return {"profiles": profiles}
+
+    def _fallback_tp_curve(self, data: List[Dict[str, Any]], show_plot: bool = False) -> Dict[str, List]:
+        df = pd.DataFrame(data)
+        cols_to_keep = ['temperature', 'pressure']
+        if 'cycle_number' in df.columns:
+            cols_to_keep.append('cycle_number')
+            
+        df_clean = df[cols_to_keep].dropna().copy()
+        df_clean = df_clean.sort_values('pressure')
+        
+        profiles = []
+        if 'cycle_number' in df_clean.columns:
+            for cycle, group in df_clean.groupby('cycle_number'):
+                measurements = [{"pressure": float(r['pressure']), "temperature": float(r['temperature'])} for _, r in group.iterrows()]
+                profiles.append({"profileId": int(cycle), "cycle_number": int(cycle), "measurements": measurements})
+        else:
+            measurements = [{"pressure": float(r['pressure']), "temperature": float(r['temperature'])} for _, r in df_clean.iterrows()]
+            profiles.append({"profileId": 1, "measurements": measurements})
+            
+        return {"profiles": profiles}
+
+    def _fallback_statistics(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        df = pd.DataFrame(data)
+        required_cols = ['temperature', 'salinity', 'pressure']
+        measurements = []
+        for var in required_cols:
+            if var in df.columns:
+                values = df[var].dropna()
+                if not values.empty:
+                    measurements.append({
+                        "variable": var,
+                        "count": int(len(values)),
+                        "mean": float(np.mean(values)),
+                        "median": float(np.median(values)),
+                        "std_dev": float(np.std(values)),
+                        "min": float(np.min(values)),
+                        "max": float(np.max(values)),
+                    })
+        return {"profiles": [{"profileId": 1, "measurements": measurements}]}
+
+    def _fallback_comparison(self, datasets: List[List[Dict[str, Any]]], labels: List[str], variable: str, axis_var: Optional[str] = None) -> Dict[str, Any]:
+        profiles = []
+        for idx, (dataset, label) in enumerate(zip(datasets, labels)):
+            df = pd.DataFrame(dataset)
+            if variable in df.columns:
+                values = df[variable].dropna()
+                measurements = [{
+                    "label": label,
+                    "variable": variable,
+                    "count": int(len(values)),
+                    "mean": float(np.mean(values)),
+                    "median": float(np.median(values)),
+                    "std_dev": float(np.std(values)),
+                    "min": float(np.min(values)),
+                    "max": float(np.max(values)),
+                }]
+                if axis_var and axis_var in df.columns:
+                    curve_df = df[[axis_var, variable]].dropna().sort_values(axis_var)
+                    for _, row in curve_df.iterrows():
+                        measurements.append({axis_var: float(row[axis_var]), variable: float(row[variable])})
+                
+                profiles.append({"profileId": idx + 1, "label": label, "measurements": measurements})
+        return {"profiles": profiles}
 
 
 # Test function

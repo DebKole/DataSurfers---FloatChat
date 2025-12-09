@@ -99,7 +99,7 @@ User Query
              │       │       │
              │       │       ├─→ QueryBuilderTool (analyze intent)
              │       │       │
-             │       │       ├─→ GeminiSQLGenerator (generate SQL)
+             │       │       ├─→ GroqSQLGenerator (generate SQL using Groq AI)
              │       │       │       │
              │       │       │       ├─→ _extract_year_from_query()
              │       │       │       ├─→ generate_sql_query()
@@ -361,9 +361,10 @@ No       Yes
 │              ┌────────────┴────────────┐                        │
 │              ▼                         ▼                        │
 │  ┌──────────────────────┐  ┌──────────────────────┐           │
-│  │ GeminiSQLGenerator   │  │ DatabaseExecutorTool │           │
+│  │ GroqSQLGenerator     │  │ DatabaseExecutorTool │           │
 │  │ - Year extraction    │  │ - DB selection       │           │
 │  │ - SQL generation     │  │ - Query execution    │           │
+│  │ - Uses Groq AI       │  │ - Multi-database     │           │
 │  │ - QC awareness       │  │ - Multi-DB support   │           │
 │  └──────────────────────┘  └──────────────────────┘           │
 │                                                                  │

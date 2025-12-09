@@ -17,9 +17,9 @@ The word "give" wasn't explicitly in the action verbs list, though it should hav
 
 ## Solutions Applied
 
-### 1. Updated `gemini_sql_generator.py`
+### 1. Updated `groq_sql_generator.py`
 
-**Added explicit rules:**
+**Added explicit rules (using Groq AI):**
 ```python
 IMPORTANT RULES:
 3. **NO REGION SPECIFIED = RETURN ALL DATA** for that date range (don't ask for clarification)
@@ -142,9 +142,10 @@ Cross-year detected: True
 
 | File | Change | Purpose |
 |------|--------|---------|
-| `gemini_sql_generator.py` | Added "NO REGION = ALL DATA" rule | Prevent asking for clarification |
-| `gemini_sql_generator.py` | Added "ALWAYS GENERATE SQL" instruction | Force SQL generation |
-| `gemini_sql_generator.py` | Added cross-year temperature example | Show proper FDW usage |
+| `groq_sql_generator.py` | Added "NO REGION = ALL DATA" rule | Prevent asking for clarification |
+| `groq_sql_generator.py` | Added "ALWAYS GENERATE SQL" instruction | Force SQL generation |
+| `groq_sql_generator.py` | Added cross-year temperature example | Show proper FDW usage |
+| `groq_sql_generator.py` | Uses Groq AI instead of Gemini | Improved SQL generation |
 | `mcp_query_agent.py` | Added "give" to action verbs | Detect "give data" queries |
 | `mcp_query_agent.py` | Added debug logging | Help troubleshoot routing |
 

@@ -75,7 +75,7 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
     };
   }, [trajectories]);
 
-    // Determine which float IDs to show
+  // Determine which float IDs to show
   const visibleFloatIds = useMemo(() => {
     if (selectedFloatIds && selectedFloatIds.length > 0) {
       return selectedFloatIds.map(String);
@@ -122,14 +122,14 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
             return (
               <React.Fragment key={fid}>
                 {showTrajectories[fid] && (
-                  <Polyline 
-                    positions={latlngs} 
-                    color={color} 
+                  <Polyline
+                    positions={latlngs}
+                    color={color}
                     weight={2}
                     dashArray="4 8"
                   />
                 )}
-                {prevPts.map((p, idx) => (
+                {showTrajectories[fid] && prevPts.map((p, idx) => (
                   <CircleMarker
                     key={p.profileId}
                     center={[p.lat, p.lon]}
@@ -201,7 +201,7 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
                         <div><strong>Position:</strong> {lastPt.lat?.toFixed?.(2)}, {lastPt.lon?.toFixed?.(2)}</div>
                         <div><strong>Time:</strong> {lastPt.datetime ? new Date(lastPt.datetime).toLocaleString() : 'N/A'}</div>
                         <div style={{ marginTop: '8px' }}>
-                          <button 
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setShowTrajectories(prev => ({
@@ -253,12 +253,12 @@ const MapComponent = ({ fullPage = false, data = null, selectedFloatIds = [] }) 
     </div>
   );
 
-  
 
-    // Sort points by cycle number
-    // byFloat.forEach((arr) => {
-    //   arr.sort((a, b) => (a.cycleNumber || 0) - (b.cycleNumber || 0));
-    // });
+
+  // Sort points by cycle number
+  // byFloat.forEach((arr) => {
+  //   arr.sort((a, b) => (a.cycleNumber || 0) - (b.cycleNumber || 0));
+  // });
 
   //   return {
   //     floats: byFloat,

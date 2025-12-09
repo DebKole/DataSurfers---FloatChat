@@ -245,11 +245,9 @@ function MapTrajectories({
                     positions={latlngs}
                     color={color}
                     weight={2}
-                    dashArray={showTrajectories[fid] ? "4 8" : undefined}
-                    opacity={0.9}
                   />
                 )}
-                {prevPts.map((p) => (
+                {showTrajectories[fid] && prevPts.map((p) => (
                   <CircleMarker
                     key={p.profileId}
                     center={[p.lat, p.lon]}

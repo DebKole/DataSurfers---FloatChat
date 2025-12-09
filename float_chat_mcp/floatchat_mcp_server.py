@@ -27,7 +27,7 @@ mcp = FastMCP("FloatChat Data Access")
 def execute_query(query: str) -> dict:
     """
     Execute a natural language query about Argo float data.
-    Uses Gemini AI to understand the query and generate SQL.
+    Uses Groq AI to understand the query and generate SQL.
     Results are cached in Redis for faster repeated queries.
     
     Args:

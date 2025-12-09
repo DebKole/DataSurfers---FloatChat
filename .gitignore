@@ -11,6 +11,8 @@
 *.pem
 density_maps/
 Landing_page/
+/Users/rishabhgoyal/DataSurfers---FloatChat/32470.pdf
+
 # ===== PYTHON =====
 __pycache__/
 *.py[cod]

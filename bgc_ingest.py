@@ -118,6 +118,7 @@ class ArgoBGCDataProcessor:
             pressure_adjusted_qc INTEGER,
             temperature_adjusted_qc INTEGER,
             salinity_adjusted_qc INTEGER,
+            bgc_parameters JSONB,
             latitude DOUBLE PRECISION,
             longitude DOUBLE PRECISION,
             datetime TIMESTAMP WITH TIME ZONE,
@@ -136,7 +137,8 @@ class ArgoBGCDataProcessor:
             "CREATE INDEX IF NOT EXISTS idx_bgc_measurements_temp ON argo_bgc_measurements(temperature_adjusted);",
             "CREATE INDEX IF NOT EXISTS idx_bgc_measurements_salinity ON argo_bgc_measurements(salinity_adjusted);",
             "CREATE INDEX IF NOT EXISTS idx_bgc_profiles_cycle ON argo_bgc_profiles(cycle_number);",
-            "CREATE INDEX IF NOT EXISTS idx_bgc_profiles_source_file ON argo_bgc_profiles(source_file);"
+            "CREATE INDEX IF NOT EXISTS idx_bgc_profiles_source_file ON argo_bgc_profiles(source_file);",
+            "CREATE INDEX IF NOT EXISTS idx_bgc_parameters_gin ON argo_bgc_measurements USING GIN (bgc_parameters);"
         ]
 
         conn = self._connect()
@@ -201,7 +203,7 @@ class ArgoBGCDataProcessor:
         LOG.info(f"Inserted/updated {len(profiles_df)} profile records into argo_bgc_profiles")
 
     def insert_measurements(self, measurements_df: pd.DataFrame, chunk_size: int = 5000):
-        """Bulk insert measurement rows."""
+        """Bulk insert measurement rows with BGC parameters as JSONB."""
         if measurements_df is None or measurements_df.empty:
             return
 
@@ -211,7 +213,7 @@ class ArgoBGCDataProcessor:
 
         cols = ["global_profile_id", "level", "pressure_adjusted", "temperature_adjusted", 
                 "salinity_adjusted", "pressure_adjusted_qc", "temperature_adjusted_qc", 
-                "salinity_adjusted_qc", "latitude", "longitude", "datetime"]
+                "salinity_adjusted_qc", "bgc_parameters", "latitude", "longitude", "datetime"]
         measurements_df = measurements_df[[c for c in cols if c in measurements_df.columns]]
 
         conn = self._connect()
@@ -222,8 +224,18 @@ class ArgoBGCDataProcessor:
                     INSERT INTO argo_bgc_measurements ({', '.join(cols)})
                     VALUES %s
                     """
-                    values = [tuple(row[col] if col in row.index else None for col in cols)
-                              for _, row in measurements_df.iterrows()]
+                    values = []
+                    for _, row in measurements_df.iterrows():
+                        row_values = []
+                        for col in cols:
+                            if col == "bgc_parameters" and col in row.index:
+                                # Convert dict to JSON string for PostgreSQL
+                                import json
+                                row_values.append(json.dumps(row[col]) if row[col] else None)
+                            else:
+                                row_values.append(row[col] if col in row.index else None)
+                        values.append(tuple(row_values))
+                    
                     psycopg2.extras.execute_values(cur, insert_query, values, page_size=chunk_size)
         finally:
             conn.close()

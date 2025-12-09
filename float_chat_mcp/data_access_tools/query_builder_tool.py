@@ -122,10 +122,21 @@ class QueryBuilderTool:
         analysis_llm = self._classify_analysis_llm(query_text, entities)
         analysis_type = None
         analysis_decider = "none"
+        
+        # Debug: log what LLM returned
+        if analysis_llm:
+            self.logger.info(f"🤖 LLM analysis classification: {analysis_llm}")
+        
         if analysis_llm and analysis_llm.get("analysis") is True and analysis_llm.get("type"):
             query_type = "analysis_query"
             analysis_type = analysis_llm.get("type")
             analysis_decider = "llm"
+            self.logger.info(f"✅ LLM classified as analysis: {analysis_type}")
+        elif analysis_llm and analysis_llm.get("analysis") is False:
+            # LLM explicitly said this is NOT analysis - trust it and override heuristics
+            if query_type == "analysis_query":
+                self.logger.info(f"🔄 LLM overriding heuristic: NOT analysis")
+                query_type = "spatial_temporal" if entities["regions"] and entities["temporal"]["years"] else "spatial"
         elif query_type == "analysis_query":
             analysis_decider = "heuristic"
 
@@ -198,6 +209,15 @@ class QueryBuilderTool:
         # Extract years
         year_matches = re.findall(r'\b(20\d{2})\b', query_lower)
         temporal_info["years"] = [int(year) for year in year_matches]
+        
+        # Extract months
+        months_map = {
+            "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+            "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12
+        }
+        for month, num in months_map.items():
+            if month in query_lower:
+                temporal_info["months"].append(num)
         
         # Extract relative time
         if any(word in query_lower for word in ["latest", "recent", "current", "now"]):
@@ -329,15 +349,20 @@ class QueryBuilderTool:
                 "Example: {'lat_bounds': [18.0, 20.0], 'lng_bounds': [72.0, 73.5], 'center': [19.07, 72.87]}"
             )
             
-            resp = model.generate_content(prompt)
-            text = (resp.text or "").strip()
-            
-            # Clean and parse JSON
-            cleaned = text.replace("```json", "").replace("```", "").strip()
-            if not cleaned: 
-                return None
+            try:
+                resp = model.generate_content(prompt)
+                text = (resp.text or "").strip()
                 
-            data = json.loads(cleaned)
+                # Clean and parse JSON
+                cleaned = text.replace("```json", "").replace("```", "").strip()
+                if not cleaned: 
+                    return None
+                    
+                data = json.loads(cleaned)
+                return data
+            except Exception as e:
+                print(f"⚠️ Gemini location resolution failed: {e}")
+                return None
             
             if data and 'lat_bounds' in data and 'lng_bounds' in data:
                 result = {
@@ -357,16 +382,40 @@ class QueryBuilderTool:
         """Classify the type of query based on entities"""
         
         # NEW: Check for analysis keywords first
+        # BUT: Exclude data retrieval keywords that might be confused with analysis
+        data_retrieval_keywords = [
+            'list', 'list the', 'list all',
+            'show', 'show me', 'show all', 'show the',
+            'get', 'get me', 'get all', 'get the',
+            'give', 'give me', 'give all',
+            'which floats', 'what floats', 'float ids',
+            'find', 'find me', 'find all',
+            'retrieve', 'fetch', 'return'
+        ]
+        is_data_retrieval = any(keyword in query_lower for keyword in data_retrieval_keywords)
+        
         analysis_keywords = {
             'trend': ['trend', 'trending', 'time series', 'over time'],
-            'curve': ['curve', 't-s', 'ts', 't-d', 'td', 'temperature-salinity', 'temperature-depth', 'vertical profile'],
+            'curve': ['curve', 't-s', 'ts', 't-d', 'td', 'temperature-salinity', 'temperature-depth', 'vertical profile', 'chart', 'plot', 'graph'],
             'comparison': ['compare', 'comparison', 'versus', 'vs', 'difference between'],
             'statistics': ['statistics', 'stats', 'summary', 'summarize', 'average', 'mean']
         }
         
-        for category, keywords in analysis_keywords.items():
-            if any(keyword in query_lower for keyword in keywords):
-                return "analysis_query"
+        # Only classify as analysis if NOT a data retrieval query
+        if not is_data_retrieval:
+            for category, keywords in analysis_keywords.items():
+                if any(keyword in query_lower for keyword in keywords):
+                    return "analysis_query"
+        
+        # General knowledge questions about Argo (should use metadata collection but with general answer)
+        general_knowledge_keywords = ['what variables', 'what parameters', 'what does argo measure', 'what do argo floats measure', 'what data']
+        if any(keyword in query_lower for keyword in general_knowledge_keywords):
+            return "metadata_lookup"  # Will trigger general knowledge fallback
+        
+        # Metadata queries (sensors, PI, project, etc.) - route to vector DB
+        metadata_keywords = ['sensor', 'sensors', 'pi', 'principal investigator', 'project', 'deployed by', 'institution', 'who is', 'what is float', 'metadata', 'carry', 'carrying']
+        if any(keyword in query_lower for keyword in metadata_keywords):
+            return "metadata_lookup"
         
         # Specific float lookup
         if entities["float_ids"]:
@@ -406,6 +455,10 @@ class QueryBuilderTool:
         # Direct SQL for simple lookups
         if query_type == "float_lookup":
             return "sql_only"
+            
+        # Vector search for metadata queries
+        if query_type == "metadata_lookup":
+            return "vector_only"
         
         # Vector search for semantic queries
         if query_type == "semantic_analysis":
@@ -413,7 +466,7 @@ class QueryBuilderTool:
         
         # Hybrid for complex spatial-temporal queries
         if query_type == "spatial_temporal":
-            return "hybrid"
+            return "sql_only"  # Prefer SQL for specific region + time queries
         
         # SQL for simple spatial/temporal queries
         if query_type in ["spatial", "temporal"]:
@@ -451,11 +504,24 @@ class QueryBuilderTool:
             }
             prompt = (
                 f"{guidance}\n\nQUERY: {query_text}\nHINT: {json.dumps(hint)}\n"
-                "Rules:\n- If the user asks for a graph/plot/chart/curve/profile, set analysis=true.\n"
+                "Rules:\n"
+                "- **CRITICAL DATA RETRIEVAL RULE**: If the user asks to 'list', 'show', 'get', 'find', 'retrieve', 'give', 'fetch', 'return' "
+                "data/floats/profiles WITHOUT explicit analysis keywords (trend, plot, graph, chart, compare, statistics, mean, average, summarize), "
+                "set analysis=false. These are DATA RETRIEVAL queries.\n"
+                "- **EXAMPLES OF DATA RETRIEVAL** (analysis=false):\n"
+                "  * 'Show floats in region X'\n"
+                "  * 'List floats from time Y'\n"
+                "  * 'Get profiles near location Z'\n"
+                "  * 'Find floats within distance D'\n"
+                "- **EXAMPLES OF ANALYSIS** (analysis=true):\n"
+                "  * 'Plot temperature vs salinity' → ts_curve\n"
+                "  * 'Show temperature trend' → temp_trend\n"
+                "  * 'Calculate statistics' → statistics\n"
+                "  * 'Compare two floats' → comparison\n"
+                "- If the user asks for a graph/plot/chart/curve/profile, set analysis=true.\n"
                 "- Map 'temperature salinity' to 'ts_curve', 'temperature depth' or 'vertical profile' to 'td_curve'.\n"
                 "- If 'trend' with temperature/salinity, choose 'temp_trend' or 'sal_trend'. If 'compare', choose 'comparison'.\n"
-                "- If the user asks to 'show', 'get', 'find', 'retrieve' data WITHOUT explicit analysis keywords (trend, plot, graph, compare, statistics, mean, average), set analysis=false. This is CRITICAL.\n" 
-                "- If unsure, set analysis=false. Return minimal JSON."
+                "- **DEFAULT**: If unsure, set analysis=false. Return minimal JSON."
             )
             resp = model.generate_content(prompt)
             text = (resp.text or "").strip()
@@ -519,7 +585,7 @@ class QueryBuilderTool:
                 f"ENTITIES_HINT: {json.dumps(entities_hint)}\n"
                 "Rules:\n"
                 "- Prefer 'sql' when the user asks to show/get/find data, float IDs, profiles, measurements, specific regions or time windows.\n"
-                "- Prefer 'general' when the user asks conceptual/overview questions or free-form discovery where structured SQL is unclear.\n"
+                "- Prefer 'general' when the user asks conceptual/overview questions, free-form discovery, or metadata questions about floats (e.g., sensors, PI, project, deployment details) that are not in the standard data tables.\n"
                 "- If unsure, choose 'general'.\n"
             )
 
@@ -666,22 +732,54 @@ class QueryBuilderTool:
             for float_id in entities["float_ids"]:
                 q = {
                     "type": "float_lookup",
-                    "method": "get_profiles_by_float_id",
-                    "params": {"float_id": float_id, "include_measurements": True}
+                    "method": "execute_query", # Changed to generic execute_query
+                    "params": {
+                        "sql": f"SELECT * FROM all_argo_profiles WHERE float_id = '{float_id}' ORDER BY datetime DESC LIMIT 100",
+                        "return_format": "dict"
+                    }
                 }
                 plan["queries"].append(q)
                 self.logger.info("➡️ Fallback executing: %s params=%s", q["method"], q["params"])
         
         # Regional queries
         elif entities["regions"]:
+            # Determine database based on year if present
+            database = "argo_indian_ocean_25"  # Default
+            start_date = None
+            end_date = None
+            
+            if entities["temporal"]["years"]:
+                year = entities["temporal"]["years"][0]
+                if 2015 <= year <= 2025:
+                    database = f"argo_indian_ocean_{year % 100:02d}"
+                
+                # If month is also present, calculate date range
+                if entities["temporal"]["months"]:
+                    month = entities["temporal"]["months"][0]
+                    start_date = f"{year}-{month:02d}-01"
+                    # Simple end date calculation (handle December)
+                    if month == 12:
+                        end_date = f"{year+1}-01-01"
+                    else:
+                        end_date = f"{year}-{month+1:02d}-01"
+            
+            # Update plan database
+            plan["database"] = database
+            
             for region in entities["regions"]:
+                params = {"region": region, "limit": 50}
+                if start_date:
+                    params["start_date"] = start_date
+                if end_date:
+                    params["end_date"] = end_date
+                    
                 q = {
                     "type": "regional_search",
                     "method": "get_profiles_by_region", 
-                    "params": {"region": region, "limit": 50}
+                    "params": params
                 }
                 plan["queries"].append(q)
-                self.logger.info("➡️ Fallback executing: %s params=%s", q["method"], q["params"])
+                self.logger.info("➡️ Fallback executing: %s params=%s db=%s", q["method"], q["params"], database)
         
         # Temporal queries
         elif entities["temporal"]["relative_time"] == "recent":
@@ -716,9 +814,13 @@ class QueryBuilderTool:
         
         semantic_query = " ".join(query_parts) if query_parts else intent["query_text"]
         
+        collection = "january"
+        if intent.get("query_type") == "metadata_lookup":
+            collection = "metadata"
+        
         return {
             "strategy": "vector_only",
-            "collection": "january",
+            "collection": collection,
             "query": semantic_query,
             "n_results": 20,
             "filters": self._build_vector_filters(entities)
@@ -761,7 +863,17 @@ class QueryBuilderTool:
         query_lower = intent["query_text"].lower()
         
         # Determine specific analysis type
-        analysis_type = self._determine_analysis_type(query_lower, entities)
+        # First check if LLM already determined the type
+        analysis_type = intent.get("analysis_type")
+        
+        # If not, try to determine from keywords
+        if not analysis_type:
+            analysis_type = self._determine_analysis_type(query_lower, entities)
+            
+        # If still undetermined, default to statistics but log warning
+        if not analysis_type:
+            self.logger.warning("⚠️ Analysis type undetermined, defaulting to statistics")
+            analysis_type = "statistics"
         
         # Extract analysis parameters
         parameters = self._extract_analysis_parameters(query_lower)
@@ -785,7 +897,7 @@ class QueryBuilderTool:
             "database": database
         }
     
-    def _determine_analysis_type(self, query_lower: str, entities: Dict[str, Any]) -> str:
+    def _determine_analysis_type(self, query_lower: str, entities: Dict[str, Any]) -> Optional[str]:
         """Determine specific analysis type from query"""
         
         # Temperature trend
@@ -804,8 +916,10 @@ class QueryBuilderTool:
         if any(word in query_lower for word in ['t-s', 'ts curve', 'temperature-salinity', 'temperature salinity']):
             return "ts_curve"
         
-        # T-D curve
+        # T-D curve (explicit or implied by temperature and depth)
         if any(word in query_lower for word in ['t-d', 'td curve', 'temperature-depth', 'vertical profile']):
+            return "td_curve"
+        if ('temperature' in query_lower or 'temp' in query_lower) and ('depth' in query_lower or 'pressure' in query_lower) and any(word in query_lower for word in ['chart', 'plot', 'graph', 'curve']):
             return "td_curve"
         
         # Comparison
@@ -819,9 +933,18 @@ class QueryBuilderTool:
         # Default: if "trend" is mentioned, assume temperature trend
         if 'trend' in query_lower:
             return "temp_trend"
+            
+        # Generic chart requests
+        if any(word in query_lower for word in ['chart', 'plot', 'graph']):
+            if 'salinity' in query_lower:
+                return "sal_trend"
+            if 'pressure' in query_lower:
+                return "pressure_trend"
+            # Default to temperature trend for generic charts
+            return "temp_trend"
         
-        # Default to statistics if unclear
-        return "statistics"
+        # Return None if no specific analysis type is found
+        return None
     
     def _extract_analysis_parameters(self, query_lower: str) -> Dict[str, Any]:
         """Extract analysis-specific parameters from query"""

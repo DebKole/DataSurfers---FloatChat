@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import "./Dashboard.css";
 import PlotProfileTool from "./PlotProfile";
 import CompareProfilesTool from "./CompareProfilesTool";
+import FilterSidebar from "./FilterSidebar";
+import FloatMetadata from "./FloatMetadata";
 
 const Dashboard = ({ onClose }) => {
   const navigate = useNavigate();
@@ -22,31 +24,85 @@ const Dashboard = ({ onClose }) => {
   const [loadingFloats, setLoadingFloats] = useState(false);
   const [loadingProfiles, setLoadingProfiles] = useState(false);
   const [error, setError] = useState(null);
-  const [renderProfiles, setRenderProfiles] = useState({ ts: [], td: [] });
+  const [renderProfiles, setRenderProfiles] = useState({ ts: [], td: [], tp: [] });
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState({});
+  const [showMetadata, setShowMetadata] = useState(false);
+
+  const location = useLocation();
+  const initialFloatIds = location.state?.floatIds;
 
   useEffect(() => {
-    const loadFloats = async () => {
-      setLoadingFloats(true);
-      try {
-        const res = await fetch(`http://127.0.0.1:8000/api/floats`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setFloats(data.floats || []);
-      } catch (e) {
-        setError(e.message || String(e));
-      } finally {
-        setLoadingFloats(false);
-      }
-    };
     loadFloats();
-  }, []);
+  }, [initialFloatIds, activeFilters]);
+
+  const loadFloats = async () => {
+    setLoadingFloats(true);
+    try {
+      // Build query params from filters
+      const params = new URLSearchParams();
+      params.append('limit', '5000');
+      
+      // Apply active filters
+      if (activeFilters.yearOfDeployment && activeFilters.yearOfDeployment.length > 0) {
+        // For now, use the first selected year
+        params.append('year', activeFilters.yearOfDeployment[0]);
+      }
+      
+      if (activeFilters.basin && activeFilters.basin.length > 0) {
+        params.append('basin', activeFilters.basin[0]);
+      }
+      
+      if (activeFilters.dataMode && activeFilters.dataMode.length > 0) {
+        params.append('data_mode', activeFilters.dataMode[0]);
+      }
+
+      if (activeFilters.startDate) {
+        params.append('start_date', activeFilters.startDate);
+      }
+
+      if (activeFilters.endDate) {
+        params.append('end_date', activeFilters.endDate);
+      }
+
+      const res = await fetch(`http://127.0.0.1:8000/api/floats?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      let allFloats = data.floats || [];
+
+      // Filter if initialFloatIds provided
+      if (initialFloatIds && initialFloatIds.length > 0) {
+        const allowed = new Set(initialFloatIds.map(String));
+        allFloats = allFloats.filter(f => allowed.has(String(f)));
+      }
+
+      setFloats(allFloats);
+    } catch (e) {
+      setError(e.message || String(e));
+    } finally {
+      setLoadingFloats(false);
+    }
+  };
 
   const filteredFloats = useMemo(() => {
-    if (!floatSearch) return floats;
-    return floats.filter((f) =>
-      String(f).toLowerCase().includes(floatSearch.toLowerCase())
-    );
-  }, [floats, floatSearch]);
+    let result = floats;
+    
+    // Apply search filter
+    if (floatSearch) {
+      result = result.filter((f) =>
+        String(f).toLowerCase().includes(floatSearch.toLowerCase())
+      );
+    }
+    
+    // Apply metadata filters (would need backend support)
+    // For now, just return search-filtered results
+    return result;
+  }, [floats, floatSearch, activeFilters]);
+
+  const handleFilterChange = (newFilters) => {
+    setActiveFilters(newFilters);
+    // Floats will be reloaded via useEffect
+  };
 
   const onSelectFloat = async (fid) => {
     setSelectedFloat(fid);
@@ -54,6 +110,7 @@ const Dashboard = ({ onClose }) => {
     setRenderProfiles({ ts: [], td: [] });
     setLoadingProfiles(true);
     try {
+      // 1. Fetch list of profiles for sidebar
       const res = await fetch(
         `http://127.0.0.1:8000/api/floats/${fid}/profiles`
       );
@@ -64,33 +121,29 @@ const Dashboard = ({ onClose }) => {
         return mc === undefined ? true : Number(mc) > 0;
       });
       setProfiles(list);
-      const firstTen = list.slice(0, 10);
-      const tsAll = [];
-      const tdAll = [];
-      for (const p of firstTen) {
-        const cycle = p.cycle_number || p.CYCLE_NUMBER;
-        const tsRes = await fetch(
-          `http://127.0.0.1:8000/api/analysis?type=ts_curve&float_id=${fid}${
-            cycle !== undefined ? `&cycle_number=${cycle}` : ""
-          }`
-        );
-        if (tsRes.ok) {
-          const tsData = await tsRes.json();
-          const tsProfiles = tsData?.analysis_result?.profiles || [];
-          if (tsProfiles.length) tsAll.push({ profile: p, data: tsProfiles });
-        }
-        const tdRes = await fetch(
-          `http://127.0.0.1:8000/api/analysis?type=td_curve&float_id=${fid}${
-            cycle !== undefined ? `&cycle_number=${cycle}` : ""
-          }`
-        );
-        if (tdRes.ok) {
-          const tdData = await tdRes.json();
-          const tdProfiles = tdData?.analysis_result?.profiles || [];
-          if (tdProfiles.length) tdAll.push({ profile: p, data: tdProfiles });
-        }
-      }
-      setRenderProfiles({ ts: tsAll, td: tdAll });
+
+      // 2. Fetch TS Curve data for ALL cycles
+      const tsRes = await fetch(
+        `http://127.0.0.1:8000/api/analysis?type=ts_curve&float_id=${fid}`
+      );
+      const tsData = tsRes.ok ? await tsRes.json() : {};
+      const tsProfiles = tsData?.analysis_result?.profiles || [];
+
+      // 3. Fetch TD Curve data for ALL cycles
+      const tdRes = await fetch(
+        `http://127.0.0.1:8000/api/analysis?type=td_curve&float_id=${fid}`
+      );
+      const tdData = tdRes.ok ? await tdRes.json() : {};
+      const tdProfiles = tdData?.analysis_result?.profiles || [];
+
+      // 4. Fetch TP Curve data for ALL cycles (Temperature vs Pressure)
+      const tpRes = await fetch(
+        `http://127.0.0.1:8000/api/analysis?type=tp_curve&float_id=${fid}`
+      );
+      const tpData = tpRes.ok ? await tpRes.json() : {};
+      const tpProfiles = tpData?.analysis_result?.profiles || [];
+
+      setRenderProfiles({ ts: tsProfiles, td: tdProfiles, tp: tpProfiles });
     } catch (e) {
       setError(e.message || String(e));
     } finally {
@@ -98,84 +151,84 @@ const Dashboard = ({ onClose }) => {
     }
   };
 
-  const onSelectProfile = async (p) => {
+  const onSelectProfile = (p) => {
     setSelectedProfile(p);
-    if (!selectedFloat || !p) return;
-    const cycle = p.cycle_number || p.CYCLE_NUMBER;
-    try {
-      const tsRes = await fetch(
-        `http://127.0.0.1:8000/api/analysis?type=ts_curve&float_id=${selectedFloat}${
-          cycle !== undefined ? `&cycle_number=${cycle}` : ""
-        }`
-      );
-      const tdRes = await fetch(
-        `http://127.0.0.1:8000/api/analysis?type=td_curve&float_id=${selectedFloat}${
-          cycle !== undefined ? `&cycle_number=${cycle}` : ""
-        }`
-      );
-      const tsData = tsRes.ok ? await tsRes.json() : {};
-      const tdData = tdRes.ok ? await tdRes.json() : {};
-      const tsProfiles = tsData?.analysis_result?.profiles || [];
-      const tdProfiles = tdData?.analysis_result?.profiles || [];
-      setRenderProfiles({
-        ts: tsProfiles.length ? [{ profile: p, data: tsProfiles }] : [],
-        td: tdProfiles.length ? [{ profile: p, data: tdProfiles }] : [],
-      });
-    } catch (e) {
-      setError(e.message || String(e));
-    }
   };
 
   const handleClose = () => navigate(-1);
 
-  const tsCards = (selectedProfile ? renderProfiles.ts : renderProfiles.ts).map(
-    (entry, idx) => (
-      <div key={`ts-${idx}`} style={{ flex: "1 1 300px", minWidth: 300 }}>
-        <div style={{ fontWeight: "bold", marginBottom: 4 }}>
-          TS Curve{" "}
-          {entry.profile?.cycle_number ?? entry.profile?.CYCLE_NUMBER ?? ""}
-        </div>
-        <PlotProfileTool
-          profiles={entry.data}
-          profileId={entry.data[0]?.profileId || 1}
-          xKey="salinity"
-          yKey="temperature"
-          xLabel="Salinity (PSU)"
-          yLabel="Temperature (°C)"
-        />
+  // Determine the ID to filter by (if any)
+  const activeCycle = selectedProfile?.cycle_number ?? selectedProfile?.CYCLE_NUMBER;
+
+  const tsCard = (
+    <div style={{ flex: "1 1 600px", minWidth: 400 }}>
+      <div style={{ fontWeight: "bold", marginBottom: 4 }}>
+        TS Curve {activeCycle ? `(Cycle ${activeCycle})` : "(All Cycles)"}
       </div>
-    )
+      <PlotProfileTool
+        profiles={renderProfiles.ts}
+        profileId={activeCycle}
+        xKey="salinity"
+        yKey="temperature"
+        xLabel="Salinity (PSU)"
+        yLabel="Temperature (°C)"
+        title={`Float_${selectedFloat}_TS_Curve`}
+      />
+    </div>
   );
 
-  const tdCards = (selectedProfile ? renderProfiles.td : renderProfiles.td).map(
-    (entry, idx) => (
-      <div key={`td-${idx}`} style={{ flex: "1 1 300px", minWidth: 300 }}>
-        <div style={{ fontWeight: "bold", marginBottom: 4 }}>
-          TD Profile{" "}
-          {entry.profile?.cycle_number ?? entry.profile?.CYCLE_NUMBER ?? ""}
-        </div>
-        <PlotProfileTool
-          profiles={entry.data}
-          profileId={entry.data[0]?.profileId || 1}
-          xKey="depth"
-          yKey="temperature"
-          xLabel="Depth (m)"
-          yLabel="Temperature (°C)"
-          invertY={true}
-        />
+  const tdCard = (
+    <div style={{ flex: "1 1 600px", minWidth: 400 }}>
+      <div style={{ fontWeight: "bold", marginBottom: 4 }}>
+        TD Profile {activeCycle ? `(Cycle ${activeCycle})` : "(All Cycles)"}
       </div>
-    )
+      <PlotProfileTool
+        profiles={renderProfiles.td}
+        profileId={activeCycle}
+        xKey="depth"
+        yKey="temperature"
+        xLabel="Depth (m)"
+        yLabel="Temperature (°C)"
+        invertY={true}
+        title={`Float_${selectedFloat}_TD_Profile`}
+      />
+    </div>
+  );
+
+  const tpCard = (
+    <div style={{ flex: "1 1 600px", minWidth: 400 }}>
+      <div style={{ fontWeight: "bold", marginBottom: 4 }}>
+        Temperature vs Pressure {activeCycle ? `(Cycle ${activeCycle})` : "(All Cycles)"}
+      </div>
+      <PlotProfileTool
+        profiles={renderProfiles.tp}
+        profileId={activeCycle}
+        xKey="temperature"
+        yKey="pressure"
+        xLabel="Temperature (°C)"
+        yLabel="Pressure (dbar)"
+        invertY={true}
+        title={`Float_${selectedFloat}_TP_Curve`}
+      />
+    </div>
   );
 
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        width: "100vw",
-        overflow: "hidden",
-      }}
-    >
+    <>
+      <FilterSidebar
+        onFilterChange={handleFilterChange}
+        isOpen={filterOpen}
+        onToggle={() => setFilterOpen(!filterOpen)}
+      />
+      
+      <div
+        style={{
+          display: "flex",
+          height: "100vh",
+          width: "100vw",
+          overflow: "hidden",
+        }}
+      >
       <div
         style={{
           width: 320,
@@ -194,8 +247,8 @@ const Dashboard = ({ onClose }) => {
             className="float-input-field"
             style={{
               paddingLeft: '36px',
-              paddingbottom:'30px',
-              marginbottom:'30px',
+              paddingbottom: '30px',
+              marginbottom: '30px',
               background: 'rgba(26, 40, 65, 0.5)',
               color: '#e2e8f0',
               border: '1px solid rgba(49, 130, 206, 0.3)',
@@ -249,23 +302,40 @@ const Dashboard = ({ onClose }) => {
         </div>
       </div>
       <div style={{ flex: 1, padding: 12, overflowY: "auto" }}>
+        {selectedFloat && (
+          <div style={{ marginBottom: 16, display: "flex", gap: 8 }}>
+            <button
+              className="view-more-btn"
+              onClick={() => setShowMetadata(!showMetadata)}
+              style={{ width: "auto", padding: "8px 16px" }}
+            >
+              {showMetadata ? "Hide" : "Show"} Metadata
+            </button>
+          </div>
+        )}
+
+        {showMetadata && selectedFloat && (
+          <div style={{ marginBottom: 16 }}>
+            <FloatMetadata floatId={selectedFloat} />
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          {tsCards}
+          {renderProfiles.ts?.length > 0 && tsCard}
+          {renderProfiles.td?.length > 0 && tdCard}
+          {renderProfiles.tp?.length > 0 && tpCard}
         </div>
-        <div style={{ height: 12 }} />
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          {tdCards}
-        </div>
-        {!renderProfiles.ts.length &&
-          !renderProfiles.td.length &&
+        {!renderProfiles.ts?.length &&
+          !renderProfiles.td?.length &&
+          !renderProfiles.tp?.length &&
           selectedFloat && (
             <div style={{ marginTop: 12, opacity: 0.85 }}>
-              No charts to display yet for the selected float/profile. Try
-              choosing a different profile.
+              No charts to display yet for the selected float.
             </div>
           )}
       </div>
     </div>
+    </>
   );
 };
 

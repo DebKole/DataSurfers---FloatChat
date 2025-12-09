@@ -44,11 +44,12 @@ Main Database: argo_indian_ocean_25
 
 #### 3. Code Changes
 
-**gemini_sql_generator.py:**
+**groq_sql_generator.py:**
 - Added `_is_cross_year_query()` method to detect multi-year date ranges
 - Updated database selection logic to use FDW views for cross-year queries
 - Enhanced prompts with FDW view information
 - Modified year extraction to handle month+year patterns
+- Uses Groq AI for intelligent SQL generation
 
 **Key changes:**
 ```python

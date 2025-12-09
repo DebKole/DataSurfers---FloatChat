@@ -232,6 +232,10 @@ async def query_answer(req: QueryRequest):
         else:
             response_data["show_map"] = False
     
+    # Add float_ids if available
+    if result.get("data_response", {}).get("float_ids"):
+        response_data["float_ids"] = result["data_response"]["float_ids"]
+    
     # Ensure JSON serializable
     return _to_jsonable(response_data)
 
@@ -442,24 +446,237 @@ async def get_ts_diagram_data(
 
 # Listing endpoints for floats and profiles
 @app.get("/api/floats")
-async def list_floats(limit: int = Query(default=1000, ge=1, le=5000), database: str = Query(default="argo_indian_ocean_25")):
+async def list_floats(
+    limit: int = Query(default=5000, ge=1, le=10000),
+    year: Optional[str] = Query(default=None),
+    basin: Optional[str] = Query(default=None),
+    data_mode: Optional[str] = Query(default=None),
+    start_date: Optional[str] = Query(default=None),
+    end_date: Optional[str] = Query(default=None)
+):
+    """Get floats from ALL databases with optional filters"""
     try:
-        res = db_executor.get_distinct_floats(database=database, limit=limit)
-        rows = res.get("data", [])
-        floats = [r.get("float_id") or r.get("FLOAT_ID") for r in rows]
-        floats = [str(f) for f in floats if f is not None]
-        return {"status": 200, "count": len(floats), "floats": floats}
+        # Build WHERE clause based on filters
+        where_clauses = []
+        
+        if year:
+            where_clauses.append(f"EXTRACT(YEAR FROM datetime) = {year}")
+        
+        if basin:
+            if basin == "Indian Ocean":
+                where_clauses.append("longitude BETWEEN 20 AND 120")
+            elif basin == "Pacific Ocean":
+                where_clauses.append("(longitude BETWEEN -180 AND -60 OR longitude BETWEEN 120 AND 180)")
+            elif basin == "Atlantic Ocean":
+                where_clauses.append("longitude BETWEEN -60 AND 20")
+        
+        if data_mode:
+            where_clauses.append(f"data_mode = '{data_mode}'")
+        
+        if start_date:
+            where_clauses.append(f"datetime >= '{start_date}'")
+        
+        if end_date:
+            where_clauses.append(f"datetime <= '{end_date}'")
+        
+        # Build SQL query
+        where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+        
+        sql = f"""
+        SELECT DISTINCT float_id
+        FROM argo_profiles
+        WHERE {where_sql}
+        ORDER BY float_id
+        LIMIT {limit};
+        """
+        
+        # Query across all databases
+        result = db_executor.execute_multi_database_query(sql, return_format="dict")
+        
+        if result.get("status") == "success":
+            rows = result.get("data", [])
+            floats = list(set([str(r.get("float_id") or r.get("FLOAT_ID")) for r in rows if r.get("float_id") or r.get("FLOAT_ID")]))
+            floats.sort()
+            return {"status": 200, "count": len(floats), "floats": floats}
+        else:
+            logger.error(f"Multi-database query failed: {result.get('error')}")
+            return {"status": 500, "error": result.get("error", "Unknown error"), "floats": []}
+            
     except Exception as e:
+        logger.error(f"Error listing floats: {e}")
         return {"status": 500, "error": str(e), "floats": []}
 
 
 @app.get("/api/floats/{float_id}/profiles")
 async def list_profiles(float_id: str, limit: int = Query(default=200, ge=1, le=2000), database: str = Query(default="argo_indian_ocean_25")):
     try:
-        res = db_executor.get_profiles_list_by_float_id(float_id=float_id, database=database, limit=limit)
+        # Use multi-db query to get full history
+        res = db_executor.get_all_profiles_list_by_float_id(float_id=float_id, limit=limit)
         return _to_jsonable({"status": 200, "profiles": res.get("data", [])})
     except Exception as e:
         return {"status": 500, "error": str(e), "profiles": []}
+
+
+@app.get("/api/floats/{float_id}/metadata")
+async def get_float_metadata(float_id: str):
+    """Get detailed metadata for a specific float"""
+    try:
+        query = """
+        SELECT DISTINCT ON (p.float_id)
+            p.float_id,
+            p.cycle_number,
+            p.datetime,
+            p.latitude,
+            p.longitude,
+            p.project_name,
+            p.institution,
+            p.data_mode,
+            p.measurement_count
+        FROM argo_profiles p
+        WHERE p.float_id = %(float_id)s
+        ORDER BY p.float_id, p.datetime DESC
+        LIMIT 1;
+        """
+        
+        df = pd.read_sql(query, engine, params={"float_id": float_id})
+        
+        if df.empty:
+            return {"status": 404, "error": f"Float {float_id} not found"}
+        
+        row = df.iloc[0]
+        
+        # Calculate age if datetime available
+        age = None
+        if pd.notna(row.get('datetime')):
+            try:
+                from datetime import datetime
+                deploy_date = pd.to_datetime(row['datetime'])
+                age_days = (datetime.now() - deploy_date).days
+                age_years = age_days / 365.25
+                age = f"{age_years:.1f} years old"
+            except:
+                pass
+        
+        metadata = {
+            "about": {
+                "wmo": str(float_id),
+                "platformMaker": row.get('institution', 'N/A'),
+                "serialNumber": str(float_id),
+                "platformType": "ARGO",
+                "transmissionSystem": row.get('data_mode', 'N/A'),
+                "ptt": "N/A",
+                "owner": row.get('institution', 'N/A'),
+                "dataCentre": row.get('institution', 'N/A'),
+                "sensors": "CTD_PRES, CTD_TEMP, CTD_CNDC"
+            },
+            "deployment": {
+                "launched": str(row.get('datetime', 'N/A'))[:10] if pd.notna(row.get('datetime')) else 'N/A',
+                "latitude": f"{row.get('latitude', 0):.4f}" if pd.notna(row.get('latitude')) else 'N/A',
+                "longitude": f"{row.get('longitude', 0):.4f}" if pd.notna(row.get('longitude')) else 'N/A',
+                "ship": "N/A",
+                "cruise": "N/A",
+                "project": row.get('project_name', 'N/A'),
+                "principalInvestigator": "N/A"
+            },
+            "cycle": {
+                "status": "Active",
+                "age": age or "N/A",
+                "lastProfileDate": str(row.get('datetime', 'N/A'))[:16] if pd.notna(row.get('datetime')) else 'N/A',
+                "cycleNumber": str(row.get('cycle_number', 'N/A')),
+                "lastSurfaceData": "N/A",
+                "lastBottomData": "N/A"
+            },
+            "raw": {
+                "float_id": str(float_id),
+                "cycle_number": int(row.get('cycle_number', 0)) if pd.notna(row.get('cycle_number')) else None,
+                "datetime": str(row.get('datetime', 'N/A')),
+                "latitude": float(row.get('latitude', 0)) if pd.notna(row.get('latitude')) else None,
+                "longitude": float(row.get('longitude', 0)) if pd.notna(row.get('longitude')) else None,
+                "project_name": str(row.get('project_name', 'N/A')),
+                "institution": str(row.get('institution', 'N/A')),
+                "data_mode": str(row.get('data_mode', 'N/A')),
+                "measurement_count": int(row.get('measurement_count', 0)) if pd.notna(row.get('measurement_count')) else 0
+            }
+        }
+        
+        return _to_jsonable(metadata)
+        
+    except Exception as e:
+        logger.error(f"Error fetching metadata for float {float_id}: {e}")
+        return {"status": 500, "error": str(e)}
+
+
+@app.get("/api/metadata/filters")
+async def get_metadata_filters():
+    """Get available filter options with counts"""
+    try:
+        # Get status counts (all floats are active in our dataset)
+        status_query = """
+        SELECT 'Active' as value, COUNT(DISTINCT float_id) as count
+        FROM argo_profiles;
+        """
+        
+        # Get year of deployment counts
+        year_query = """
+        SELECT 
+            EXTRACT(YEAR FROM datetime)::text as value,
+            COUNT(DISTINCT float_id) as count
+        FROM argo_profiles
+        WHERE datetime IS NOT NULL
+        GROUP BY EXTRACT(YEAR FROM datetime)
+        ORDER BY value DESC;
+        """
+        
+        # Get basin counts (simplified - based on longitude ranges)
+        basin_query = """
+        SELECT 
+            CASE 
+                WHEN longitude BETWEEN 20 AND 120 THEN 'Indian Ocean'
+                WHEN longitude BETWEEN -180 AND -60 OR longitude BETWEEN 120 AND 180 THEN 'Pacific Ocean'
+                WHEN longitude BETWEEN -60 AND 20 THEN 'Atlantic Ocean'
+                ELSE 'Other'
+            END as value,
+            COUNT(DISTINCT float_id) as count
+        FROM argo_profiles
+        WHERE longitude IS NOT NULL
+        GROUP BY value
+        ORDER BY count DESC;
+        """
+        
+        # Get data mode counts
+        mode_query = """
+        SELECT 
+            COALESCE(data_mode, 'Unknown') as value,
+            COUNT(DISTINCT float_id) as count
+        FROM argo_profiles
+        GROUP BY data_mode
+        ORDER BY count DESC;
+        """
+        
+        status_df = pd.read_sql(status_query, engine)
+        year_df = pd.read_sql(year_query, engine)
+        basin_df = pd.read_sql(basin_query, engine)
+        mode_df = pd.read_sql(mode_query, engine)
+        
+        return {
+            "status": [{"value": row['value'], "count": int(row['count'])} for _, row in status_df.iterrows()],
+            "yearOfDeployment": [{"value": str(int(row['value'])), "count": int(row['count'])} for _, row in year_df.iterrows() if pd.notna(row['value'])],
+            "basin": [{"value": row['value'], "count": int(row['count'])} for _, row in basin_df.iterrows()],
+            "dataMode": [{"value": row['value'], "count": int(row['count'])} for _, row in mode_df.iterrows()],
+            "country": [],
+            "telecom": []
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching filter options: {e}")
+        return {
+            "status": [],
+            "yearOfDeployment": [],
+            "basin": [],
+            "dataMode": [],
+            "country": [],
+            "telecom": []
+        }
 
 
 # Structured analysis endpoint (profile-specific)

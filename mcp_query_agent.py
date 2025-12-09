@@ -97,7 +97,7 @@ class MCPQueryAgent:
             Dictionary with response and metadata
         """
         try:
-            # Use MCP orchestrator (Gemini AI + Redis + PostgreSQL)
+            # Use MCP orchestrator (Groq AI + Redis + PostgreSQL)
             result = self.orchestrator.execute_query(query)
             
             if result['status'] == 'success':
@@ -123,13 +123,16 @@ class MCPQueryAgent:
                     'response': response,
                     'query_type': result.get('strategy', 'unknown'),
                     'has_data': True,
+
                     'table_data': table_data,  # Add structured table data
                     'chart_data': self._extract_chart_data(result),  # Add chart data
                     'show_map': show_map,
                     'map_data': map_data,
+                    'float_ids': self._extract_float_ids(result), # Add float IDs
                     'raw_result': result,
                     'gemini_powered': self._is_gemini_powered(result),
-                    'cache_hit': self._is_cache_hit(result)
+                    'cache_hit': self._is_cache_hit(result),
+                    'analysis_type': result.get('analysis_type')
                 }
             else:
                 return {
@@ -159,31 +162,91 @@ class MCPQueryAgent:
         for res in result.get('results', []):
             if isinstance(res, dict):
                 # Check for Gemini-powered analysis in multiple locations
-                if res.get('gemini_powered'):
-                    # Location 1: result.result.analysis
-                    if 'result' in res:
-                        inner = res['result']
-                        if isinstance(inner, dict) and inner.get('analysis'):
-                            print(f"   ✅ Using Gemini analysis from result.result.analysis")
-                            return inner['analysis']
-                    
-                    # Location 2: result.params.analysis
-                    if 'params' in res:
-                        params = res['params']
-                        if isinstance(params, dict) and params.get('analysis'):
-                            print(f"   ✅ Using Gemini analysis from result.params.analysis")
-                            return params['analysis']
-                    
-                    # Location 3: result.precomputed_result.analysis
-                    if 'precomputed_result' in res:
-                        precomputed = res['precomputed_result']
-                        if isinstance(precomputed, dict) and precomputed.get('analysis'):
-                            print(f"   ✅ Using Gemini analysis from result.precomputed_result.analysis")
-                            return precomputed['analysis']
-                    
-                    # If we have Gemini-powered result but no analysis, log it
-                    print(f"   ⚠️ Gemini-powered result found but no analysis extracted")
+                # Location 1: result.result.analysis
+                if 'result' in res:
+                    inner = res['result']
+                    if isinstance(inner, dict) and inner.get('analysis'):
+                        print(f"   ✅ Using Gemini analysis from result.result.analysis")
+                        return inner['analysis']
+                
+                # Location 2: result.params.analysis
+                if 'params' in res:
+                    params = res['params']
+                    if isinstance(params, dict) and params.get('analysis'):
+                        print(f"   ✅ Using Gemini analysis from result.params.analysis")
+                        return params['analysis']
+                
+                # Location 3: result.precomputed_result.analysis
+                if 'precomputed_result' in res:
+                    precomputed = res['precomputed_result']
+                    if isinstance(precomputed, dict) and precomputed.get('analysis'):
+                        print(f"   ✅ Using Gemini analysis from result.precomputed_result.analysis")
+                        return precomputed['analysis']
+                
+                # Location 4: Top-level analysis in the result object
+                if res.get('analysis'):
+                     print(f"   ✅ Using Gemini analysis from result.analysis")
+                     return res['analysis']
         
+        # Check for explicit AI errors in the result
+        if result.get('status') == 'error' and any(word in str(result.get('error', '')).lower() for word in ['gemini', 'groq', 'rate limit']):
+            return "I'm currently experiencing high traffic with my AI brain (rate limit reached). 🧠💤 I've switched to my standard data retrieval mode to still get you the data you need, but my responses might be a bit less conversational for a moment."
+        
+        # Check for vector search results with LLM summary
+        if result.get('strategy') == 'vector_only':
+            # Debug: log what we have
+            print(f"   🔍 Vector result keys: {result.keys()}")
+            print(f"   🔍 Has llm_summary: {bool(result.get('llm_summary'))}")
+            if result.get('llm_summary'):
+                print(f"   🔍 LLM summary preview: {result['llm_summary'][:100]}...")
+            
+            # First check for top-level llm_summary (correct location)
+            if result.get('llm_summary'):
+                print(f"   ✅ Using LLM summary from vector search (top-level)")
+                return result['llm_summary']
+            
+            # Legacy check: look in results array (shouldn't be needed but kept for safety)
+            for res in result.get('results', []):
+                if isinstance(res, dict) and res.get('llm_summary'):
+                    print(f"   ✅ Using LLM summary from vector search (results array)")
+                    return res['llm_summary']
+                
+                # Fallback: if we have vector results but no summary, try to use the first result
+                # BUT ONLY if the query is specifically about a float (has float ID or specific metadata keywords)
+                if isinstance(res, dict) and res.get('results') and len(res['results']) > 0:
+                    # Only use metadata fallback for specific float queries
+                    query_lower = query.lower()
+                    is_specific_float_query = (
+                        'float' in query_lower and any(char.isdigit() for char in query) or
+                        ('pi' in query_lower and 'for' in query_lower) or
+                        ('sensor' in query_lower and 'float' in query_lower) or
+                        ('project' in query_lower and 'float' in query_lower)
+                    )
+                    
+                    if not is_specific_float_query:
+                        # This is a general question, don't use metadata fallback
+                        print(f"   ⚠️ General question detected, skipping metadata fallback")
+                        continue
+                    
+                    top_hit = res['results'][0]
+                    # Check if this looks like metadata
+                    meta = top_hit.get('metadata', {})
+                    if meta:
+                        # Construct a simple answer from metadata if relevant keys exist
+                        if 'PI_NAME' in meta and ('pi' in query_lower or 'investigator' in query_lower):
+                            return f"The Principal Investigator (PI) for this float is {meta['PI_NAME']}."
+                        if 'PROJECT_NAME' in meta and 'project' in query_lower:
+                            return f"This float belongs to the {meta['PROJECT_NAME']} project."
+                        if 'SENSOR' in meta and 'sensor' in query_lower:
+                             return f"This float carries: {meta['SENSOR']}."
+                        if 'DEPLOYMENT_PLATFORM' in meta and 'deployed' in query_lower:
+                             return f"This float was deployed by {meta['DEPLOYMENT_PLATFORM']}."
+                    
+                    # Generic fallback
+                    desc = top_hit.get('description', '')
+                    if desc:
+                        return f"Here is what I found: {desc}"
+
         # Fallback: Extract data and create basic summary
         total_rows = 0
         data_sources = result.get('data_sources', [])
@@ -191,6 +254,22 @@ class MCPQueryAgent:
         actual_data = []
         
         for res in result.get('results', []):
+            # Handle Vector Search results (list of docs) for table data
+            if isinstance(res, dict) and 'results' in res and isinstance(res['results'], list):
+                 hits = res['results']
+                 if hits:
+                     # Add to actual_data for summary stats
+                     # Flatten metadata for processing
+                     for hit in hits:
+                         row = hit.get('metadata', {}).copy()
+                         row['description'] = hit.get('description')
+                         # Add standard fields if missing
+                         if 'float_id' not in row and hit.get('float_id'):
+                             row['float_id'] = hit['float_id']
+                         actual_data.append(row)
+                     total_rows += len(hits)
+                     continue
+
             if isinstance(res, dict):
                 if 'result' in res and isinstance(res['result'], dict):
                     inner = res['result']
@@ -226,6 +305,20 @@ For general information about Argo floats or the system, try asking "What are Ar
                 
                 # Unique floats
                 unique_floats = len({str(d.get('float_id')) for d in actual_data if d.get('float_id')})
+                
+                # Check if the user asked for a list of floats (e.g. "List floats...")
+                is_list_query = "list" in query.lower() or "what floats" in query.lower() or "which floats" in query.lower()
+                
+                if is_list_query and unique_floats > 0:
+                     # If it's a list query, give a direct answer
+                    float_ids = sorted(list({str(d.get('float_id')) for d in actual_data if d.get('float_id')}))
+                    if len(float_ids) <= 10:
+                        response = f"I found {len(float_ids)} floats matching your criteria: {', '.join(float_ids)}. 🚢"
+                    else:
+                        response = f"I found {len(float_ids)} floats matching your criteria, including {', '.join(float_ids[:5])} and others. 🚢"
+                    response += " You can see the full list in the table."
+                    return response
+
                 if unique_floats:
                     summary_parts.append(f"{unique_floats} floats")
 
@@ -272,14 +365,28 @@ For general information about Argo floats or the system, try asking "What are Ar
                 if 'temperature' in sample:
                     temps = [d.get('temperature') for d in actual_data if isinstance(d.get('temperature'), (int,float))]
                     if temps:
-                        summary_parts.append(f"T {min(temps):.1f}–{max(temps):.1f}°C")
+                        summary_parts.append(f"temperatures from {min(temps):.1f} to {max(temps):.1f}°C")
                 if 'salinity' in sample:
                     sals = [d.get('salinity') for d in actual_data if isinstance(d.get('salinity'), (int,float))]
                     if sals:
-                        summary_parts.append(f"S {min(sals):.1f}–{max(sals):.1f} PSU")
+                        summary_parts.append(f"salinity from {min(sals):.1f} to {max(sals):.1f} PSU")
 
-            summary = "; ".join(summary_parts) if summary_parts else f"{total_rows} records"
-            response = f"Found {summary}. See the table for details."
+            # Construct conversational response
+            response = f"I found data for {unique_floats} floats! 🌊 "
+            
+            details = []
+            if profiles:
+                details.append(f"{profiles} profiles")
+            
+            if dts:
+                details.append(f"covering {min(dts).date()} to {max(dts).date()}")
+                
+            if details:
+                response += f"Here are the details for {', '.join(details)}. "
+            else:
+                response += "Here are the details. "
+                
+            response += "Check out the table on the right for the full dataset. 📊"
             
         else:
             # More helpful fallback message
@@ -309,40 +416,41 @@ For general information about Argo floats or the system, try asking "What are Ar
             profiles = analysis_result.get('profiles', [])
             if profiles and profiles[0].get('measurements'):
                 count = len(profiles[0]['measurements'])
-                return f"I generated a temperature trend analysis with {count} smoothed data points. The trend shows temperature variations over time for your query."
+                return f"I've analyzed the temperature trends for you! 🌡️ The chart on the right shows how temperature has changed over time, based on {count} data points. It's a great way to spot warming or cooling patterns."
         
         elif analysis_type == 'sal_trend':
             profiles = analysis_result.get('profiles', [])
             if profiles and profiles[0].get('measurements'):
                 count = len(profiles[0]['measurements'])
-                return f"I generated a salinity trend analysis with {count} smoothed data points. The trend shows salinity variations over time for your query."
+                return f"Here is the salinity trend analysis you requested. 🧂 I used {count} data points to visualize salinity variations over time. Take a look at the chart to see the patterns."
         
         elif analysis_type == 'ts_curve':
             profiles = analysis_result.get('profiles', [])
             if profiles and profiles[0].get('measurements'):
-                count = len(profiles[0]['measurements'])
-                return f"I generated a Temperature-Salinity (T-S) curve with {count} data points. This curve shows the relationship between temperature and salinity in the water column."
+                # Count total measurements across all profiles for a more impressive number
+                total_count = sum(len(p.get('measurements', [])) for p in profiles)
+                return f"I've generated the T-S curve for you! 📉 This diagram plots Temperature vs. Salinity using {total_count} data points across {len(profiles)} profiles. It's essential for identifying water masses and understanding density layers."
         
         elif analysis_type == 'td_curve':
             profiles = analysis_result.get('profiles', [])
             if profiles and profiles[0].get('measurements'):
-                count = len(profiles[0]['measurements'])
-                return f"I generated a Temperature-Depth (T-D) profile with {count} data points. This profile shows how temperature varies with depth."
+                total_count = sum(len(p.get('measurements', [])) for p in profiles)
+                return f"Here is the Temperature-Depth profile! 🌊 I've plotted {total_count} points to show how temperature changes as you go deeper. You can clearly see the thermocline and other vertical structures."
         
         elif analysis_type == 'comparison':
             profiles = analysis_result.get('profiles', [])
             if profiles:
                 labels = [p.get('label', 'Unknown') for p in profiles]
-                return f"I compared {len(profiles)} datasets: {', '.join(labels)}. The comparison includes statistical summaries and curve data for each dataset."
+                return f"Comparison complete! ⚖️ I've analyzed {len(profiles)} datasets: {', '.join(labels)}. Check out the side-by-side statistics and curves to see how they differ."
         
         elif analysis_type == 'statistics':
             profiles = analysis_result.get('profiles', [])
             if profiles and profiles[0].get('measurements'):
                 variables = [m.get('variable') for m in profiles[0]['measurements']]
-                return f"I computed statistical summaries for {', '.join(variables)}. The analysis includes count, mean, median, standard deviation, min, and max values."
+                return f"I've crunched the numbers! 🔢 Here are the statistical summaries for {', '.join(variables)}, including mean, median, and extremes. It gives you a quick snapshot of the data distribution."
         
         # Default response
-        return f"I completed the {analysis_type} analysis. Check the results in the table on the right."
+        return f"Analysis complete! ✅ I've processed the {analysis_type} data for you. You can explore the detailed results in the table and charts on the right."
     
     def _should_show_map(self, result: dict) -> bool:
         """Determine if results should be shown on map"""
@@ -380,16 +488,44 @@ For general information about Argo floats or the system, try asking "What are Ar
             analysis_result = result.get('analysis_result', {})
             profiles = analysis_result.get('profiles', [])
             
-            if profiles and profiles[0].get('measurements'):
-                measurements = profiles[0]['measurements']
-                if measurements and len(measurements) > 0:
-                    table_data['columns'] = list(measurements[0].keys())
-                    table_data['rows'] = measurements
-                    table_data['total_rows'] = len(measurements)
-                    return table_data
+            all_measurements = []
+            for profile in profiles:
+                if profile.get('measurements'):
+                    # Add profile metadata to measurements if missing
+                    measurements = profile['measurements']
+                    for m in measurements:
+                        # Ensure float_id and cycle_number are present for grouping
+                        if 'float_id' not in m and 'float_id' in profile:
+                            m['float_id'] = profile['float_id']
+                        if 'cycle_number' not in m and 'cycle_number' in profile:
+                            m['cycle_number'] = profile['cycle_number']
+                    
+                    all_measurements.extend(measurements)
+            
+            if all_measurements:
+                table_data['columns'] = list(all_measurements[0].keys())
+                table_data['rows'] = all_measurements
+                table_data['total_rows'] = len(all_measurements)
+                return table_data
         
         # Handle regular data results
         for res in result.get('results', []):
+            # Handle Vector Search results (list of docs) for table data
+            if isinstance(res, dict) and 'results' in res and isinstance(res['results'], list):
+                 hits = res['results']
+                 if hits:
+                     # Flatten metadata for table
+                     table_rows = []
+                     for hit in hits:
+                         row = {'description': hit.get('description')}
+                         row.update(hit.get('metadata', {}))
+                         table_rows.append(row)
+                     
+                     table_data['columns'] = list(table_rows[0].keys())
+                     table_data['rows'] = table_rows
+                     table_data['total_rows'] = len(table_rows)
+                     return table_data
+
             if isinstance(res, dict) and 'result' in res:
                 inner = res['result']
                 if isinstance(inner, dict) and 'data' in inner:
@@ -565,6 +701,30 @@ For general information about Argo floats or the system, try asking "What are Ar
         
         return map_data
     
+    def _extract_float_ids(self, result: dict) -> list:
+        """Extract unique float IDs from result data"""
+        float_ids = set()
+        
+        # Check intent entities first
+        if 'query_metadata' in result:
+            entities = result['query_metadata'].get('intent_analysis', {}).get('entities', {})
+            if entities.get('float_ids'):
+                float_ids.update(str(f) for f in entities['float_ids'])
+        
+        # Check actual data results
+        for res in result.get('results', []):
+            if isinstance(res, dict) and 'result' in res:
+                inner = res['result']
+                if isinstance(inner, dict) and 'data' in inner:
+                    data = inner['data']
+                    for item in data:
+                        if 'float_id' in item:
+                            float_ids.add(str(item['float_id']))
+                        elif 'FLOAT_ID' in item:
+                            float_ids.add(str(item['FLOAT_ID']))
+                            
+        return list(float_ids)
+
     def _is_gemini_powered(self, result: dict) -> bool:
         """Check if query used Gemini AI"""
         for res in result.get('results', []):

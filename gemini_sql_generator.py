@@ -66,7 +66,7 @@ class GeminiSQLGenerator:
                     is_nullable
                 FROM information_schema.columns 
                 WHERE table_schema = 'public' 
-                  AND table_name IN ('argo_profiles', 'argo_measurements')
+                  AND table_name IN ('argo_profiles', 'argo_measurements', 'all_argo_profiles')
                 ORDER BY table_name, ordinal_position;
                 """
                 
@@ -75,13 +75,14 @@ class GeminiSQLGenerator:
                 # Format schema for Gemini
                 schema_text = "DATABASE SCHEMA:\n\n"
                 
-                for table in ['argo_profiles', 'argo_measurements']:
+                for table in ['argo_profiles', 'argo_measurements', 'all_argo_profiles']:
                     table_cols = df[df['table_name'] == table]
-                    schema_text += f"Table: {table}\n"
-                    for _, row in table_cols.iterrows():
-                        nullable = "NULL" if row['is_nullable'] == 'YES' else "NOT NULL"
-                        schema_text += f"  - {row['column_name']}: {row['data_type']} ({nullable})\n"
-                    schema_text += "\n"
+                    if not table_cols.empty:
+                        schema_text += f"Table: {table}\n"
+                        for _, row in table_cols.iterrows():
+                            nullable = "NULL" if row['is_nullable'] == 'YES' else "NOT NULL"
+                            schema_text += f"  - {row['column_name']}: {row['data_type']} ({nullable})\n"
+                        schema_text += "\n"
                 
                 # Add sample data context
                 sample_query = """
@@ -133,6 +134,14 @@ class GeminiSQLGenerator:
                 schema_text += "- Southern Indian Ocean: longitude 20-120, latitude -40-0\n"
                 schema_text += "- Northern Indian Ocean: longitude 20-120, latitude >30\n\n"
                 
+                # Add specific instructions for the unified view
+                schema_text += """
+IMPORTANT NOTES:
+1. 'all_argo_profiles' is a unified view covering data from 2015 to 2025.
+2. ALWAYS use 'all_argo_profiles' when searching for a specific float_id, as it might exist in any year.
+3. Use 'argo_profiles' only when you are sure the data is from 2025 or when specifically asked for 2025 data.
+4. The 'source_year' column in 'all_argo_profiles' indicates which year database the record came from.
+"""
                 return schema_text
                 
         except Exception as e:
@@ -190,17 +199,17 @@ class GeminiSQLGenerator:
         
         # Look for date range patterns
         range_patterns = [
-            r'between\s+(\w+)\s+(20\d{2})\s+and\s+(\w+)\s+(20\d{2})',  # between Nov 2016 and Feb 2017
-            r'from\s+(\w+)\s+(20\d{2})\s+to\s+(\w+)\s+(20\d{2})',      # from Nov 2016 to Feb 2017
-            r'(\w+)\s+(20\d{2})\s+to\s+(\w+)\s+(20\d{2})',             # Nov 2016 to Feb 2017
-            r'(20\d{2})\s*-\s*(20\d{2})',                               # 2016-2017
+            r'between\s+.*?(20\d{2})\s+and\s+.*?(20\d{2})',  # between ... 2022 and ... 2023
+            r'from\s+.*?(20\d{2})\s+to\s+.*?(20\d{2})',      # from ... 2022 to ... 2023
+            r'(20\d{2})\s*-\s*(20\d{2})',                    # 2022-2023
+            r'(20\d{2})\s+to\s+(20\d{2})',                   # 2022 to 2023
         ]
         
         for pattern in range_patterns:
             match = re.search(pattern, user_query.lower())
             if match:
                 # Extract years from the match
-                years = [int(y) for y in re.findall(r'20\d{2}', match.group(0))]
+                years = [int(y) for y in match.groups()]
                 if len(years) >= 2 and years[0] != years[1]:
                     return True
         
@@ -218,17 +227,19 @@ class GeminiSQLGenerator:
         """
         import re
         
+        # Look for 4-digit years (2015-2025)
+        # Find all matches and take the first valid one, or the most recent one if multiple?
+        # Usually the first mentioned year is a good anchor.
+        year_matches = re.findall(r'\b(20[12][0-9])\b', user_query)
+        for y_str in year_matches:
+            year = int(y_str)
+            if 2015 <= year <= 2025:
+                return year
+        
         # Look for month names with years (e.g., "November 2016", "February 2017")
         month_year_match = re.search(r'(january|february|march|april|may|june|july|august|september|october|november|december)\s+(20[12][0-9])', user_query.lower())
         if month_year_match:
             year = int(month_year_match.group(2))
-            if 2015 <= year <= 2025:
-                return year
-        
-        # Look for 4-digit years (2015-2025)
-        year_match = re.search(r'\b(20[12][0-9])\b', user_query)
-        if year_match:
-            year = int(year_match.group(1))
             if 2015 <= year <= 2025:
                 return year
         
@@ -284,10 +295,11 @@ FOREIGN DATA WRAPPER (FDW) VIEWS:
 DATABASE SELECTION RULES (with Foreign Data Wrapper):
 1. **CRITICAL**: Determine which year(s) the user is asking about
 2. **CROSS-YEAR QUERIES** (date range spans multiple years):
-   - Use database: argo_indian_ocean_25 (main database with FDW views)
-   - Use tables: all_years_argo_profiles and all_years_argo_measurements
-   - Example: "November 2016 to February 2017" → Use all_years_argo_profiles
+   - **MANDATORY**: Use database `argo_indian_ocean_25` (main database with FDW views)
+   - **MANDATORY**: Use tables `all_years_argo_profiles` and `all_years_argo_measurements`
+   - Example: "November 2016 to February 2017" → Use `all_years_argo_profiles`
    - These views automatically query across all year databases (2015-2025)
+   - **DO NOT** try to join tables from different databases manually. Use the views.
 3. **SINGLE-YEAR QUERIES** (date range within one year):
    - Use specific year database: argo_indian_ocean_YY (e.g., argo_indian_ocean_16 for 2016)
    - Use regular tables: argo_profiles and argo_measurements
@@ -793,40 +805,28 @@ Provide your analysis:
         
         # Previously: auto-appended LIMIT 100 for safety on non-aggregated queries.
         # Requirement: return complete datasets for CSV export; UI will handle preview slicing.
-        # Therefore, do NOT append a LIMIT here.
+        # However, returning 70k+ rows (full float history) causes the server to hang/timeout.
+        # We MUST impose a reasonable limit for the chat interface.
+        # If the user needs full data, we should implement a specific export flow.
+        # For now, limit to 2500 rows to prevent freezing.
+        
         sql_lower = generated_sql.lower()
-        has_aggregation = any(keyword in sql_lower for keyword in ['group by', 'avg(', 'sum(', 'count(', 'min(', 'max('])
-        if has_aggregation:
-            print("✅ Aggregated query - no LIMIT added")
+        if 'limit' not in sql_lower:
+            print("⚠️ No LIMIT clause found. Appending LIMIT 2500 for safety.")
+            generated_sql += " LIMIT 2500"
         else:
             print("ℹ️ No LIMIT appended; returning full result set by request")
+            
+        # Execute the query
+        print(f"🚀 Executing query on {target_database}...")
+        execution_result = self.execute_generated_query(generated_sql, target_database)
         
-        # Step 3: Execute query on the determined database
-        execution_result = self.execute_generated_query(generated_sql, database=target_database)
+        # Analyze results
+        print("🧠 Analyzing results with Gemini AI...")
+        analysis = self.analyze_results(user_query, generated_sql, execution_result)
+        print(f"✅ Analysis: {analysis[:100]}...")
         
-        # Step 4: Analyze results with Gemini (always attempt, even if no data)
-        analysis = ""
-        if execution_result["status"] == "success":
-            print("🧠 Analyzing results with Gemini AI...")
-            analysis = self.analyze_results(user_query, generated_sql, execution_result)
-            if analysis:
-                print(f"✅ Analysis: {analysis[:100]}...")
-            else:
-                print("⚠️ No analysis generated, using fallback")
-                analysis = self._generate_basic_summary(user_query, execution_result)
-        else:
-            print(f"❌ Query execution failed: {execution_result.get('error', 'Unknown error')}")
-        
-        # Combine results - ensure execution has proper structure
-        if "row_count" not in execution_result:
-            execution_result["row_count"] = 0
-        if "data" not in execution_result:
-            execution_result["data"] = []
-        if "columns" not in execution_result:
-            execution_result["columns"] = []
-        
-        # Add analysis to execution result for easier access
-        execution_result["analysis"] = analysis
+
         
         # Combine results
         return {
